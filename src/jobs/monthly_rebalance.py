@@ -65,6 +65,7 @@ def run_monthly_rebalance(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Monthly rebalance signal job.")
     parser.add_argument("--signal-date", default=None, help="YYYY-MM-DD month-end trading day.")
+    parser.add_argument("--run-id", default=None, help="Override the run id (reruns).")
     parser.add_argument("--config", default="config.yaml", help="Path to config.yaml.")
     return parser
 
@@ -93,7 +94,8 @@ def main(argv: list[str] | None = None, store_factory=None, research_fn=None) ->
         return 1
     try:
         result = run_monthly_rebalance(
-            signal_date, settings, store, research_fn=research_fn or run_research
+            signal_date, settings, store, run_id=args.run_id,
+            research_fn=research_fn or run_research,
         )
     except ValueError as exc:
         print(f"monthly rebalance rejected: {exc}", file=sys.stderr)

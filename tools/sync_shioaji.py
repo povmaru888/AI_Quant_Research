@@ -31,6 +31,7 @@ from integrations.shioaji_prices import (  # noqa: E402
     fetch_daily_prices,
     fetch_taiex_daily,
 )
+from runtime.cli import parse_symbols  # noqa: E402
 from runtime.db_store import build_store  # noqa: E402
 from runtime.dotenv import load_dotenv  # noqa: E402
 from settings import load_settings  # noqa: E402
@@ -80,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     store = build_store(settings)
     if args.symbols:
-        symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
+        symbols = parse_symbols(args.symbols)
     elif args.symbols_file:
         symbols = [
             line.strip()

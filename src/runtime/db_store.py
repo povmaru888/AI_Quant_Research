@@ -554,6 +554,9 @@ class DbStore:
         frame = predictions.copy()
         frame["run_id"] = run_id
         frame["model_version"] = model_version
+        if "probability" in frame.columns and "prediction_probability" not in frame.columns:
+            # Service contract (xgb_service) vs schema (P1-09) naming.
+            frame = frame.rename(columns={"probability": "prediction_probability"})
         with self._scope() as session:
             return research_repo.save_predictions(session, frame)
 
@@ -688,10 +691,12 @@ class DbStore:
             [
                 {"stock_id": s, "rank": int(r), "prediction_probability": float(p)}
                 for s, r, p in preds
-            ]
+            ],
+            columns=["stock_id", "rank", "prediction_probability"],
         )
         feat_frame = pd.DataFrame(
-            [{"stock_id": s, "volatility_60d": v, "beta_60d": b} for s, v, b in feats]
+            [{"stock_id": s, "volatility_60d": v, "beta_60d": b} for s, v, b in feats],
+            columns=["stock_id", "volatility_60d", "beta_60d"],
         )
         if not frame.empty:
             frame = frame.merge(pred_frame, on="stock_id", how="left")

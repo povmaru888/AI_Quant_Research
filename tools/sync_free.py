@@ -30,6 +30,7 @@ from integrations.finmind_fundamentals import (  # noqa: E402
     fetch_institutional,
 )
 from integrations.finmind_prices import fetch_prices  # noqa: E402
+from runtime.cli import parse_symbols  # noqa: E402
 from runtime.db_store import build_store  # noqa: E402
 from runtime.dotenv import load_dotenv  # noqa: E402
 from settings import get_finmind_token, load_settings  # noqa: E402
@@ -85,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
     end = args.end or _date.today().isoformat()
     store = build_store(settings)
     if args.symbols:
-        symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
+        symbols = parse_symbols(args.symbols)
     elif args.symbols_file:
         symbols = [
             line.strip()

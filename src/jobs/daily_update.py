@@ -83,6 +83,7 @@ def _default_as_of(store: DailyStore) -> date:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Daily market data update job.")
     parser.add_argument("--as-of", default=None, help="YYYY-MM-DD; defaults to latest trade date.")
+    parser.add_argument("--run-id", default=None, help="Override the run id (reruns).")
     parser.add_argument("--config", default="config.yaml", help="Path to config.yaml.")
     return parser
 
@@ -111,7 +112,7 @@ def main(argv: list[str] | None = None, store_factory=None) -> int:
         return 1
     token = get_finmind_token(settings)
     try:
-        result = run_daily_update(as_of, settings, store, token)
+        result = run_daily_update(as_of, settings, store, token, run_id=args.run_id)
     except Exception as exc:
         print(f"daily update failed: {exc}", file=sys.stderr)
         return 1

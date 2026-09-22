@@ -162,7 +162,8 @@ def test_research_loads_and_saves(store: DbStore, sample_prices: pd.DataFrame) -
     preds = pd.DataFrame(
         {
             "stock_id": ["2330", "0050"],
-            "prediction_probability": [0.7, 0.4],
+            # Service-side name; the store maps it to prediction_probability.
+            "probability": [0.7, 0.4],
             "rank": [1, 2],
             "prediction_date": [AS_OF, AS_OF],
         }
@@ -179,6 +180,10 @@ def test_research_loads_and_saves(store: DbStore, sample_prices: pd.DataFrame) -
     )
     store.save_target_holdings(target)
     assert store.load_previous_positions()["stock_id"].tolist() == ["2330"]
+    holdings = store.load_holdings("rebalance-2020-02-05", AS_OF)
+    assert len(holdings) == 2
+    assert holdings["volatility_60d"].isna().all()  # features never persisted.
+    assert holdings.set_index("stock_id").loc["2330", "weight"] == pytest.approx(0.1)
 
 
 def _execution_frame() -> pd.DataFrame:
@@ -286,6 +291,8 @@ def test_dashboard_reads(store: DbStore, sample_prices: pd.DataFrame) -> None:
         "volatility_60d",
         "beta_60d",
     ]
+    # No features table rows: holdings still resolve (vol/beta NaN).
+    assert holdings["volatility_60d"].isna().all()
     risk = store.load_risk("rebalance-2020-02-05")
     assert set(risk) == {
         "equity_exposure",

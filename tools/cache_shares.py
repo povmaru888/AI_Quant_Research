@@ -28,6 +28,7 @@ from sqlalchemy import select  # noqa: E402
 from database import create_engine_from_settings, session_scope  # noqa: E402
 from integrations.yfinance_prices import to_yahoo_symbol  # noqa: E402
 from models.security import Stock  # noqa: E402
+from runtime.cli import parse_symbols  # noqa: E402
 from runtime.db_store import default_shares_path  # noqa: E402
 from settings import load_settings  # noqa: E402
 
@@ -46,6 +47,25 @@ def _fetch_one(ticker: str, delay: float) -> dict | None:
         except Exception:  # noqa: BLE001 - per-symbol isolation.
             time.sleep(delay * 5)
     return None
+
+
+def _fetch_etf_assets(stock_id: str, ticker: str) -> dict | None:
+    """Slow-info fallback for ETFs: totalAssets stands in for market cap.
+
+    Only for short codes (plain stocks/ETFs); 6+ char codes are auction
+    notes and warrants Yahoo never carries.
+    """
+    import yfinance as yf
+
+    if len(stock_id) > 5:
+        return None
+    try:
+        assets = yf.Ticker(ticker).info.get("totalAssets")
+    except Exception:  # noqa: BLE001 - per-symbol isolation.
+        return None
+    if not isinstance(assets, (int, float)) or not assets > 0:
+        return None
+    return {"shares": None, "market_cap": float(assets)}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -67,7 +87,8 @@ def main(argv: list[str] | None = None) -> int:
         print("shares cache needs a file database_url", file=sys.stderr)
         return 2
     cache: dict = {}
-    if cache_path.is_file() and not args.refresh:
+    if cache_path.is_file():
+        # Always merge: a --symbols subset run must never wipe the cache.
         try:
             cache = json.loads(cache_path.read_text(encoding="utf-8"))
         except ValueError:
@@ -82,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
         engine.dispose()
     symbols = [(s, m) for s, m in universe if s != "TAIEX"]
     if args.symbols:
-        wanted = {s.strip() for s in args.symbols.split(",") if s.strip()}
+        wanted = set(parse_symbols(args.symbols))
         symbols = [(s, m) for s, m in symbols if s in wanted]
     if args.skip_file and Path(args.skip_file).is_file():
         skipped = set(Path(args.skip_file).read_text(encoding="utf-8").split())
@@ -101,6 +122,8 @@ def main(argv: list[str] | None = None) -> int:
             entry = _fetch_one(ticker, args.delay)
         if entry is None:
             entry = _fetch_one(to_yahoo_symbol(stock_id, "TPEX"), args.delay)
+        if entry is None:
+            entry = _fetch_etf_assets(stock_id, ticker)
         time.sleep(args.delay)
         if entry is None:
             failed.append(stock_id)
