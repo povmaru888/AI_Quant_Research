@@ -36,3 +36,4 @@ logs/
 
 # Shioaji client log
 shioaji.log
+database/shares*.json
