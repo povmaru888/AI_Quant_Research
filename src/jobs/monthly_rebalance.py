@@ -106,8 +106,10 @@ def main(argv: list[str] | None = None, store_factory=None, research_fn=None) ->
 
 
 def _build_store(settings: Settings) -> RebalanceStore:
-    """Assemble the database-backed store (Phase 5 wiring point)."""
-    raise NotImplementedError("database-backed RebalanceStore lands in Phase 5")
+    """Assemble the database-backed store (runtime wiring)."""
+    from runtime.db_store import build_store
+
+    return build_store(settings)
 
 
 if __name__ == "__main__":

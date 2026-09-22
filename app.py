@@ -79,7 +79,10 @@ def _default_pages() -> dict[str, Callable]:
 
 
 def _dashboard_store():
-    raise RuntimeError("no dashboard store connected (Phase 5 wires the database)")
+    """Return the database-backed store (runtime wiring)."""
+    from runtime.db_store import build_store
+
+    return build_store(_default_load_settings())
 
 
 def main(

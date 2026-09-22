@@ -117,8 +117,10 @@ def main(argv: list[str] | None = None, store_factory=None) -> int:
 
 
 def _build_store(settings: Settings) -> DailyStore:
-    """Assemble the database-backed store (Phase 5 wiring point)."""
-    raise NotImplementedError("database-backed DailyStore lands in Phase 5")
+    """Assemble the database-backed store (runtime wiring)."""
+    from runtime.db_store import build_store
+
+    return build_store(settings)
 
 
 if __name__ == "__main__":
