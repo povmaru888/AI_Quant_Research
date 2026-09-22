@@ -30,3 +30,6 @@ Thumbs.db
 # Outputs
 outputs/
 reports/
+
+# Local run logs
+logs/
