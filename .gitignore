@@ -33,3 +33,6 @@ reports/
 
 # Local run logs
 logs/
+
+# Shioaji client log
+shioaji.log
