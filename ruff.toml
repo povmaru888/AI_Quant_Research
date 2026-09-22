@@ -1,0 +1,15 @@
+# P0-06: ruff lint + format rules (ruff==0.16.8, see requirements.txt).
+# Scope: src/ and tests/ only. Keep the rule set to what the codebase
+# satisfies: errors, pyflakes, import order, py310 upgrades, common bugs.
+target-version = "py310"
+line-length = 100
+
+[lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+
+[lint.isort]
+force-single-line = false

@@ -1,0 +1,73 @@
+name: Security
+
+# P5-06: dependency audit + secret/sensitive-file scan on every push and PR.
+# No secrets are used or echoed here; findings fail the job loudly.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Dependency audit (pip-audit)
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
+
+      - name: Secret scan (suspected values)
+        run: |
+          python - <<'EOF'
+          import re
+          from pathlib import Path
+
+          PATTERN = re.compile(
+              r"AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,}|xox[bap]-[A-Za-z0-9-]+"
+              r"|BEGIN [A-Z ]*PRIVATE KEY|sk-(live|test)-[A-Za-z0-9]{10,}"
+          )
+          # Generated artifacts are never committed; skip them so test
+          # fixtures compiled to bytecode cannot trip the scan.
+          SKIPPED_PARTS = (".git/", "__pycache__/", ".pytest_cache/", ".ruff_cache/")
+          offenders = [
+              str(path)
+              for path in Path(".").rglob("*")
+              if path.is_file()
+              and not any(part in path.as_posix() for part in SKIPPED_PARTS)
+              and path.suffix not in (".db", ".sqlite", ".sqlite3")
+              and not path.name.endswith(".example")
+              and PATTERN.search(
+                  path.read_text(encoding="utf-8", errors="ignore")
+              )
+          ]
+          if offenders:
+              raise SystemExit(f"suspected secrets in: {offenders}")
+          print("secret scan clean")
+          EOF
+
+      - name: Sensitive file guard (.env, SQLite databases)
+        run: |
+          if git rev-parse --verify HEAD >/dev/null 2>&1; then
+            CHANGED=$(git diff --name-only HEAD $(git rev-list --max-parents=0 HEAD | head -1) -- 2>/dev/null || git ls-files)
+          else
+            CHANGED=$(git ls-files 2>/dev/null || echo "")
+          fi
+          echo "$CHANGED" | python -c "
+          import re, sys
+          names = [line.strip() for line in sys.stdin if line.strip()]
+          bad = [n for n in names if re.search(r'(^|/)\.env$|\.db$|\.sqlite3?\$', n) and not n.endswith('.example')]
+          if bad:
+              sys.exit('refusing sensitive files: ' + ', '.join(bad))
+          print('file guard clean')
+          "

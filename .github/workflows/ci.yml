@@ -1,0 +1,34 @@
+name: CI
+
+# P0-08: install -> lint -> unit test. No secrets are used or echoed here.
+on:
+  push:
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Check dependencies
+        run: pip check
+
+      - name: Lint (ruff check)
+        run: ruff check src tests
+
+      - name: Format check (ruff format)
+        run: ruff format --check src tests
+
+      - name: Unit tests
+        run: python -m pytest -q

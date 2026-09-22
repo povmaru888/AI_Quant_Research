@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+*.egg-info/
+
+# Secrets & local config
+.env
+!.env.example
+
+# Data (reproducible via migrations + jobs; never commit live DBs)
+*.db
+*.sqlite
+*.sqlite3
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# LibreOffice lock files
+.~lock.*#
+
+# Outputs
+outputs/
+reports/

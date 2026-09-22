@@ -1,0 +1,352 @@
+"""P2-04: raw factor service (SDD section 9.2).
+
+Computes the 30 SDD factor columns from a PIT snapshot plus price
+history. Only data available at ``as_of`` is used; zero denominators
+never yield infinities (they become NaN and raise ``missing_flag``).
+
+MVP approximations (documented, revisit with richer ETL):
+- Valuation yields use the latest announced fundamentals over current
+  market cap (``as_of_close * float_shares``); negative yields are
+  masked to NaN per SDD 9.3 instead of reading as cheap.
+- ``revenue_yoy`` compares the latest announced revenue with the
+  5th-latest (~one year of quarterly reports); ``revenue_mom`` and
+  ``operating_income_qoq`` compare consecutive announcements.
+- ``dividend_yield`` has no ETL source yet and stays NaN (visible in
+  coverage diagnostics); the column still exists per the 30-factor spec.
+- Full windows are required (e.g. 121 closes for 120d momentum);
+  short windows yield NaN rather than a degraded short-window value.
+"""
+
+from __future__ import annotations
+
+from datetime import date
+
+import numpy as np
+import pandas as pd
+
+FACTOR_COLUMNS: tuple[str, ...] = (
+    "momentum_20d",
+    "momentum_60d",
+    "momentum_120d",
+    "momentum_20d_ex_5d",
+    "ma20_ma60_gap",
+    "rsi14",
+    "price_ma20_gap",
+    "volume_ma20_ma60",
+    "earnings_yield",
+    "book_to_market",
+    "sales_yield",
+    "dividend_yield",
+    "roe",
+    "roa",
+    "revenue_yoy",
+    "revenue_mom",
+    "operating_income_qoq",
+    "accrual_assets",
+    "volatility_60d",
+    "beta_60d",
+    "max_drawdown_120d",
+    "turnover_60d",
+    "foreign_net_buy_float",
+    "trust_net_buy_float",
+    "margin_balance_change",
+    "close_60d_high",
+    "log_market_cap",
+    "amihud_illiquidity",
+    "short_margin_ratio",
+    "operating_margin",
+)
+
+_MARKET_ID = "TAIEX"
+_PRICE_KEYS = ("stock_id", "trade_date", "open", "high", "low", "close", "volume", "traded_value")
+_TRADING_DAYS_PER_YEAR = 252
+
+
+def _safe_div(numerator: object, denominator: object) -> float:
+    """Divide, returning NaN for zero/missing/non-finite inputs."""
+    try:
+        num = float(numerator)  # type: ignore[arg-type]
+        den = float(denominator)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return float("nan")
+    if not np.isfinite(num) or not np.isfinite(den) or den == 0:
+        return float("nan")
+    result = num / den
+    return result if np.isfinite(result) else float("nan")
+
+
+def _num(value: object) -> float:
+    """Coerce a snapshot cell to finite float, else NaN."""
+    try:
+        result = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return float("nan")
+    return result if np.isfinite(result) else float("nan")
+
+
+def _strict_mean(values: np.ndarray) -> float:
+    if len(values) == 0 or not np.all(np.isfinite(values)):
+        return float("nan")
+    return float(np.mean(values))
+
+
+def _momentum(closes: np.ndarray, lookback: int, skip: int = 0) -> float:
+    if len(closes) < lookback + 1 + skip:
+        return float("nan")
+    return _safe_div(closes[-1 - skip], closes[-1 - skip - lookback]) - 1
+
+
+def _mean_tail(values: np.ndarray, window: int) -> float:
+    if len(values) < window:
+        return float("nan")
+    tail = values[-window:].astype(float)
+    if not np.all(np.isfinite(tail)):
+        return float("nan")
+    return float(np.mean(tail))
+
+
+def _rsi14(closes: np.ndarray) -> float:
+    if len(closes) < 15:
+        return float("nan")
+    diffs = np.diff(closes[-15:].astype(float))
+    if not np.all(np.isfinite(diffs)):
+        return float("nan")
+    avg_gain = float(np.mean(np.clip(diffs, 0, None)))
+    avg_loss = float(np.mean(np.clip(-diffs, 0, None)))
+    if avg_loss == 0:
+        return 100.0 if avg_gain > 0 else 50.0
+    return 100.0 - 100.0 / (1.0 + avg_gain / avg_loss)
+
+
+def _log_returns(closes: np.ndarray, window: int) -> np.ndarray | None:
+    if len(closes) < window + 1:
+        return None
+    tail = closes[-(window + 1) :].astype(float)
+    if not np.all(np.isfinite(tail)) or np.any(tail <= 0):
+        return None
+    return np.diff(np.log(tail))
+
+
+def calculate_raw_features(
+    snapshot: pd.DataFrame,
+    prices: pd.DataFrame,
+    as_of: date,
+    financials: pd.DataFrame | None = None,
+    institutional: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Calculate the 30 raw factors for every snapshot row.
+
+    ``financials``/``institutional`` are optional trailing histories
+    (only rows with ``available_date``/``trade_date`` <= ``as_of`` are
+    used); without them the trailing-window chip and growth factors
+    stay NaN with ``missing_flag`` set.
+    """
+    if not isinstance(as_of, date):
+        raise ValueError(f"invalid as_of: must be a date, got {as_of!r}")
+    if not isinstance(snapshot, pd.DataFrame) or "stock_id" not in snapshot.columns:
+        raise ValueError("invalid snapshot: must be a DataFrame with 'stock_id'")
+    if snapshot["stock_id"].duplicated().any():
+        raise ValueError("invalid snapshot: duplicate stock_id")
+    if not isinstance(prices, pd.DataFrame):
+        raise ValueError("invalid prices: must be a DataFrame")
+    missing = [c for c in _PRICE_KEYS if c not in prices.columns]
+    if missing:
+        raise ValueError(f"invalid prices: missing columns {missing}")
+
+    as_of_str = as_of.isoformat()
+    past_prices = prices.loc[prices["trade_date"] <= as_of_str].sort_values("trade_date")
+    market = past_prices.loc[past_prices["stock_id"] == _MARKET_ID]
+    market_rets = _aligned_market_returns(market)
+
+    rows: list[dict] = []
+    for _, snap in snapshot.iterrows():
+        stock_id = str(snap["stock_id"])
+        hist = past_prices.loc[past_prices["stock_id"] == stock_id]
+        closes = hist["close"].to_numpy(dtype=float, na_value=np.nan)
+        row: dict[str, object] = {"stock_id": stock_id}
+        row.update(_price_factors(hist, closes, market_rets))
+        row.update(_fundamental_factors(snap, financials, stock_id, as_of_str))
+        row.update(_chip_factors(snap, institutional, stock_id, as_of_str))
+        row["turnover_60d"] = _turnover(hist, snap)
+        values = np.array([row[c] for c in FACTOR_COLUMNS], dtype=float)
+        row["missing_flag"] = int(bool(np.isnan(values).any()))
+        rows.append(row)
+
+    frame = pd.DataFrame(rows, columns=["stock_id", *FACTOR_COLUMNS, "missing_flag"])
+    frame[list(FACTOR_COLUMNS)] = frame[list(FACTOR_COLUMNS)].replace([np.inf, -np.inf], np.nan)
+    return frame
+
+
+def _aligned_market_returns(market: pd.DataFrame) -> pd.Series | None:
+    if market.empty:
+        return None
+    closes = market.drop_duplicates("trade_date").set_index("trade_date")["close"]
+    closes = closes.apply(pd.to_numeric, errors="coerce")
+    if closes.le(0).any() or closes.isna().any():
+        return None
+    return np.log(closes).diff()
+
+
+def _price_factors(
+    hist: pd.DataFrame, closes: np.ndarray, market_rets: pd.Series | None
+) -> dict[str, float]:
+    vols = hist["volume"].to_numpy(dtype=float, na_value=np.nan)
+    traded = hist["traded_value"].to_numpy(dtype=float, na_value=np.nan)
+    highs = hist["high"].to_numpy(dtype=float, na_value=np.nan)
+
+    ma20 = _mean_tail(closes, 20)
+    ma60 = _mean_tail(closes, 60)
+    rets60 = _log_returns(closes, 60)
+    out = {
+        "momentum_20d": _momentum(closes, 20),
+        "momentum_60d": _momentum(closes, 60),
+        "momentum_120d": _momentum(closes, 120),
+        "momentum_20d_ex_5d": _momentum(closes, 20, skip=5),
+        "ma20_ma60_gap": _safe_div(ma20, ma60) - 1,
+        "rsi14": _rsi14(closes),
+        "price_ma20_gap": _safe_div(closes[-1] if len(closes) else np.nan, ma20) - 1,
+        "volume_ma20_ma60": _safe_div(_mean_tail(vols, 20), _mean_tail(vols, 60)) - 1,
+        "volatility_60d": float(np.std(rets60, ddof=1) * np.sqrt(_TRADING_DAYS_PER_YEAR))
+        if rets60 is not None and np.all(np.isfinite(rets60))
+        else float("nan"),
+        "beta_60d": _beta(hist, rets60, market_rets),
+        "max_drawdown_120d": _drawdown(closes),
+        "close_60d_high": _safe_div(
+            closes[-1] if len(closes) >= 60 else np.nan,
+            np.max(highs[-60:]) if len(highs) >= 60 else np.nan,
+        ),
+        "amihud_illiquidity": _amihud(rets60, traded),
+    }
+    return out
+
+
+def _turnover(hist: pd.DataFrame, snap: pd.Series) -> float:
+    """Mean 60d volume over float shares; NaN when either leg is missing."""
+    float_shares = _num(snap.get("float_shares"))
+    if not np.isfinite(float_shares) or float_shares <= 0:
+        return float("nan")
+    vols = hist["volume"].to_numpy(dtype=float, na_value=np.nan)
+    if len(vols) < 60:
+        return float("nan")
+    return _strict_mean(vols[-60:] / float_shares)
+
+
+def _beta(hist: pd.DataFrame, rets60: np.ndarray | None, market_rets: pd.Series | None) -> float:
+    if rets60 is None or market_rets is None:
+        return float("nan")
+    dates = hist["trade_date"].to_numpy()
+    if len(dates) < 61:
+        return float("nan")
+    stock = pd.Series(rets60, index=dates[-60:])
+    joined = pd.DataFrame({"s": stock}).join(market_rets.rename("m"), how="inner").dropna()
+    if len(joined) < 60 or joined["m"].std(ddof=1) == 0:
+        return float("nan")
+    covariance = float(joined["s"].cov(joined["m"]))
+    return _safe_div(covariance, float(joined["m"].var(ddof=1)))
+
+
+def _drawdown(closes: np.ndarray) -> float:
+    if len(closes) < 120:
+        return float("nan")
+    tail = closes[-120:].astype(float)
+    if not np.all(np.isfinite(tail)) or np.any(tail <= 0):
+        return float("nan")
+    return float(np.min(tail / np.maximum.accumulate(tail) - 1))
+
+
+def _amihud(rets60: np.ndarray | None, traded: np.ndarray) -> float:
+    if rets60 is None or len(traded) < 61:
+        return float("nan")
+    impact = np.abs(rets60) / traded[-60:]
+    if not np.all(np.isfinite(impact)):
+        return float("nan")
+    return float(np.mean(impact))
+
+
+def _fundamental_factors(
+    snap: pd.Series, financials: pd.DataFrame | None, stock_id: str, as_of_str: str
+) -> dict[str, float]:
+    close = _num(snap.get("as_of_close"))
+    float_shares = _num(snap.get("float_shares"))
+    market_cap = close * float_shares if close > 0 and float_shares > 0 else float("nan")
+    net_income = _num(snap.get("net_income"))
+    equity = _num(snap.get("equity"))
+    revenue = _num(snap.get("revenue"))
+    assets = _num(snap.get("assets"))
+    operating_cf = _num(snap.get("operating_cash_flow"))
+    operating_income = _num(snap.get("operating_income"))
+
+    earnings_yield = _safe_div(net_income, market_cap)
+    book_to_market = _safe_div(equity, market_cap)
+    sales_yield = _safe_div(revenue, market_cap)
+    out = {
+        "earnings_yield": earnings_yield if earnings_yield > 0 else float("nan"),
+        "book_to_market": book_to_market if book_to_market > 0 else float("nan"),
+        "sales_yield": sales_yield if sales_yield > 0 else float("nan"),
+        "dividend_yield": float("nan"),
+        "roe": _safe_div(net_income, equity),
+        "roa": _safe_div(net_income, assets),
+        "revenue_yoy": _trailing_change(financials, stock_id, as_of_str, "revenue", 5),
+        "revenue_mom": _trailing_change(financials, stock_id, as_of_str, "revenue", 2),
+        "operating_income_qoq": _trailing_change(
+            financials, stock_id, as_of_str, "operating_income", 2
+        ),
+        "accrual_assets": _safe_div(net_income - operating_cf, assets)
+        if np.isfinite(net_income) and np.isfinite(operating_cf)
+        else float("nan"),
+        "log_market_cap": float(np.log(market_cap)) if np.isfinite(market_cap) else float("nan"),
+        "operating_margin": _safe_div(operating_income, revenue),
+    }
+    return out
+
+
+def _trailing_change(
+    financials: pd.DataFrame | None, stock_id: str, as_of_str: str, column: str, depth: int
+) -> float:
+    if financials is None or column not in financials.columns:
+        return float("nan")
+    eligible = financials.loc[
+        (financials["stock_id"] == stock_id) & (financials["available_date"] <= as_of_str)
+    ].sort_values("available_date")
+    values = eligible[column].to_numpy(dtype=float, na_value=np.nan)
+    if len(values) < depth or not np.all(np.isfinite(values[-depth:])):
+        return float("nan")
+    return _safe_div(values[-1], values[-depth]) - 1
+
+
+def _chip_factors(
+    snap: pd.Series, institutional: pd.DataFrame | None, stock_id: str, as_of_str: str
+) -> dict[str, float]:
+    out = {
+        "foreign_net_buy_float": float("nan"),
+        "trust_net_buy_float": float("nan"),
+        "margin_balance_change": float("nan"),
+        "short_margin_ratio": _safe_div(
+            _num(snap.get("short_balance")), _num(snap.get("margin_balance"))
+        ),
+    }
+    if institutional is None:
+        return out
+    eligible = institutional.loc[
+        (institutional["stock_id"] == stock_id) & (institutional["trade_date"] <= as_of_str)
+    ].sort_values("trade_date")
+    if len(eligible) < 20:
+        return out
+    window = eligible.tail(20)
+    float_shares = _num(snap.get("float_shares"))
+    for factor, column in (
+        ("foreign_net_buy_float", "foreign_net_buy"),
+        ("trust_net_buy_float", "trust_net_buy"),
+    ):
+        if column in window.columns:
+            total = window[column].to_numpy(dtype=float, na_value=np.nan)
+            out[factor] = (
+                _safe_div(float(np.sum(total)), float_shares)
+                if np.all(np.isfinite(total))
+                else float("nan")
+            )
+    if "margin_balance" in eligible.columns and len(eligible) >= 21:
+        balances = eligible["margin_balance"].to_numpy(dtype=float, na_value=np.nan)
+        if np.all(np.isfinite(balances[-21:])):
+            out["margin_balance_change"] = _safe_div(balances[-1], balances[-21]) - 1
+    return out
