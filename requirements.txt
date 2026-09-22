@@ -1,6 +1,7 @@
 # Pinned runtime dependencies for taiwan-quant-xgb (P0-02).
 # Verified on Python 3.12.10 / Windows (win32) with `pip check` clean.
-# SDD 5.1 + TASK_ROADMAP P0-02 union, plus yfinance (SDD fallback_source).
+# SDD 5.1 + TASK_ROADMAP P0-02 union, plus yfinance (SDD fallback_source)
+# and shioaji (broker historical kbars backfill).
 Alembic==1.20.0
 numpy==2.5.3
 optuna==5.0.0
@@ -12,6 +13,7 @@ requests==2.34.2
 ruff==0.16.8
 scikit-learn==1.9.1
 shap==0.52.0
+shioaji==1.7.5
 SQLAlchemy==2.0.54
 streamlit==1.64.0
 vectorbt==1.1.0

@@ -10,7 +10,8 @@ from pathlib import Path
 
 REQUIREMENTS_PATH = Path(__file__).resolve().parents[1] / "requirements.txt"
 
-# SDD 5.1 + TASK_ROADMAP P0-02 union, plus yfinance (SDD fallback_source).
+# SDD 5.1 + TASK_ROADMAP P0-02 union, plus yfinance (SDD fallback_source)
+# and shioaji (broker historical kbars backfill).
 REQUIRED_PACKAGES = frozenset(
     {
         "pandas",
@@ -29,6 +30,7 @@ REQUIRED_PACKAGES = frozenset(
         "pytest",
         "ruff",
         "yfinance",
+        "shioaji",
     }
 )
 

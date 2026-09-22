@@ -10,7 +10,15 @@ from settings import load_settings
 ENV_EXAMPLE_PATH = Path(__file__).resolve().parents[1] / ".env.example"
 CONFIG_PATH = Path(__file__).resolve().parents[1] / "config.yaml"
 
-REQUIRED_NAMES = frozenset({"FINMIND_TOKEN", "TELEGRAM_BOT_TOKEN", "GEMINI_API_KEY"})
+REQUIRED_NAMES = frozenset(
+    {
+        "FINMIND_TOKEN",
+        "TELEGRAM_BOT_TOKEN",
+        "GEMINI_API_KEY",
+        "SHIOAJI_API_KEY",
+        "SHIOAJI_SECRET_KEY",
+    }
+)
 # Explicit placeholders allowed besides blank; anything else is a leak.
 ALLOWED_PLACEHOLDERS = frozenset({"", "placeholder", "changeme", "your-token-here"})
 _SUSPICIOUS_PREFIXES = ("sk-", "xoxb-", "xoxp-", "AIza", "ya29.")
