@@ -84,15 +84,8 @@ def fetch_fallback_prices(
     return merged.reset_index(drop=True)
 
 
-def _fetch_one(
-    stock_id: str,
-    start: str,
-    end: str,
-    downloader: Callable[..., pd.DataFrame],
-    market: str,
-) -> pd.DataFrame:
-    ticker = to_yahoo_symbol(stock_id, market)
-    raw = downloader(ticker, start=start, end=end, auto_adjust=False, progress=False)
+def _standardize(raw: pd.DataFrame, stock_id: str) -> pd.DataFrame:
+    """Map one Yahoo frame to PRICE_COLUMNS; empty when unusable."""
     if raw is None or not isinstance(raw, pd.DataFrame) or raw.empty:
         return pd.DataFrame()
     if isinstance(raw.columns, pd.MultiIndex):
@@ -127,3 +120,83 @@ def _fetch_one(
     frame["traded_value"] = frame["close"] * frame["volume"]
     frame["source"] = SOURCE
     return frame[[*PRICE_COLUMNS]]
+
+
+def _fetch_one(
+    stock_id: str,
+    start: str,
+    end: str,
+    downloader: Callable[..., pd.DataFrame],
+    market: str,
+) -> pd.DataFrame:
+    ticker = to_yahoo_symbol(stock_id, market)
+    raw = downloader(ticker, start=start, end=end, auto_adjust=False, progress=False)
+    return _standardize(raw, stock_id)
+
+
+def _slice_ticker(frame: pd.DataFrame, ticker: str) -> pd.DataFrame:
+    """Extract one ticker's sub-frame from a bulk download."""
+    if not isinstance(frame.columns, pd.MultiIndex):
+        return frame
+    try:
+        sub = frame.xs(ticker, axis=1, level=1)
+    except KeyError:
+        return pd.DataFrame()
+    if isinstance(sub.columns, pd.MultiIndex):  # defensive: deeper nesting.
+        sub = sub.copy()
+        sub.columns = sub.columns.get_level_values(0)
+    return sub
+
+
+def fetch_bulk_prices(
+    symbols: Sequence[str],
+    start: str,
+    end: str,
+    market_map: Mapping[str, str] | None = None,
+    downloader: Callable[..., pd.DataFrame] = yf.download,
+    batch: int = 150,
+) -> pd.DataFrame:
+    """Download many tickers in batches; failures land in ``attrs['failed']``.
+
+    One bulk call per batch instead of one call per symbol (option C base:
+    full-market daily prices, including pre-2020 history Shioaji lacks).
+    """
+    _require_range(start, end)
+    if batch < 1:
+        raise ValueError(f"invalid batch: {batch!r}")
+    call = downloader
+    codes = list(dict.fromkeys(s for s in symbols if isinstance(s, str) and s.strip()))
+    mapping = dict(market_map) if market_map else {}
+    tickers = {s: to_yahoo_symbol(s, mapping.get(s, "TWSE")) for s in codes}
+    frames: list[pd.DataFrame] = []
+    failed: list[str] = []
+    unique_tickers = list(dict.fromkeys(tickers.values()))
+    for offset in range(0, len(unique_tickers), batch):
+        chunk = unique_tickers[offset : offset + batch]
+        try:
+            raw = call(chunk, start=start, end=end, auto_adjust=False, progress=False)
+        except Exception:  # noqa: BLE001 - batch isolation like per-symbol.
+            failed.extend(s for s, t in tickers.items() if t in chunk)
+            continue
+        if raw is None or not isinstance(raw, pd.DataFrame) or raw.empty:
+            failed.extend(s for s, t in tickers.items() if t in chunk)
+            continue
+        for stock_id, ticker in tickers.items():
+            if ticker not in chunk:
+                continue
+            if len(chunk) == 1 and not isinstance(raw.columns, pd.MultiIndex):
+                sub = raw
+            else:
+                sub = _slice_ticker(raw, ticker)
+            standardized = _standardize(sub, stock_id)
+            if standardized.empty:
+                failed.append(stock_id)
+                continue
+            frames.append(standardized)
+    if not frames:
+        empty = pd.DataFrame(columns=[*PRICE_COLUMNS])
+        empty.attrs["failed"] = sorted(set(failed))
+        return empty
+    merged = pd.concat(frames, ignore_index=True).sort_values(["stock_id", "trade_date"])
+    merged.attrs["failed"] = sorted(set(failed))
+    return merged.reset_index(drop=True)

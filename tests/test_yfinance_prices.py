@@ -7,6 +7,7 @@ import pytest
 
 from integrations.yfinance_prices import (
     PRICE_COLUMNS,
+    fetch_bulk_prices,
     fetch_fallback_prices,
     to_yahoo_symbol,
 )
@@ -97,3 +98,44 @@ def test_fetch_fallback_prices_flattens_multiindex_columns() -> None:
     assert list(frame.columns) == list(PRICE_COLUMNS)
     assert len(frame) == 2
     assert frame.attrs["failed"] == []
+
+
+def _bulk_frame(dates: list[str], closes: dict[str, float]) -> pd.DataFrame:
+    series = {}
+    for ticker, close in closes.items():
+        bars = _bars(dates, close=close)
+        for column in bars.columns:
+            series[(column, ticker)] = bars[column].to_numpy()
+    return pd.DataFrame(series, index=pd.DatetimeIndex(dates))
+
+
+def test_fetch_bulk_prices_batches_and_slices() -> None:
+    seen: list = []
+
+    def downloader(tickers, **kwargs):
+        seen.append(list(tickers))
+        return _bulk_frame(["2020-01-02", "2020-01-03"], {"2330.TW": 50.0, "2317.TW": 100.0})
+
+    frame = fetch_bulk_prices(
+        ["2330", "2317"], "2020-01-01", "2020-01-04", downloader=downloader, batch=1
+    )
+    assert seen == [["2330.TW"], ["2317.TW"]]
+    assert list(frame.columns) == list(PRICE_COLUMNS)
+    assert frame["stock_id"].unique().tolist() == ["2317", "2330"]
+    assert frame.loc[frame["stock_id"] == "2330", "close"].iloc[0] == pytest.approx(50.0)
+    assert frame.attrs["failed"] == []
+
+
+def test_fetch_bulk_prices_partial_failure() -> None:
+    def downloader(tickers, **kwargs):
+        if "9999.TW" in tickers:
+            raise ConnectionError("down")
+        return _bulk_frame(["2020-01-02"], {"2330.TW": 50.0})
+
+    frame = fetch_bulk_prices(
+        ["2330", "9999", "0000"], "2020-01-01", "2020-01-04", downloader=downloader, batch=1
+    )
+    assert frame["stock_id"].unique().tolist() == ["2330"]
+    assert sorted(frame.attrs["failed"]) == ["0000", "9999"]
+    with pytest.raises(ValueError, match="invalid batch"):
+        fetch_bulk_prices(["2330"], "2020-01-01", "2020-01-04", downloader=downloader, batch=0)
