@@ -44,13 +44,19 @@ def _get(
     token: str,
     requester: Callable[..., requests.Response] = requests.get,
     timeout: float = 30.0,
+    data_id: str | None = None,
 ) -> list[dict]:
     _require_range(start, end)
     credential = _require_token(token)
+    params: dict[str, str] = {"dataset": dataset, "start_date": start, "end_date": end}
+    if data_id is not None:
+        # Per-stock query: required on free ("register") tokens, which reject
+        # full-market requests. Omitted when None (paid-tier bulk path).
+        params["data_id"] = data_id
     try:
         response = requester(
             BASE_URL,
-            params={"dataset": dataset, "start_date": start, "end_date": end},
+            params=params,
             headers={"Authorization": f"Bearer {credential}"},
             timeout=timeout,
         )

@@ -28,6 +28,7 @@ from integrations.finmind import _get  # noqa: E402
 from repositories import prices as prices_repo  # noqa: E402
 from repositories import stocks as stocks_repo  # noqa: E402
 from runtime.db_store import TAIEX_ID  # noqa: E402
+from runtime.dotenv import load_dotenv  # noqa: E402
 from settings import get_finmind_token, load_settings  # noqa: E402
 
 INFO_DATASET = "TaiwanStockInfo"
@@ -148,6 +149,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--start", default="2015-01-01")
     args = parser.parse_args(argv)
+    load_dotenv()
     try:
         settings = load_settings(args.config)
     except Exception as exc:

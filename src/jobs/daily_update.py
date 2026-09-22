@@ -101,6 +101,9 @@ def main(argv: list[str] | None = None, store_factory=None) -> int:
         print(f"cannot load config: {exc}", file=sys.stderr)
         return 2
     try:
+        from runtime.dotenv import load_dotenv
+
+        load_dotenv()
         factory = store_factory or _build_store
         store = factory(settings)
     except NotImplementedError as exc:

@@ -34,11 +34,14 @@ Design notes (all consequences of frozen service contracts):
 - ``save_target_holdings`` maps ``PortfolioTarget`` actions onto the
   ``signals`` table; ``rank`` is looked up from the predictions the same run
   saved moments earlier (research always saves predictions first).
-- ``load_stocks`` derives ``market_cap`` as latest close × latest
-  ``float_shares`` (both point-in-time); stocks without either are excluded
-  downstream with reason ``market_cap:missing``. ``flags`` is empty for all
-  stocks: no KY/disposal/full-cash-settlement source is wired yet, so that
-  universe gate currently passes everything (known gap, documented).
+- ``load_stocks`` derives ``market_cap`` as latest close × cached shares
+  (``database/shares.json`` next to the DB file, built by
+  ``tools/cache_shares.py`` from yfinance; ETFs which publish no share
+  count fall back to their cached market cap). Stocks without either are
+  excluded downstream with reason ``market_cap:missing``. ``flags`` is
+  empty for all stocks: no KY/disposal/full-cash-settlement source is
+  wired yet, so that universe gate currently passes everything
+  (known gap, documented).
 - First-run simplifications (documented, fail-safe): current holdings and
   previous positions are empty, portfolio value is the seed capital, model
   explainability (SHAP/importance/IC) is ``None``, and the cost comparison
@@ -48,7 +51,9 @@ Design notes (all consequences of frozen service contracts):
 
 from __future__ import annotations
 
+import json
 from datetime import date
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -106,7 +111,34 @@ def get_engine(settings: Settings) -> Engine:
 
 def build_store(settings: Settings) -> DbStore:
     """Assemble the database-backed store for jobs and the dashboard."""
-    return DbStore(get_engine(settings), settings)
+    return DbStore(
+        get_engine(settings),
+        settings,
+        shares_outstanding=load_shares_cache(default_shares_path(settings.data.database_url)),
+    )
+
+
+def default_shares_path(database_url: str) -> Path | None:
+    """Locate database/shares.json next to a file SQLite database."""
+    if not database_url.startswith("sqlite:///"):
+        return None
+    raw = database_url[len("sqlite:///") :]
+    if not raw or raw == ":memory:":
+        return None
+    return Path(raw).parent / "shares.json"
+
+
+def load_shares_cache(path: Path | None) -> dict[str, dict[str, float | str]]:
+    """Load {stock_id: {shares, market_cap, as_of}}; missing file -> {}."""
+    if path is None:
+        return {}
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return data
 
 
 def _model_version_for(signal_date: str) -> str:
@@ -128,6 +160,7 @@ class DbStore:
         settings: Settings,
         as_of: date | str | None = None,
         initial_capital: float = INITIAL_CAPITAL,
+        shares_outstanding: dict[str, dict[str, float | str]] | None = None,
     ) -> None:
         self._engine = engine
         self._settings = settings
@@ -138,6 +171,7 @@ class DbStore:
         if not initial_capital > 0:
             raise ValueError(f"invalid initial_capital: {initial_capital!r}")
         self._initial_capital = float(initial_capital)
+        self._shares = shares_outstanding or {}
 
     # -- session helper ----------------------------------------------------
 
@@ -295,52 +329,38 @@ class DbStore:
         return frame.reset_index(drop=True)
 
     def _market_caps(self, session, as_of: str) -> dict[str, float]:
-        """Latest close × latest float_shares per stock (point-in-time)."""
-        closes = session.execute(
-            select(Price.stock_id, func.max(Price.trade_date))
+        """Latest close times cached shares (ETF fallback: cached market cap).
+
+        Stocks with neither get no cap and are excluded downstream with
+        reason ``market_cap:missing``.
+        """
+        if not self._shares:
+            return {}
+        latest = (
+            select(Price.stock_id, func.max(Price.trade_date).label("day"))
             .where(Price.trade_date <= as_of, Price.stock_id != TAIEX_ID)
             .group_by(Price.stock_id)
+            .subquery()
+        )
+        rows = session.execute(
+            select(Price.stock_id, Price.close).join(
+                latest,
+                (Price.stock_id == latest.c.stock_id) & (Price.trade_date == latest.c.day),
+            )
         ).all()
-        if not closes:
-            return {}
-        # Per-stock latest lookup (stock count is small vs bar count).
-        latest_close: dict[str, float] = {}
-        for stock_id, _ in closes:
-            day = session.execute(
-                select(func.max(Price.trade_date)).where(
-                    Price.trade_date <= as_of, Price.stock_id == stock_id
-                )
-            ).scalar()
-            if day is None:
+        caps: dict[str, float] = {}
+        for stock_id, close in rows:
+            entry = self._shares.get(stock_id)
+            if not isinstance(entry, dict) or close is None:
                 continue
-            close = session.execute(
-                select(Price.close).where(Price.stock_id == stock_id, Price.trade_date == day)
-            ).scalar()
-            if close is not None:
-                latest_close[stock_id] = float(close)
-        floats: dict[str, float] = {}
-        for stock_id in latest_close:
-            day = session.execute(
-                select(func.max(Institutional.trade_date)).where(
-                    Institutional.trade_date <= as_of,
-                    Institutional.stock_id == stock_id,
-                )
-            ).scalar()
-            if day is None:
+            shares = entry.get("shares")
+            if isinstance(shares, (int, float)) and shares and shares > 0:
+                caps[stock_id] = float(close) * float(shares)
                 continue
-            shares = session.execute(
-                select(Institutional.float_shares).where(
-                    Institutional.stock_id == stock_id,
-                    Institutional.trade_date == day,
-                )
-            ).scalar()
-            if shares is not None:
-                floats[stock_id] = float(shares)
-        return {
-            stock_id: latest_close[stock_id] * floats[stock_id]
-            for stock_id in latest_close
-            if stock_id in floats
-        }
+            cached_cap = entry.get("market_cap")
+            if isinstance(cached_cap, (int, float)) and cached_cap > 0:
+                caps[stock_id] = float(cached_cap)
+        return caps
 
     def load_financials_snapshot(self) -> pd.DataFrame:
         as_of = date.fromisoformat(self._require_as_of())

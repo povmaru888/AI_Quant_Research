@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import importlib.util
+import json
 import sqlite3
 from collections.abc import Iterator
 from datetime import date
@@ -14,7 +15,13 @@ import pytest
 
 from contracts import PortfolioTarget
 from database import create_engine_from_settings
-from runtime.db_store import INITIAL_CAPITAL, DbStore, build_store
+from runtime.db_store import (
+    INITIAL_CAPITAL,
+    DbStore,
+    build_store,
+    default_shares_path,
+    load_shares_cache,
+)
 from settings import Settings
 
 MIGRATION_PATH = (
@@ -50,7 +57,11 @@ def store(settings: Settings, temp_db_path: Path) -> Iterator[DbStore]:
         settings, data=dataclasses.replace(settings.data, database_url=f"sqlite:///{temp_db_path}")
     )
     engine = create_engine_from_settings(db_settings)
-    yield DbStore(engine, db_settings)
+    shares = {
+        "2330": {"shares": 25_000_000_000.0, "market_cap": None, "as_of": "2026-09-22"},
+        "0050": {"shares": None, "market_cap": 500_000_000_000.0, "as_of": "2026-09-22"},
+    }
+    yield DbStore(engine, db_settings, shares_outstanding=shares)
     engine.dispose()
 
 
@@ -318,6 +329,46 @@ def test_guards_without_run_or_asof(store: DbStore) -> None:
             store._settings,  # noqa: SLF001
             initial_capital=0.0,
         )
+
+
+def test_market_cap_shares_and_etf_fallback(store: DbStore, sample_prices: pd.DataFrame) -> None:
+    _seed_market(store, sample_prices)
+    store.start_run({"run_id": "r", "job": "test", "data_end_date": AS_OF})
+    stocks = store.load_stocks().set_index("stock_id")
+    assert stocks.loc["2330", "market_cap"] == pytest.approx(524.0 * 25_000_000_000.0)
+    assert stocks.loc["0050", "market_cap"] == pytest.approx(500_000_000_000.0)
+
+
+def test_market_cap_missing_without_cache(
+    settings: Settings, temp_db_path: Path, sample_prices: pd.DataFrame
+) -> None:
+    conn = sqlite3.connect(str(temp_db_path))
+    try:
+        migration.upgrade(conn)
+    finally:
+        conn.close()
+    db_settings = dataclasses.replace(
+        settings, data=dataclasses.replace(settings.data, database_url=f"sqlite:///{temp_db_path}")
+    )
+    engine = create_engine_from_settings(db_settings)
+    try:
+        bare = DbStore(engine, db_settings)
+        _seed_market(bare, sample_prices)
+        bare.start_run({"run_id": "r", "job": "test", "data_end_date": AS_OF})
+        caps = bare.load_stocks()["market_cap"]
+        assert caps.isna().all()
+    finally:
+        engine.dispose()
+
+
+def test_load_shares_cache_roundtrip(tmp_path: Path) -> None:
+    assert load_shares_cache(None) == {}
+    assert load_shares_cache(tmp_path / "missing.json") == {}
+    path = tmp_path / "shares.json"
+    path.write_text(json.dumps({"2330": {"shares": 1.0}}), encoding="utf-8")
+    assert load_shares_cache(path) == {"2330": {"shares": 1.0}}
+    assert default_shares_path("sqlite:///database/quant.db") == Path("database/shares.json")
+    assert default_shares_path("sqlite:///:memory:") is None
 
 
 def test_build_store_factory(settings: Settings, temp_db_path: Path) -> None:

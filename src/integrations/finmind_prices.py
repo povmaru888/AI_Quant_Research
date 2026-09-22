@@ -47,9 +47,10 @@ def fetch_prices(
     token: str,
     requester: Callable[..., requests.Response] = requests.get,
     timeout: float = 30.0,
+    stock_id: str | None = None,
 ) -> pd.DataFrame:
     """Fetch and standardize prices; invalid bars are dropped (SDD 7.3)."""
-    rows = _get(DATASET, start, end, token, requester, timeout)
+    rows = _get(DATASET, start, end, token, requester, timeout, data_id=stock_id)
     frame = pd.DataFrame(rows)
     if frame.empty:
         return pd.DataFrame(columns=[*PRICE_COLUMNS])

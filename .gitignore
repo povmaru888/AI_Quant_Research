@@ -16,6 +16,7 @@ venv/
 *.db
 *.sqlite
 *.sqlite3
+database/shares.json
 
 # OS / editors
 .DS_Store

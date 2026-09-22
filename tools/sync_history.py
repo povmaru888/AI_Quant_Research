@@ -23,6 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from runtime.db_store import build_store  # noqa: E402
+from runtime.dotenv import load_dotenv  # noqa: E402
 from services.sync_service import sync_market_data  # noqa: E402
 from settings import get_finmind_token, load_settings  # noqa: E402
 
@@ -45,6 +46,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--end", default=None)
     parser.add_argument("--chunk-years", type=int, default=1)
     args = parser.parse_args(argv)
+    load_dotenv()
     try:
         start = date.fromisoformat(args.start)
         end = date.fromisoformat(args.end) if args.end else date.today()
