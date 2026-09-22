@@ -16,7 +16,16 @@ BASE_URL = "https://api.finmindtrade.com/api/v4/data"
 
 
 class FinMindError(Exception):
-    """FinMind fetch failure; guaranteed token-free message."""
+    """FinMind fetch failure; guaranteed token-free message.
+
+    ``retry_after`` is the server's suggested wait in seconds when the
+    account/IP is throttled (``None`` otherwise); sync scripts sleep it
+    off instead of treating the symbol as failed.
+    """
+
+    def __init__(self, message: str, retry_after: float | None = None) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 def _require_range(start: str, end: str) -> None:
@@ -29,6 +38,28 @@ def _require_range(start: str, end: str) -> None:
             raise ValueError(f"invalid {name}: {value!r}") from exc
     if start > end:
         raise ValueError(f"invalid range: start {start!r} exceeds end {end!r}")
+
+
+def _http_error(dataset: str, response: requests.Response) -> FinMindError:
+    """Build an HTTP error carrying the server message (never the token).
+
+    Only the generic ``msg`` and numeric ``retry_after`` are kept; raw
+    bodies may echo credential tails and are never included.
+    """
+    detail: object = None
+    wait: float | None = None
+    try:
+        body = response.json()
+    except Exception:  # noqa: BLE001 - undecodable body stays generic.
+        body = None
+    if isinstance(body, dict):
+        detail = body.get("msg")
+        raw_wait = body.get("retry_after")
+        if isinstance(raw_wait, (int, float)) and raw_wait > 0:
+            wait = float(raw_wait)
+    return FinMindError(
+        f"finmind {dataset} HTTP {response.status_code}: {detail}", retry_after=wait
+    )
 
 
 def _require_token(token: str) -> str:
@@ -63,7 +94,7 @@ def _get(
     except Exception as exc:
         raise FinMindError(f"finmind {dataset} transport failure: {type(exc).__name__}") from exc
     if response.status_code != 200:
-        raise FinMindError(f"finmind {dataset} HTTP {response.status_code}")
+        raise _http_error(dataset, response)
     try:
         payload = response.json()
     except Exception as exc:

@@ -53,6 +53,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--symbols", default="")
+    parser.add_argument("--skip-file", default="")
     parser.add_argument("--refresh", action="store_true")
     parser.add_argument("--delay", type=float, default=0.2)
     args = parser.parse_args(argv)
@@ -83,6 +84,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.symbols:
         wanted = {s.strip() for s in args.symbols.split(",") if s.strip()}
         symbols = [(s, m) for s, m in symbols if s in wanted]
+    if args.skip_file and Path(args.skip_file).is_file():
+        skipped = set(Path(args.skip_file).read_text(encoding="utf-8").split())
+        symbols = [(s, m) for s, m in symbols if s not in skipped]
     if args.limit > 0:
         symbols = symbols[: args.limit]
     today = date.today().isoformat()
