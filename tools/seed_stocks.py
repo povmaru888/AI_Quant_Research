@@ -108,6 +108,9 @@ def _seed_taiex_yahoo(engine, start: str) -> int:
     )
     if raw is None or raw.empty:
         raise RuntimeError("yfinance ^TWII returned no rows")
+    if isinstance(raw.columns, pd.MultiIndex):
+        raw = raw.copy()
+        raw.columns = raw.columns.get_level_values(0)
     columns = {str(c).strip().lower(): c for c in raw.columns}
     for key in ("open", "high", "low", "close"):
         if key not in columns:

@@ -86,3 +86,14 @@ def test_fetch_fallback_prices_drops_bad_bars_and_bad_range() -> None:
     assert frame.attrs["failed"] == ["2330"]
     with pytest.raises(ValueError, match="invalid range"):
         fetch_fallback_prices(["2330"], "2020-01-04", "2020-01-01")
+
+
+def test_fetch_fallback_prices_flattens_multiindex_columns() -> None:
+    bars = _bars(["2020-01-02", "2020-01-03"], close=50.0)
+    bars.columns = pd.MultiIndex.from_product([bars.columns, ["2330.TW"]])
+    frame = fetch_fallback_prices(
+        ["2330"], "2020-01-01", "2020-01-04", downloader=lambda *a, **k: bars
+    )
+    assert list(frame.columns) == list(PRICE_COLUMNS)
+    assert len(frame) == 2
+    assert frame.attrs["failed"] == []

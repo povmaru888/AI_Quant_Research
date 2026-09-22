@@ -21,6 +21,8 @@ import sys
 import time
 from pathlib import Path
 
+from sqlalchemy.exc import IntegrityError
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from integrations.finmind_fundamentals import (  # noqa: E402
@@ -84,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
     run_id = f"daily-free-{args.start}-{end}"
     try:
         store.start_run({"run_id": run_id, "job": "daily_update-free", "data_end_date": end})
-    except ValueError:
+    except (ValueError, IntegrityError):
         pass  # rerun of the same window reuses the run id.
     totals = dict.fromkeys(feeds, 0)
     failed: list[str] = []

@@ -95,6 +95,10 @@ def _fetch_one(
     raw = downloader(ticker, start=start, end=end, auto_adjust=False, progress=False)
     if raw is None or not isinstance(raw, pd.DataFrame) or raw.empty:
         return pd.DataFrame()
+    if isinstance(raw.columns, pd.MultiIndex):
+        # Newer yfinance adds a ticker level even for single-ticker calls.
+        raw = raw.copy()
+        raw.columns = raw.columns.get_level_values(0)
     columns = {str(c).strip().lower(): c for c in raw.columns}
     needed = {"open": None, "high": None, "low": None, "close": None, "volume": None}
     for key in needed:

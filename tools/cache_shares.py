@@ -52,6 +52,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Cache shares outstanding.")
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument("--symbols", default="")
     parser.add_argument("--refresh", action="store_true")
     parser.add_argument("--delay", type=float, default=0.2)
     args = parser.parse_args(argv)
@@ -79,6 +80,9 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         engine.dispose()
     symbols = [(s, m) for s, m in universe if s != "TAIEX"]
+    if args.symbols:
+        wanted = {s.strip() for s in args.symbols.split(",") if s.strip()}
+        symbols = [(s, m) for s, m in symbols if s in wanted]
     if args.limit > 0:
         symbols = symbols[: args.limit]
     today = date.today().isoformat()
