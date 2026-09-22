@@ -101,28 +101,37 @@ def _check_missing_prices(as_of: str, session: Session) -> list[DataQualityIssue
             select(Price.stock_id, Price.trade_date).where(Price.trade_date <= as_of)
         )
     }
-    missing = [(s, d) for s in stocks for d in days if (s, d) not in present]
-    if not missing:
-        return []
-    empty_stocks = sorted({s for s in stocks if all((s, d) in missing for d in days)})
+    day_set = set(days)
+    have: dict[str, set[str]] = {}
+    for stock_id, day in present:
+        have.setdefault(stock_id, set()).add(day)
+    empty_stocks = []
+    gap_bars = 0
+    for stock_id in stocks:
+        covered = len((have.get(stock_id) or set()) & day_set)
+        if covered == 0:
+            empty_stocks.append(stock_id)
+        else:
+            gap_bars += len(days) - covered
     issues = []
     if empty_stocks:
+        shown = sorted(empty_stocks)[:10]
+        suffix = "..." if len(empty_stocks) > 10 else ""
         issues.append(
             DataQualityIssue(
                 check="missing_prices",
                 severity="blocker",
-                detail=f"stocks with zero bars: {empty_stocks}",
+                detail=f"stocks with zero bars ({len(empty_stocks)}): {shown}{suffix}",
                 count=len(empty_stocks),
             )
         )
-    rest = len(missing) - len(empty_stocks) * len(days)
-    if rest:
+    if gap_bars:
         issues.append(
             DataQualityIssue(
                 check="missing_prices",
                 severity="warning",
-                detail=f"{rest} missing stock-day bars on or before {as_of}",
-                count=rest,
+                detail=f"{gap_bars} missing stock-day bars on or before {as_of}",
+                count=gap_bars,
             )
         )
     return issues
