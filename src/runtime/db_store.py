@@ -211,13 +211,16 @@ class DbStore:
 
     def list_runs(self, status: str | None = None) -> list[dict]:
         with self._scope() as session:
-            statement = select(PipelineRun.run_id, PipelineRun.status).order_by(
-                PipelineRun.run_time, PipelineRun.run_id
-            )
+            statement = select(
+                PipelineRun.run_id, PipelineRun.status, PipelineRun.parameter_version
+            ).order_by(PipelineRun.run_time, PipelineRun.run_id)
             if status is not None:
                 statement = statement.where(PipelineRun.status == status)
             rows = session.execute(statement).all()
-        return [{"run_id": run_id, "status": row_status} for run_id, row_status in rows]
+        return [
+            {"run_id": run_id, "status": row_status, "parameter_version": param}
+            for run_id, row_status, param in rows
+        ]
 
     def get_run_status(self, run_id: str) -> str:
         with self._scope() as session:

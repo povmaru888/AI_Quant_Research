@@ -104,7 +104,11 @@ def test_start_run_defaults_and_status(store: DbStore, settings: Settings) -> No
     store.finish_run("daily-2020-02-05", "succeeded")
     assert store.get_run_status("daily-2020-02-05") == "succeeded"
     assert store.list_runs(status="succeeded") == [
-        {"run_id": "daily-2020-02-05", "status": "succeeded"}
+        {
+            "run_id": "daily-2020-02-05",
+            "status": "succeeded",
+            "parameter_version": "job:daily_update",
+        }
     ]
     with pytest.raises(ValueError, match="unknown run"):
         store.get_run_status("nope")

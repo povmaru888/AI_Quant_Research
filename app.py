@@ -6,7 +6,8 @@ Page payloads come from injected ``loaders`` and rendering from injected
 ``pages`` so tests run without launching Streamlit. Defaults lazy-import
 ``services.dashboard_service`` and ``ui.*`` (land in P4-02..P4-07); while
 those modules are absent the shell reports "pages not ready" instead of
-crashing, and with no store it reports "no data source connected".
+crashing, and with no store it tries the database first, reporting
+"no data source connected" only if that fails.
 """
 
 from __future__ import annotations
@@ -31,7 +32,12 @@ class RunStore(Protocol):
 
 
 def available_runs(store: RunStore) -> list[str]:
-    """Return succeeded run ids, preserving store order."""
+    """Return succeeded RESEARCH run ids, preserving store order.
+
+    Daily sync jobs share the runs table; they are filtered by their
+    ``job:`` parameter_version so the selector only offers rebalance runs.
+    Stores that do not report a parameter_version keep every succeeded run.
+    """
     rows = store.list_runs(status=SUCCEEDED)
     if not isinstance(rows, list):
         raise ValueError("invalid runs: list_runs must return a list")
@@ -44,6 +50,9 @@ def available_runs(store: RunStore) -> list[str]:
         run_id = row.get("run_id")
         if not isinstance(run_id, str) or not run_id.strip():
             raise ValueError(f"invalid run row: bad run_id {run_id!r}")
+        marker = row.get("parameter_version", "")
+        if isinstance(marker, str) and marker.startswith("job:"):
+            continue
         run_ids.append(run_id)
     return run_ids
 
@@ -69,12 +78,13 @@ def _default_loaders() -> dict[str, Callable[[str, str], object]]:
 def _default_pages() -> dict[str, Callable]:
     from ui import comparison_page, model_page, overview_page, portfolio_page, risk_page
 
+    # Page convention is (payload, st); the shell dispatches (st, payload).
     return {
-        "總覽": overview_page.render_overview,
-        "投組": portfolio_page.render_portfolio,
-        "模型": model_page.render_model,
-        "風險": risk_page.render_risk,
-        "研究比較": comparison_page.render_comparison,
+        "總覽": lambda st, payload: overview_page.render_overview(payload, st),
+        "投組": lambda st, payload: portfolio_page.render_portfolio(payload, st),
+        "模型": lambda st, payload: model_page.render_model(payload, st),
+        "風險": lambda st, payload: risk_page.render_risk(payload, st),
+        "研究比較": lambda st, payload: comparison_page.render_comparison(payload, st),
     }
 
 
@@ -91,6 +101,7 @@ def main(
     load_settings_fn: Callable[[], object] | None = None,
     loaders: dict[str, Callable[[str, str], object]] | None = None,
     pages: dict[str, Callable] | None = None,
+    store_factory: Callable[[], RunStore] | None = None,
 ) -> None:
     """Render the shell; all failures surface as page states, never raises."""
     if st is None:
@@ -104,8 +115,11 @@ def main(
         st.error(f"設定載入失敗：{exc}")
         return
     if store is None:
-        st.info("尚未連接資料來源：請先完成資料同步後再回來查看。")
-        return
+        try:
+            store = (store_factory or _dashboard_store)()
+        except Exception:
+            st.info("尚未連接資料來源：請先完成資料同步後再回來查看。")
+            return
     try:
         run_ids = available_runs(store)
     except Exception as exc:

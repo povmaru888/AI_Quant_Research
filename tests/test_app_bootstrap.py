@@ -73,6 +73,23 @@ def test_available_runs_filters_even_if_store_ignores_arg() -> None:
     assert available_runs(store) == ["run-00"]
 
 
+def test_available_runs_skips_daily_job_runs() -> None:
+    rows = [
+        {
+            "run_id": "daily-2026-09-22",
+            "status": "succeeded",
+            "parameter_version": "job:daily_update",
+        },
+        {
+            "run_id": "rebalance-2026-07-31b",
+            "status": "succeeded",
+            "parameter_version": "params_abc",
+        },
+        {"run_id": "legacy", "status": "succeeded"},
+    ]
+    assert available_runs(FakeStore(rows)) == ["rebalance-2026-07-31b", "legacy"]
+
+
 def test_available_runs_rejects_bad_rows() -> None:
     with pytest.raises(ValueError, match="run_id"):
         available_runs(FakeStore([{"status": "succeeded"}]))
@@ -111,7 +128,13 @@ def test_main_happy_path_dispatches_first_page() -> None:
 
 
 def test_main_empty_states_never_raise() -> None:
-    assert main(st=FakeSt(), store=None, load_settings_fn=lambda: object()) is None
+    def no_source() -> object:
+        raise RuntimeError("no db")
+
+    assert (
+        main(st=FakeSt(), store=None, load_settings_fn=lambda: object(), store_factory=no_source)
+        is None
+    )
     st = FakeSt()
     main(st=st, store=FakeStore([]), load_settings_fn=lambda: object())
     assert any(c[0] == "info" for c in st.calls)
@@ -123,6 +146,24 @@ def test_main_empty_states_never_raise() -> None:
 
     main(st=st, store=FakeStore(_run_ids("succeeded")), load_settings_fn=boom)
     assert any(c[0] == "error" and "設定" in c[1] for c in st.calls)
+
+
+def test_main_auto_connects_when_store_missing() -> None:
+    st = FakeSt()
+    store = FakeStore(_run_ids("succeeded"))
+    seen: list = []
+    loaders = {"總覽": lambda run_id, as_of: seen.append(run_id) or "payload"}
+    pages = {"總覽": lambda s, p: seen.append(p)}
+    main(
+        st=st,
+        store=None,
+        load_settings_fn=lambda: object(),
+        loaders=loaders,
+        pages=pages,
+        store_factory=lambda: store,
+    )
+    assert seen == ["run-00", "payload"]
+    assert not [c for c in st.calls if c[0] in ("info", "error")]
 
 
 def test_main_loader_failure_becomes_error_state() -> None:
