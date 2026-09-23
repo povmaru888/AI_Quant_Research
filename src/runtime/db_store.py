@@ -58,11 +58,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from sqlalchemy import Engine, func, select
+from sqlalchemy.exc import OperationalError
 
 from database import create_engine_from_settings, session_scope
 from models.market import Financial, Institutional, Price
 from models.research import Feature, Order, PipelineRun, Prediction, Signal
 from models.security import Stock
+from repositories import artifacts as artifacts_repo
 from repositories import fundamentals as fundamentals_repo
 from repositories import prices as prices_repo
 from repositories import research as research_repo
@@ -526,6 +528,16 @@ class DbStore:
     def load_portfolio_value(self) -> float:
         return self._initial_capital
 
+    def _artifact(self, run_id: str, kind: str):
+        """Load one materialized payload; None when absent or unmigrated."""
+        try:
+            with self._scope() as session:
+                return artifacts_repo.load_artifact(session, run_id, kind)
+        except OperationalError as exc:
+            if "no such table" in str(exc):
+                return None
+            raise
+
     def load_run_summary(self, run_id: str) -> dict:
         with self._scope() as session:
             row = session.execute(
@@ -540,15 +552,23 @@ class DbStore:
         if row is None:
             raise ValueError(f"unknown run: {run_id!r}")
         run_id_v, data_end, feature_v, model_v, param_v = row
-        return {
+        payload = self._artifact(run_id, "metrics") or {}
+        metrics = payload.get("metrics", {}) if isinstance(payload, dict) else {}
+        oos_months = payload.get("oos_months", []) if isinstance(payload, dict) else []
+        summary = {
             "run_id": run_id_v,
             "data_end_date": data_end,
             "feature_version": feature_v,
             "model_version": model_v or _model_version_for(data_end),
             "parameter_version": param_v,
-            "metrics": {},
-            "oos_months": [],
+            "metrics": metrics if isinstance(metrics, dict) else {},
+            "oos_months": oos_months if isinstance(oos_months, list) else [],
         }
+        if isinstance(payload, dict):
+            for key in ("equity_curve", "monthly_returns"):
+                if payload.get(key) is not None:
+                    summary[key] = payload[key]
+        return summary
 
     # -- research saves ------------------------------------------------------
 
@@ -721,10 +741,14 @@ class DbStore:
                 .scalars()
                 .all()
             )
+        explain = self._artifact(run_id, "model_explain") or {}
+        monthly = self._artifact(run_id, "monthly_ic")
+        shap_top = explain.get("shap_top") if isinstance(explain, dict) else None
+        importance = explain.get("feature_importance") if isinstance(explain, dict) else None
         return {
-            "shap_top": None,
-            "feature_importance": None,
-            "monthly_ic": None,
+            "shap_top": shap_top,
+            "feature_importance": importance,
+            "monthly_ic": monthly if isinstance(monthly, list) else None,
             "prediction_dist": [float(p) for p in probs],
         }
 
@@ -747,23 +771,38 @@ class DbStore:
         window = self._settings.portfolio.taiex_ma_window
         if len(closes) >= window and window > 0:
             regime = "above_ma60" if closes[-1] >= sum(closes[-window:]) / window else "below_ma60"
+        stats = self._artifact(run_id, "metrics") or {}
+        metrics = stats.get("metrics", {}) if isinstance(stats, dict) else {}
+        predicted = None
+        if len(closes) >= 60:
+            trailing = pd.Series(closes[-60:]).pct_change().dropna()
+            if len(trailing) >= 2 and float(trailing.std(ddof=1)) > 0:
+                predicted = float(trailing.std(ddof=1) * np.sqrt(252))
         return {
             "equity_exposure": exposure,
-            "predicted_volatility": None,
-            "realized_volatility": None,
-            "max_drawdown": None,
-            "turnover": None,
+            "predicted_volatility": predicted,
+            "realized_volatility": metrics.get("realized_volatility"),
+            "max_drawdown": metrics.get("max_drawdown"),
+            "turnover": metrics.get("turnover"),
             "market_regime": regime,
             "exposure_cap": float(self._settings.portfolio.max_equity_exposure),
         }
 
     def load_comparison(self, run_id: str) -> pd.DataFrame:
-        """No sensitivity scenarios are persisted yet; empty but valid."""
+        """Cost sensitivity scenarios; empty but valid until materialized."""
         self.load_run_summary(run_id)  # unknown run raises here.
+        payload = self._artifact(run_id, "sensitivity")
+        if isinstance(payload, list) and payload:
+            return pd.DataFrame(payload).reset_index(drop=True)
         return pd.DataFrame({"scenario": pd.Series(dtype=str)})
 
     def load_performance(self, run_id: str) -> pd.DataFrame:
         """Replay the run's own orders into a (date, nav) frame."""
+        nav = self.replay_backtest(run_id).nav
+        return pd.DataFrame({"date": list(nav.index.astype(str)), "nav": list(nav.to_numpy())})
+
+    def replay_backtest(self, run_id: str, prices: pd.DataFrame | None = None):
+        """Replay the run's orders into a BacktestResult (shared by readers)."""
         self.load_run_summary(run_id)  # unknown run raises here.
         with self._scope() as session:
             order_rows = session.execute(
@@ -808,14 +847,19 @@ class DbStore:
                 for o, r, s, e, sid, side, q, x, f, t, sl, tc in order_rows
             ]
         )
-        prices = self.load_prices().loc[:, ["stock_id", "trade_date", "close"]]
-        result = run_backtest(orders, prices, self._initial_capital, self._settings, run_id)
-        nav = result.nav
-        return pd.DataFrame({"date": list(nav.index.astype(str)), "nav": list(nav.to_numpy())})
+        if prices is None:
+            prices = self.load_prices()
+        prices = prices.loc[:, ["stock_id", "trade_date", "close"]]
+        return run_backtest(orders, prices, self._initial_capital, self._settings, run_id)
 
     def load_factor_ic(self, run_id: str) -> pd.DataFrame:
-        """Factor IC needs persisted features; empty but valid for now."""
+        """Materialized per-factor IC; empty but valid until materialized."""
         self.load_run_summary(run_id)  # unknown run raises here.
+        payload = self._artifact(run_id, "factor_ic")
+        if isinstance(payload, list) and payload:
+            frame = pd.DataFrame(payload)
+            if set(frame.columns) >= {"factor", "ic"}:
+                return frame.loc[:, ["factor", "ic"]].reset_index(drop=True)
         return pd.DataFrame(
             {
                 "factor": pd.Series(dtype=str),

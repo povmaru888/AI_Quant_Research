@@ -19,17 +19,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from settings import load_settings  # noqa: E402
 
-MIGRATION_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "database"
-    / "migrations"
-    / "versions"
-    / "001_initial_schema.py"
-)
+MIGRATIONS_DIR = Path(__file__).resolve().parents[1] / "database" / "migrations" / "versions"
 
 
-def _load_migration():
-    spec = importlib.util.spec_from_file_location("initial_schema", MIGRATION_PATH)
+def _migration_files() -> list[Path]:
+    return sorted(MIGRATIONS_DIR.glob("[0-9]*.py"))
+
+
+def _load_migration(path: Path):
+    spec = importlib.util.spec_from_file_location(path.stem.replace("-", "_"), path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -57,11 +55,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"cannot load config: {exc}", file=sys.stderr)
         return 2
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    migration = _load_migration()
     conn = sqlite3.connect(str(db_path))
     try:
         conn.execute("PRAGMA foreign_keys = ON")
-        migration.upgrade(conn)
+        for path in _migration_files():
+            _load_migration(path).upgrade(conn)
         tables = [
             row[0]
             for row in conn.execute(

@@ -158,15 +158,47 @@ def calculate_raw_features(
     market = past_prices.loc[past_prices["stock_id"] == _MARKET_ID]
     market_rets = _aligned_market_returns(market)
 
+    target_stocks = {str(s) for s in snapshot["stock_id"]}
+    target_filter = target_stocks | {int(s) for s in target_stocks if s.isdigit()}
+
+    # Pre-filter and index prices by stock_id
+    past_prices_target = past_prices.loc[past_prices["stock_id"].isin(target_filter)]
+    prices_by_stock: dict[str, pd.DataFrame] = {
+        str(sid): df for sid, df in past_prices_target.groupby("stock_id", sort=False)
+    }
+
+    # Pre-filter and index financials by stock_id
+    fin_by_stock: dict[str, pd.DataFrame] = {}
+    if financials is not None and not financials.empty and "stock_id" in financials.columns:
+        fin_filtered = financials.loc[
+            financials["stock_id"].isin(target_filter)
+            & (financials["available_date"] <= as_of_str)
+        ].sort_values("available_date")
+        fin_by_stock = {
+            str(sid): df for sid, df in fin_filtered.groupby("stock_id", sort=False)
+        }
+
+    # Pre-filter and index institutional history by stock_id
+    inst_by_stock: dict[str, pd.DataFrame] = {}
+    if institutional is not None and not institutional.empty and "stock_id" in institutional.columns:
+        inst_filtered = institutional.loc[
+            institutional["stock_id"].isin(target_filter)
+            & (institutional["trade_date"] <= as_of_str)
+        ].sort_values("trade_date")
+        inst_by_stock = {
+            str(sid): df for sid, df in inst_filtered.groupby("stock_id", sort=False)
+        }
+
+    empty_price = pd.DataFrame(columns=_PRICE_KEYS)
     rows: list[dict] = []
     for _, snap in snapshot.iterrows():
         stock_id = str(snap["stock_id"])
-        hist = past_prices.loc[past_prices["stock_id"] == stock_id]
+        hist = prices_by_stock.get(stock_id, empty_price)
         closes = hist["close"].to_numpy(dtype=float, na_value=np.nan)
         row: dict[str, object] = {"stock_id": stock_id}
         row.update(_price_factors(hist, closes, market_rets))
-        row.update(_fundamental_factors(snap, financials, stock_id, as_of_str))
-        row.update(_chip_factors(snap, institutional, stock_id, as_of_str))
+        row.update(_fundamental_factors(snap, fin_by_stock.get(stock_id)))
+        row.update(_chip_factors(snap, inst_by_stock.get(stock_id)))
         row["turnover_60d"] = _turnover(hist, snap)
         values = np.array([row[c] for c in FACTOR_COLUMNS], dtype=float)
         row["missing_flag"] = int(bool(np.isnan(values).any()))
@@ -257,14 +289,20 @@ def _drawdown(closes: np.ndarray) -> float:
 def _amihud(rets60: np.ndarray | None, traded: np.ndarray) -> float:
     if rets60 is None or len(traded) < 61:
         return float("nan")
-    impact = np.abs(rets60) / traded[-60:]
+    t60 = traded[-60:].astype(float)
+    if not np.all(np.isfinite(t60)) or np.any(t60 <= 0):
+        return float("nan")
+    impact = np.abs(rets60) / t60
     if not np.all(np.isfinite(impact)):
         return float("nan")
     return float(np.mean(impact))
 
 
 def _fundamental_factors(
-    snap: pd.Series, financials: pd.DataFrame | None, stock_id: str, as_of_str: str
+    snap: pd.Series,
+    financials: pd.DataFrame | None,
+    stock_id: str | None = None,
+    as_of_str: str | None = None,
 ) -> dict[str, float]:
     close = _num(snap.get("as_of_close"))
     float_shares = _num(snap.get("float_shares"))
@@ -279,6 +317,14 @@ def _fundamental_factors(
     earnings_yield = _safe_div(net_income, market_cap)
     book_to_market = _safe_div(equity, market_cap)
     sales_yield = _safe_div(revenue, market_cap)
+
+    if stock_id is not None and as_of_str is not None and financials is not None and not financials.empty:
+        eligible = financials.loc[
+            (financials["stock_id"] == stock_id) & (financials["available_date"] <= as_of_str)
+        ].sort_values("available_date")
+    else:
+        eligible = financials
+
     out = {
         "earnings_yield": earnings_yield if earnings_yield > 0 else float("nan"),
         "book_to_market": book_to_market if book_to_market > 0 else float("nan"),
@@ -286,11 +332,9 @@ def _fundamental_factors(
         "dividend_yield": float("nan"),
         "roe": _safe_div(net_income, equity),
         "roa": _safe_div(net_income, assets),
-        "revenue_yoy": _trailing_change(financials, stock_id, as_of_str, "revenue", 5),
-        "revenue_mom": _trailing_change(financials, stock_id, as_of_str, "revenue", 2),
-        "operating_income_qoq": _trailing_change(
-            financials, stock_id, as_of_str, "operating_income", 2
-        ),
+        "revenue_yoy": _trailing_change(eligible, "revenue", 5),
+        "revenue_mom": _trailing_change(eligible, "revenue", 2),
+        "operating_income_qoq": _trailing_change(eligible, "operating_income", 2),
         "accrual_assets": _safe_div(net_income - operating_cf, assets)
         if np.isfinite(net_income) and np.isfinite(operating_cf)
         else float("nan"),
@@ -301,13 +345,20 @@ def _fundamental_factors(
 
 
 def _trailing_change(
-    financials: pd.DataFrame | None, stock_id: str, as_of_str: str, column: str, depth: int
+    financials: pd.DataFrame | None,
+    column: str,
+    depth: int,
+    stock_id: str | None = None,
+    as_of_str: str | None = None,
 ) -> float:
-    if financials is None or column not in financials.columns:
+    if financials is None or financials.empty or column not in financials.columns:
         return float("nan")
-    eligible = financials.loc[
-        (financials["stock_id"] == stock_id) & (financials["available_date"] <= as_of_str)
-    ].sort_values("available_date")
+    if stock_id is not None and as_of_str is not None:
+        eligible = financials.loc[
+            (financials["stock_id"] == stock_id) & (financials["available_date"] <= as_of_str)
+        ].sort_values("available_date")
+    else:
+        eligible = financials
     values = eligible[column].to_numpy(dtype=float, na_value=np.nan)
     if len(values) < depth or not np.all(np.isfinite(values[-depth:])):
         return float("nan")
@@ -315,7 +366,10 @@ def _trailing_change(
 
 
 def _chip_factors(
-    snap: pd.Series, institutional: pd.DataFrame | None, stock_id: str, as_of_str: str
+    snap: pd.Series,
+    institutional: pd.DataFrame | None,
+    stock_id: str | None = None,
+    as_of_str: str | None = None,
 ) -> dict[str, float]:
     out = {
         "foreign_net_buy_float": float("nan"),
@@ -325,11 +379,15 @@ def _chip_factors(
             _num(snap.get("short_balance")), _num(snap.get("margin_balance"))
         ),
     }
-    if institutional is None:
+    if institutional is None or institutional.empty:
         return out
-    eligible = institutional.loc[
-        (institutional["stock_id"] == stock_id) & (institutional["trade_date"] <= as_of_str)
-    ].sort_values("trade_date")
+    if stock_id is not None and as_of_str is not None:
+        eligible = institutional.loc[
+            (institutional["stock_id"] == stock_id) & (institutional["trade_date"] <= as_of_str)
+        ].sort_values("trade_date")
+    else:
+        eligible = institutional
+
     if len(eligible) < 20:
         return out
     window = eligible.tail(20)

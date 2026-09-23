@@ -111,3 +111,19 @@ def test_run_backtest_rejects_bad_inputs(settings) -> None:
     bad_time.loc[0, "execution_date"] = "2019-12-31"
     with pytest.raises(ValueError, match="must exceed signal_date"):
         run_backtest(bad_time, _prices(), 1_000_000.0, settings, "r")
+
+
+def test_run_backtest_carries_last_close_over_gaps(settings) -> None:
+    prices = _prices()
+    # Drop B's day-4 bar and append an index-only day: holdings must carry
+    # forward, never read as worthless.
+    prices = prices.loc[~((prices["stock_id"] == "B") & (prices["trade_date"] == "2020-01-07"))]
+    extra = pd.DataFrame([{"stock_id": "TAIEX", "trade_date": "2020-01-09", "close": 12000.0}])
+    prices = pd.concat([prices, extra], ignore_index=True)
+    result = run_backtest(_orders(), prices, 1_000_000.0, settings, "r")
+    assert result.end_date == "2020-01-09"
+    # Day 4 (2020-01-07): B carried at 52.0 (day-3 close), A at 103.0.
+    day4 = 1_000_000.0 - (100 * 100.1 + 24.25) - (50 * 51.051 + 12.0) + 100 * 103.0 + 50 * 52.0
+    assert result.nav.loc["2020-01-07"] == pytest.approx(day4)
+    # Index-only day carries both positions: no fake crash to cash.
+    assert result.nav.loc["2020-01-09"] == pytest.approx(result.nav.loc["2020-01-08"])

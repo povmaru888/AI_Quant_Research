@@ -72,6 +72,7 @@ def run_backtest(
     nav_points: list[tuple[str, float]] = []
     fill_cursor = 0
     ordered_fills = sorted(fills, key=lambda r: (str(r["execution_date"]), str(r["order_id"])))
+    last_close: dict[str, float] = {}
     for day in calendar:
         while fill_cursor < len(ordered_fills) and str(
             ordered_fills[fill_cursor]["execution_date"]
@@ -79,10 +80,15 @@ def run_backtest(
             cash, charged = _apply_fill(ordered_fills[fill_cursor], holdings, cash, charged)
             fill_cursor += 1
         day_closes = closes.loc[closes["trade_date"] == day].set_index("stock_id")["close"]
+        for stock_id, price in day_closes.items():
+            last_close[str(stock_id)] = float(price)
+        # Missing bar carries the last close forward: a data gap must never
+        # read as a worthless position (it once zeroed whole portfolios on
+        # index-only calendar days). Never-seen stocks stay unvalued.
         equity = sum(
-            shares * float(day_closes.get(stock_id, float("nan")))
+            shares * last_close[stock_id]
             for stock_id, shares in holdings.items()
-            if shares > 0 and stock_id in day_closes.index
+            if shares > 0 and stock_id in last_close
         )
         nav_points.append((day, cash + equity))
 

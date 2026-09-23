@@ -7,7 +7,7 @@ this module only declares types, keys, nullability and FKs. Traceability
 
 from __future__ import annotations
 
-from sqlalchemy import Float, ForeignKey, Integer, String, text
+from sqlalchemy import Float, ForeignKey, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models import Base
@@ -145,3 +145,14 @@ class PortfolioDaily(Base):
     taiex_close: Mapped[float | None] = mapped_column(Float, nullable=True)
     taiex_ma60: Mapped[float | None] = mapped_column(Float, nullable=True)
     market_regime: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class RunArtifact(Base):
+    """Materialized dashboard payload; key (run_id, kind), JSON document."""
+
+    __tablename__ = "run_artifacts"
+
+    run_id: Mapped[str] = mapped_column(ForeignKey("pipeline_runs.run_id"), primary_key=True)
+    kind: Mapped[str] = mapped_column(String, primary_key=True)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[str | None] = mapped_column(String, nullable=True)
