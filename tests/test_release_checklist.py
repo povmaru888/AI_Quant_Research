@@ -25,6 +25,13 @@ MIGRATION_PATH = (
     / "versions"
     / "001_initial_schema.py"
 )
+MIGRATION_003_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "database"
+    / "migrations"
+    / "versions"
+    / "003_price_adj.py"
+)
 
 REQUIRED_SECTIONS = ("資料", "研究", "回測", "Dashboard", "安全", "文件")
 REQUIRED_TOPICS = (
@@ -50,6 +57,17 @@ def _load_migration():
 
 
 migration = _load_migration()
+
+
+def _load_migration_003():
+    spec = importlib.util.spec_from_file_location("price_adj_003", MIGRATION_003_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+migration_003 = _load_migration_003()
 
 
 def test_checklist_covers_sdd_gates() -> None:
@@ -95,6 +113,7 @@ def test_mvp_fixture_completes_checklist(
     conn = sqlite3.connect(str(temp_db_path))
     try:
         migration.upgrade(conn)
+        migration_003.upgrade(conn)
     finally:
         conn.close()
     db_settings = dataclasses.replace(
