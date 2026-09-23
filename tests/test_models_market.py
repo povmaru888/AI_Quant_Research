@@ -23,10 +23,17 @@ MIGRATION_PATH = (
     / "versions"
     / "001_initial_schema.py"
 )
+MIGRATION_003_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "database"
+    / "migrations"
+    / "versions"
+    / "003_price_adj.py"
+)
 
 
-def _load_migration():
-    spec = importlib.util.spec_from_file_location("initial_schema", MIGRATION_PATH)
+def _load_migration(path: Path = MIGRATION_PATH, name: str = "initial_schema"):
+    spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -34,6 +41,7 @@ def _load_migration():
 
 
 migration = _load_migration()
+migration_003 = _load_migration(MIGRATION_003_PATH, "price_adj_003")
 
 
 def _engine_for(settings: Settings, path: Path):
@@ -47,6 +55,7 @@ def _init_schema(path: Path) -> None:
     conn = sqlite3.connect(str(path))
     try:
         migration.upgrade(conn)
+        migration_003.upgrade(conn)
     finally:
         conn.close()
 
@@ -199,6 +208,7 @@ def test_institutional_nullable_and_query(settings: Settings, temp_db_path: Path
 
 def test_mappings_match_migration(temp_db_conn: sqlite3.Connection) -> None:
     migration.upgrade(temp_db_conn)
+    migration_003.upgrade(temp_db_conn)
     for model in (Price, Financial, Institutional):
         info = temp_db_conn.execute(f"PRAGMA table_info({model.__tablename__})").fetchall()
         ddl_columns = {col[1] for col in info}

@@ -29,13 +29,13 @@ from integrations.finmind_fundamentals import (  # noqa: E402
     fetch_financials,
     fetch_institutional,
 )
-from integrations.finmind_prices import fetch_prices  # noqa: E402
+from integrations.finmind_prices import fetch_price_adj, fetch_prices  # noqa: E402
 from runtime.cli import parse_symbols  # noqa: E402
 from runtime.db_store import build_store  # noqa: E402
 from runtime.dotenv import load_dotenv  # noqa: E402
 from settings import get_finmind_token, load_settings  # noqa: E402
 
-_FEEDS = ("prices", "financials", "institutional")
+_FEEDS = ("prices", "price_adj", "financials", "institutional")
 
 
 def is_gated(exc: Exception) -> bool:
@@ -57,7 +57,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--start", default="2015-01-01")
     parser.add_argument("--end", default=None)
-    parser.add_argument("--feeds", default="all")
+    parser.add_argument("--feeds", default="prices,financials,institutional")
     parser.add_argument("--symbols", default="")
     parser.add_argument("--symbols-file", default="")
     parser.add_argument("--limit", type=int, default=0)
@@ -120,6 +120,9 @@ def main(argv: list[str] | None = None) -> int:
         if "prices" in feeds:
             frame = fetch_prices(args.start, end, token, stock_id=stock_id)
             totals["prices"] += store.upsert_prices(frame)
+        if "price_adj" in feeds:
+            frame = fetch_price_adj(args.start, end, token, stock_id=stock_id)
+            totals["price_adj"] += store.upsert_price_adj(frame)
         if "financials" in feeds:
             frame = fetch_financials(args.start, end, token, stock_id=stock_id)
             totals["financials"] += store.upsert_financials(frame)

@@ -26,6 +26,10 @@ class Price(Base):
     volume: Mapped[float] = mapped_column(Float, nullable=False)
     traded_value: Mapped[float] = mapped_column(Float, nullable=False)
     source: Mapped[str] = mapped_column(String, nullable=False)
+    open_adj: Mapped[float | None] = mapped_column(Float, nullable=True)
+    high_adj: Mapped[float | None] = mapped_column(Float, nullable=True)
+    low_adj: Mapped[float | None] = mapped_column(Float, nullable=True)
+    close_adj: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class Financial(Base):

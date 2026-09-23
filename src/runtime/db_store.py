@@ -262,6 +262,13 @@ class DbStore:
             self._ensure_stocks(session, self._frame_ids(frame))
             return prices_repo.upsert_prices(session, frame)
 
+    def upsert_price_adj(self, frame: pd.DataFrame) -> int:
+        """Fill adj columns on existing bars; dates without raw bars skip."""
+        if frame.empty:
+            return 0
+        with self._scope() as session:
+            return prices_repo.upsert_price_adj(session, frame)
+
     def upsert_financials(self, frame: pd.DataFrame) -> int:
         if frame.empty:
             return 0

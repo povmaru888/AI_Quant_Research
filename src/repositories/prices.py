@@ -10,7 +10,7 @@ from collections.abc import Collection
 from datetime import date
 
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
@@ -27,6 +27,15 @@ PRICE_COLUMNS = (
     "volume",
     "traded_value",
     "source",
+)
+
+ADJ_COLUMNS = (
+    "trade_date",
+    "stock_id",
+    "open_adj",
+    "high_adj",
+    "low_adj",
+    "close_adj",
 )
 
 _PRICE_COLUMNS = frozenset(col.name for col in Price.__table__.columns)
@@ -80,3 +89,34 @@ def load_prices(
     )
     result = session.execute(statement).all()
     return pd.DataFrame(result, columns=list(PRICE_COLUMNS))
+
+
+def upsert_price_adj(session: Session, rows: pd.DataFrame) -> int:
+    """Fill adj columns on EXISTING price rows; return rows matched.
+
+    Update-only: adj history predates our raw history, and raw OHLCV is
+    NOT NULL, so dates without a raw bar are skipped (counted out).
+    """
+    records = to_records(rows, _PRICE_COLUMNS, ("trade_date", "stock_id"), "PriceAdj")
+    if not records:
+        return 0
+    result = session.execute(
+        text(
+            "UPDATE prices SET open_adj = :open_adj, high_adj = :high_adj,"
+            " low_adj = :low_adj, close_adj = :close_adj"
+            " WHERE trade_date = :trade_date AND stock_id = :stock_id"
+        ),
+        [
+            {
+                "trade_date": record["trade_date"],
+                "stock_id": record["stock_id"],
+                "open_adj": record.get("open_adj"),
+                "high_adj": record.get("high_adj"),
+                "low_adj": record.get("low_adj"),
+                "close_adj": record.get("close_adj"),
+            }
+            for record in records
+        ],
+    )
+    session.flush()
+    return result.rowcount

@@ -15,6 +15,7 @@ import requests
 from integrations.finmind import _get
 
 DATASET = "TaiwanStockPrice"
+ADJ_DATASET = "TaiwanStockPriceAdj"
 SOURCE = "finmind"
 
 PRICE_COLUMNS: tuple[str, ...] = (
@@ -27,6 +28,15 @@ PRICE_COLUMNS: tuple[str, ...] = (
     "volume",
     "traded_value",
     "source",
+)
+
+ADJ_COLUMNS: tuple[str, ...] = (
+    "stock_id",
+    "trade_date",
+    "open_adj",
+    "high_adj",
+    "low_adj",
+    "close_adj",
 )
 
 _FIELD_MAP = {
@@ -69,3 +79,46 @@ def fetch_prices(
     ]
     frame["source"] = SOURCE
     return frame[[*PRICE_COLUMNS]].reset_index(drop=True)
+
+
+_ADJ_FIELD_MAP = {
+    "stock_id": "stock_id",
+    "date": "trade_date",
+    "open": "open_adj",
+    "max": "high_adj",
+    "min": "low_adj",
+    "close": "close_adj",
+}
+
+
+def fetch_price_adj(
+    start: str,
+    end: str,
+    token: str,
+    requester: Callable[..., requests.Response] = requests.get,
+    timeout: float = 30.0,
+    stock_id: str | None = None,
+) -> pd.DataFrame:
+    """Fetch back-adjusted OHLC; rows without a raw bar are the caller's to skip.
+
+    Adjusted closes are back-computed to the latest trading day, so the
+    event day's adj price equals its raw price and history shifts. Bars
+    with non-positive adjusted values are dropped (SDD 7.3).
+    """
+    rows = _get(ADJ_DATASET, start, end, token, requester, timeout, data_id=stock_id)
+    frame = pd.DataFrame(rows)
+    if frame.empty:
+        return pd.DataFrame(columns=[*ADJ_COLUMNS])
+    missing = [c for c in _ADJ_FIELD_MAP if c not in frame.columns]
+    if missing:
+        raise ValueError(f"finmind {ADJ_DATASET} missing fields {missing}")
+    frame = frame.rename(columns=_ADJ_FIELD_MAP)
+    numeric = ["open_adj", "high_adj", "low_adj", "close_adj"]
+    for column in numeric:
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    frame = frame.dropna(subset=["stock_id", "trade_date", *numeric])
+    frame = frame.loc[
+        (frame[["open_adj", "high_adj", "low_adj", "close_adj"]] > 0).all(axis=1)
+        & (frame["high_adj"] >= frame["low_adj"])
+    ]
+    return frame[["stock_id", "trade_date", *numeric]].reset_index(drop=True)
