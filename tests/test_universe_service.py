@@ -32,13 +32,22 @@ def _history(
                     "stock_id": stock_id,
                     "trade_date": day.isoformat(),
                     "close": close,
+                    "close_adj": close,
                     "traded_value": value,
                 }
             )
             added += 1
         day = date.fromordinal(day.toordinal() - 1)
     prefix.reverse()
-    prefix.append({"stock_id": stock_id, "trade_date": end, "close": close, "traded_value": value})
+    prefix.append(
+        {
+            "stock_id": stock_id,
+            "trade_date": end,
+            "close": close,
+            "close_adj": close,
+            "traded_value": value,
+        }
+    )
     return prefix
 
 
@@ -101,6 +110,7 @@ def test_build_universe_insufficient_history(settings) -> None:
                 "stock_id": "new",
                 "trade_date": "2019-12-31",
                 "close": 300.0,
+                "close_adj": 300.0,
                 "traded_value": 500_000_000.0,
             }
         ]
@@ -160,4 +170,21 @@ def test_build_universe_rejects_bad_inputs(settings) -> None:
     with pytest.raises(ValueError, match="as_of"):
         build_universe(prices, stocks, "2019-12-31", settings, "run-001")
     with pytest.raises(ValueError, match="missing columns"):
-        build_universe(prices.drop(columns=["close"]), stocks, date(2019, 12, 31), settings, "r")
+        build_universe(prices.drop(columns=["close_adj"]), stocks, date(2019, 12, 31), settings, "r")
+
+
+def test_build_universe_uses_nominal_tradable_price_and_requires_adjusted_close(settings) -> None:
+    prices = _prices(_history("2330", 300.0, 500_000_000.0))
+    stocks = _stocks([_good_stock()])
+    prices.loc[prices["trade_date"] == "2019-12-31", "close_adj"] = 5.0
+    result = build_universe(prices, stocks, date(2019, 12, 31), settings, "run-001")
+    assert result.entries[0].included
+
+    prices.loc[prices["trade_date"] == "2019-12-31", "close_adj"] = 300.0
+    prices.loc[prices["trade_date"] == "2019-12-31", "close"] = 5.0
+    result = build_universe(prices, stocks, date(2019, 12, 31), settings, "run-001")
+    assert result.entries[0].reason == "price:5.00"
+
+    prices.loc[prices["trade_date"] == "2019-12-31", "close_adj"] = pd.NA
+    result = build_universe(prices, stocks, date(2019, 12, 31), settings, "run-001")
+    assert result.entries[0].reason == "no_price"

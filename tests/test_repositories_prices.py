@@ -13,7 +13,12 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from database import create_engine_from_settings, session_scope
-from repositories.prices import PRICE_COLUMNS, load_prices, upsert_prices
+from repositories.prices import (
+    PRICE_HISTORY_COLUMNS,
+    load_prices,
+    upsert_price_adj,
+    upsert_prices,
+)
 from repositories.stocks import upsert_stocks
 from settings import Settings
 
@@ -35,6 +40,18 @@ def _load_migration():
 
 
 migration = _load_migration()
+ADJ_MIGRATION_PATH = MIGRATION_PATH.with_name("003_price_adj.py")
+
+
+def _load_adj_migration():
+    spec = importlib.util.spec_from_file_location("price_adj_repository", ADJ_MIGRATION_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+adj_migration = _load_adj_migration()
 
 
 def _engine_for(settings: Settings, path: Path):
@@ -48,6 +65,7 @@ def _init_schema(path: Path) -> None:
     conn = sqlite3.connect(str(path))
     try:
         migration.upgrade(conn)
+        adj_migration.upgrade(conn)
     finally:
         conn.close()
 
@@ -81,7 +99,7 @@ def test_upsert_and_reload_sorted(
             assert upsert_prices(session, sample_prices) == len(sample_prices)
         with session_scope(engine) as session:
             loaded = load_prices(session, ["2330", "0050"], date(2000, 1, 1), date(2030, 1, 1))
-        assert list(loaded.columns) == list(PRICE_COLUMNS)
+        assert list(loaded.columns) == list(PRICE_HISTORY_COLUMNS)
         assert len(loaded) == len(sample_prices)
         pairs = list(loaded[["stock_id", "trade_date"]].itertuples(index=False, name=None))
         assert pairs == sorted(pairs)
@@ -114,6 +132,40 @@ def test_upsert_idempotent(
         with session_scope(engine) as session:
             loaded = load_prices(session, ["0050"], date(2000, 1, 1), date(2030, 1, 1))
         assert changed.iloc[0]["close"] in set(loaded["close"])
+    finally:
+        engine.dispose()
+
+
+def test_load_prices_exposes_adjusted_values_without_raw_fallback(
+    settings: Settings, temp_db_path: Path, sample_prices: pd.DataFrame
+) -> None:
+    engine = _seeded_engine(settings, temp_db_path)
+    try:
+        with session_scope(engine) as session:
+            upsert_prices(session, sample_prices)
+            first = sample_prices.iloc[0]
+            upsert_price_adj(
+                session,
+                pd.DataFrame(
+                    [
+                        {
+                            "trade_date": first["trade_date"],
+                            "stock_id": first["stock_id"],
+                            "open_adj": 10.0,
+                            "high_adj": 11.0,
+                            "low_adj": 9.0,
+                            "close_adj": 10.5,
+                        }
+                    ]
+                ),
+            )
+        with session_scope(engine) as session:
+            loaded = load_prices(
+                session, [first["stock_id"]], date(2000, 1, 1), date(2030, 1, 1)
+            )
+        assert loaded.iloc[0]["close_adj"] == 10.5
+        assert loaded.iloc[0]["close"] == first["close"]
+        assert loaded["close_adj"].isna().sum() == len(loaded) - 1
     finally:
         engine.dispose()
 
@@ -169,7 +221,7 @@ def test_load_filters(settings: Settings, temp_db_path: Path, sample_prices: pd.
         with session_scope(engine) as session:
             empty = load_prices(session, [], date(2020, 1, 2), date(2020, 1, 10))
         assert len(empty) == 0
-        assert list(empty.columns) == list(PRICE_COLUMNS)
+        assert list(empty.columns) == list(PRICE_HISTORY_COLUMNS)
     finally:
         engine.dispose()
 

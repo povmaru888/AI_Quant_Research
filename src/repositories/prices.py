@@ -38,6 +38,10 @@ ADJ_COLUMNS = (
     "close_adj",
 )
 
+# Historical consumers need both the raw execution quote and its adjusted
+# counterpart. PRICE_COLUMNS remains the raw ingestion contract.
+PRICE_HISTORY_COLUMNS = (*PRICE_COLUMNS, *ADJ_COLUMNS[2:])
+
 _PRICE_COLUMNS = frozenset(col.name for col in Price.__table__.columns)
 _PRICE_KEY = ("trade_date", "stock_id")
 
@@ -64,10 +68,10 @@ def upsert_prices(session: Session, rows: pd.DataFrame) -> int:
 def load_prices(
     session: Session, stock_ids: Collection[str], start: date, end: date
 ) -> pd.DataFrame:
-    """Load bars for ``stock_ids`` in [``start``, ``end``], sorted by id/date."""
+    """Load raw and adjusted bars in [``start``, ``end``], sorted by id/date."""
     ids = list(stock_ids)
     if not ids:
-        return pd.DataFrame(columns=list(PRICE_COLUMNS))
+        return pd.DataFrame(columns=list(PRICE_HISTORY_COLUMNS))
     statement = (
         select(
             Price.trade_date,
@@ -79,6 +83,10 @@ def load_prices(
             Price.volume,
             Price.traded_value,
             Price.source,
+            Price.open_adj,
+            Price.high_adj,
+            Price.low_adj,
+            Price.close_adj,
         )
         .where(
             Price.stock_id.in_(ids),
@@ -88,7 +96,7 @@ def load_prices(
         .order_by(Price.stock_id, Price.trade_date)
     )
     result = session.execute(statement).all()
-    return pd.DataFrame(result, columns=list(PRICE_COLUMNS))
+    return pd.DataFrame(result, columns=list(PRICE_HISTORY_COLUMNS))
 
 
 def upsert_price_adj(session: Session, rows: pd.DataFrame) -> int:

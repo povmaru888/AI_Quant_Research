@@ -10,6 +10,7 @@ from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -31,6 +32,7 @@ MIGRATION_PATH = (
     / "versions"
     / "001_initial_schema.py"
 )
+MIGRATION_003_PATH = MIGRATION_PATH.with_name("003_price_adj.py")
 
 AS_OF = "2020-02-05"
 
@@ -46,11 +48,23 @@ def _load_migration():
 migration = _load_migration()
 
 
+def _load_adj_migration():
+    spec = importlib.util.spec_from_file_location("price_adj_dbstore", MIGRATION_003_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+adj_migration = _load_adj_migration()
+
+
 @pytest.fixture()
 def store(settings: Settings, temp_db_path: Path) -> Iterator[DbStore]:
     conn = sqlite3.connect(str(temp_db_path))
     try:
         migration.upgrade(conn)
+        adj_migration.upgrade(conn)
     finally:
         conn.close()
     db_settings = dataclasses.replace(
@@ -80,7 +94,10 @@ def _seed_market(store: DbStore, sample_prices: pd.DataFrame) -> None:
                 }
             ),
         )
-    store.upsert_prices(sample_prices)
+    bars = sample_prices.copy()
+    for column in ("open", "high", "low", "close"):
+        bars[f"{column}_adj"] = bars[column]
+    store.upsert_prices(bars)
     store.upsert_institutional(
         pd.DataFrame(
             {
@@ -100,7 +117,7 @@ def test_start_run_defaults_and_status(store: DbStore, settings: Settings) -> No
     summary = store.load_run_summary("daily-2020-02-05")
     assert summary["feature_version"] == settings.features.feature_version
     assert summary["parameter_version"] == "job:daily_update"
-    assert summary["model_version"] == "xgb_202002"
+    assert summary["model_version"] == f"xgb_202002_{settings.features.feature_version}"
     store.finish_run("daily-2020-02-05", "succeeded")
     assert store.get_run_status("daily-2020-02-05") == "succeeded"
     assert store.list_runs(status="succeeded") == [
@@ -108,6 +125,7 @@ def test_start_run_defaults_and_status(store: DbStore, settings: Settings) -> No
             "run_id": "daily-2020-02-05",
             "status": "succeeded",
             "parameter_version": "job:daily_update",
+            "feature_version": settings.features.feature_version,
         }
     ]
     with pytest.raises(ValueError, match="unknown run"):
@@ -141,13 +159,70 @@ def test_symbols_and_latest_trade_date(store: DbStore, sample_prices: pd.DataFra
     assert store.load_symbols() == ["0050", "2330"]
 
 
-def test_research_loads_and_saves(store: DbStore, sample_prices: pd.DataFrame) -> None:
+def test_adjusted_price_reads_and_daily_coverage(
+    store: DbStore, sample_prices: pd.DataFrame
+) -> None:
+    _seed_market(store, sample_prices)
+    assert store.load_adjusted_coverage(AS_OF) == (2, 2)
+    bar = sample_prices.loc[
+        (sample_prices["stock_id"] == "2330") & (sample_prices["trade_date"] == AS_OF)
+    ].iloc[0]
+    adjusted = {
+        "stock_id": "2330",
+        "trade_date": AS_OF,
+        **{f"{column}_adj": float(bar[column]) / 2 for column in ("open", "high", "low", "close")},
+    }
+    store.upsert_price_adj(pd.DataFrame([adjusted]))
+    loaded = store.load_prices()
+    changed = loaded.loc[(loaded["stock_id"] == "2330") & (loaded["trade_date"] == AS_OF)].iloc[0]
+    assert changed["close"] == bar["close"]
+    assert changed["close_adj"] == pytest.approx(float(bar["close"]) / 2)
+    returns = store.load_returns(["2330"])
+    previous = sample_prices.loc[
+        (sample_prices["stock_id"] == "2330") & (sample_prices["trade_date"] < AS_OF), "close"
+    ].iloc[-1]
+    actual = returns.loc[returns["trade_date"] == AS_OF, "log_return"].iloc[0]
+    assert actual == pytest.approx(np.log((float(bar["close"]) / 2) / float(previous)))
+
+    store.upsert_price_adj(
+        pd.DataFrame(
+            [
+                {"stock_id": "0050", "trade_date": AS_OF, **{
+                    f"{column}_adj": float("nan") for column in ("open", "high", "low", "close")
+                }}
+            ]
+        )
+    )
+    assert store.load_adjusted_coverage(date.fromisoformat(AS_OF)) == (2, 1)
+
+
+def test_adjusted_returns_do_not_bridge_missing_day(
+    store: DbStore, sample_prices: pd.DataFrame
+) -> None:
+    _seed_market(store, sample_prices)
+    days = sorted(sample_prices["trade_date"].unique())
+    missing_day, following_day = days[-2:]
+    store.upsert_price_adj(
+        pd.DataFrame([{
+            "stock_id": "0050",
+            "trade_date": missing_day,
+            **{f"{column}_adj": float("nan") for column in ("open", "high", "low", "close")},
+        }])
+    )
+    returns = store.load_returns(["0050"])
+    assert missing_day not in set(returns["trade_date"])
+    assert following_day not in set(returns["trade_date"])
+
+
+def test_research_loads_and_saves(
+    store: DbStore, sample_prices: pd.DataFrame, settings: Settings
+) -> None:
     _seed_market(store, sample_prices)
     store.start_run(
         {
             "run_id": "rebalance-2020-02-05",
             "data_end_date": AS_OF,
-            "feature_version": "factor_v1",
+            "feature_version": settings.features.feature_version,
             "parameter_version": "p1",
         }
     )
@@ -174,7 +249,9 @@ def test_research_loads_and_saves(store: DbStore, sample_prices: pd.DataFrame) -
             "prediction_date": [AS_OF, AS_OF],
         }
     )
-    assert store.save_predictions(preds, "xgb_202002") == 2
+    assert store.save_predictions(
+        preds, f"xgb_202002_{settings.features.feature_version}"
+    ) == 2
     target = PortfolioTarget(
         run_id="rebalance-2020-02-05",
         signal_date=AS_OF,
@@ -318,6 +395,56 @@ def test_dashboard_reads(store: DbStore, sample_prices: pd.DataFrame) -> None:
     assert set(model_data) == {"shap_top", "feature_importance", "monthly_ic", "prediction_dist"}
 
 
+def test_load_holdings_uses_run_feature_version(
+    store: DbStore, sample_prices: pd.DataFrame
+) -> None:
+    from models.research import Feature, Signal
+
+    _seed_market(store, sample_prices)
+    run_id = "rebalance-versioned"
+    store.start_run(
+        {
+            "run_id": run_id,
+            "data_end_date": AS_OF,
+            "feature_version": "factor_adj_v2",
+            "parameter_version": "p1",
+        }
+    )
+    with store._scope() as session:  # noqa: SLF001 - test-only seeding hook.
+        session.add_all(
+            [
+                Signal(
+                    signal_date=AS_OF, stock_id=stock_id, run_id=run_id,
+                    signal="BUY", rank=rank, target_weight=0.1,
+                )
+                for rank, stock_id in enumerate(("2330", "0050"), start=1)
+            ]
+        )
+        session.add_all(
+            [
+                Feature(
+                    rebalance_date=AS_OF, stock_id="2330", feature_version="factor_v1",
+                    volatility_60d=9.0, beta_60d=9.0,
+                ),
+                Feature(
+                    rebalance_date=AS_OF, stock_id="0050", feature_version="factor_v1",
+                    volatility_60d=8.0, beta_60d=8.0,
+                ),
+                Feature(
+                    rebalance_date=AS_OF, stock_id="2330", feature_version="factor_adj_v2",
+                    volatility_60d=0.2, beta_60d=1.1,
+                ),
+            ]
+        )
+
+    holdings = store.load_holdings(run_id, AS_OF).set_index("stock_id")
+    assert len(holdings) == 2
+    assert holdings.loc["2330", "volatility_60d"] == pytest.approx(0.2)
+    assert holdings.loc["2330", "beta_60d"] == pytest.approx(1.1)
+    assert pd.isna(holdings.loc["0050", "volatility_60d"])
+    assert pd.isna(holdings.loc["0050", "beta_60d"])
+
+
 def test_load_performance_replays_orders(store: DbStore, sample_prices: pd.DataFrame) -> None:
     _seed_market(store, sample_prices)
     store.start_run({"run_id": "r", "job": "test", "data_end_date": "2020-02-04"})
@@ -372,6 +499,7 @@ def test_market_cap_missing_without_cache(
     conn = sqlite3.connect(str(temp_db_path))
     try:
         migration.upgrade(conn)
+        adj_migration.upgrade(conn)
     finally:
         conn.close()
     db_settings = dataclasses.replace(
@@ -402,6 +530,7 @@ def test_build_store_factory(settings: Settings, temp_db_path: Path) -> None:
     conn = sqlite3.connect(str(temp_db_path))
     try:
         migration.upgrade(conn)
+        adj_migration.upgrade(conn)
     finally:
         conn.close()
     db_settings = dataclasses.replace(

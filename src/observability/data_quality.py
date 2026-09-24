@@ -1,8 +1,8 @@
 """P5-03: data quality audit (SDD section 16 operations).
 
 Read-only audit over the SQLite store for one ``as_of`` date: missing
-prices, duplicate keys, invalid prices, financial PIT violations, and
-feature coverage. Blockers fail
+prices, duplicate keys, invalid raw/adjusted prices, adjusted-price
+freshness, financial PIT violations, and feature coverage. Blockers fail
 ``assert_no_blockers`` so the signal job refuses to run on a broken
 dataset; warnings only surface in the report.
 """
@@ -21,6 +21,7 @@ from models.research import Feature
 from models.security import Stock
 
 COVERAGE_WARNING_THRESHOLD = 0.9
+_TAIEX_ID = "TAIEX"
 _REPORT_PERIOD_RE = re.compile(r"^\d{4}Q[1-4]$")
 
 
@@ -50,6 +51,7 @@ def audit_data_quality(as_of: str, session: Session) -> DataQualityReport:
     issues.extend(_check_missing_prices(as_of, session))
     issues.extend(_check_duplicate_keys(as_of, session))
     issues.extend(_check_invalid_prices(as_of, session))
+    issues.extend(_check_adjusted_prices(as_of, session))
     issues.extend(_check_financial_pit(as_of, session))
     issues.extend(_check_feature_coverage(as_of, session))
     passed = all(issue.severity != "blocker" for issue in issues)
@@ -203,6 +205,89 @@ def _check_invalid_prices(as_of: str, session: Session) -> list[DataQualityIssue
             count=len(rows),
         )
     ]
+
+
+def _check_adjusted_prices(as_of: str, session: Session) -> list[DataQualityIssue]:
+    """Flag unavailable adjusted history and stale/invalid research prices.
+
+    TAIEX is an index, not a FinMind TaiwanStockPriceAdj instrument. Sparse
+    historical gaps remain warnings because research can exclude affected
+    stocks; a wholly stale latest adjusted day blocks a new signal.
+    """
+    scope = (Price.stock_id != _TAIEX_ID, Price.trade_date <= as_of)
+    latest_raw = session.execute(select(func.max(Price.trade_date)).where(*scope)).scalar()
+    if latest_raw is None:
+        return []
+    complete = (
+        Price.open_adj.is_not(None)
+        & Price.high_adj.is_not(None)
+        & Price.low_adj.is_not(None)
+        & Price.close_adj.is_not(None)
+    )
+    positive = (
+        (Price.open_adj > 0)
+        & (Price.high_adj > 0)
+        & (Price.low_adj > 0)
+        & (Price.close_adj > 0)
+    )
+    latest_adjusted = session.execute(
+        select(func.max(Price.trade_date)).where(*scope, complete, positive)
+    ).scalar()
+    issues: list[DataQualityIssue] = []
+    if latest_adjusted != latest_raw:
+        issues.append(
+            DataQualityIssue(
+                check="adjusted_price_stale",
+                severity="blocker",
+                detail=(
+                    f"latest raw stock bar is {latest_raw}, but latest usable "
+                    f"adjusted stock bar is {latest_adjusted or 'none'}"
+                ),
+                count=1,
+            )
+        )
+    missing_count = session.execute(
+        select(func.count()).select_from(Price).where(*scope, ~complete)
+    ).scalar_one()
+    if missing_count:
+        issues.append(
+            DataQualityIssue(
+                check="missing_adjusted_prices",
+                severity="warning",
+                detail=(
+                    f"{missing_count} non-index bars lack complete adjusted OHLC "
+                    f"on/before {as_of}"
+                ),
+                count=missing_count,
+            )
+        )
+    invalid = complete & (
+        ~positive
+        | (Price.low_adj > Price.high_adj)
+        | (Price.high_adj < Price.open_adj)
+        | (Price.high_adj < Price.close_adj)
+        | (Price.low_adj > Price.open_adj)
+        | (Price.low_adj > Price.close_adj)
+    )
+    bad_count = session.execute(
+        select(func.count()).select_from(Price).where(*scope, invalid)
+    ).scalar_one()
+    if bad_count:
+        sample = session.execute(
+            select(Price.stock_id, Price.trade_date).where(*scope, invalid).limit(5)
+        ).all()
+        issues.append(
+            DataQualityIssue(
+                check="invalid_adjusted_prices",
+                severity="blocker",
+                detail=(
+                    f"{bad_count} adjusted bars violate OHLC positivity/range, "
+                    f"e.g. {[(row[0], row[1]) for row in sample]}"
+                ),
+                count=bad_count,
+            )
+        )
+    return issues
 
 
 def _check_financial_pit(as_of: str, session: Session) -> list[DataQualityIssue]:

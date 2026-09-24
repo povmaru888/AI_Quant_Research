@@ -25,6 +25,10 @@ def _price_history(
             "high": closes * 1.01,
             "low": closes * 0.99,
             "close": closes,
+            "open_adj": closes,
+            "high_adj": closes * 1.01,
+            "low_adj": closes * 0.99,
+            "close_adj": closes,
             "volume": volume,
             "traded_value": closes * volume,
         }
@@ -35,6 +39,7 @@ def _snapshot(stock_id: str = "2330", **overrides) -> pd.DataFrame:
     row = {
         "stock_id": stock_id,
         "as_of_close": 250.0,
+        "as_of_close_adj": 50.0,
         "float_shares": 1_000_000_000.0,
         "net_income": 10_000_000_000.0,
         "equity": 100_000_000_000.0,
@@ -143,6 +148,13 @@ def test_negative_valuation_masked_with_flag() -> None:
     assert row["missing_flag"] == 1
 
 
+def test_valuation_uses_nominal_close_with_nominal_shares() -> None:
+    out = calculate_raw_features(_snapshot(), _full_prices(), AS_OF)
+    row = out.iloc[0]
+    assert row["earnings_yield"] == pytest.approx(10e9 / (250.0 * 1e9))
+    assert row["book_to_market"] == pytest.approx(100e9 / (250.0 * 1e9))
+
+
 def test_future_prices_do_not_leak() -> None:
     base = calculate_raw_features(
         _snapshot(), _full_prices(), AS_OF, _financials(), _institutional()
@@ -156,6 +168,10 @@ def test_future_prices_do_not_leak() -> None:
                 "high": 2500.0,
                 "low": 2500.0,
                 "close": 2500.0,
+                "open_adj": 2500.0,
+                "high_adj": 2500.0,
+                "low_adj": 2500.0,
+                "close_adj": 2500.0,
                 "volume": 10_000.0,
                 "traded_value": 25_000_000.0,
             }
@@ -190,3 +206,26 @@ def test_beta_requires_all_60_matching_market_dates() -> None:
     missing_market_day = market.drop(market.index[-30])
     incomplete = calculate_raw_features(_snapshot(), pd.concat([stock, missing_market_day]), AS_OF)
     assert pd.isna(incomplete.iloc[0]["beta_60d"])
+
+
+def test_stock_factors_use_adjusted_close_and_high_without_raw_fallback() -> None:
+    adjusted = 100.0 + np.arange(150)
+    stock = _price_history("2330", adjusted)
+    stock["close"] = 9000.0  # Deliberately unrelated raw prices.
+    stock["high"] = 9001.0
+    market = _price_history("TAIEX", 1000.0 + np.arange(150))
+    market[["open_adj", "high_adj", "low_adj", "close_adj"]] = np.nan
+    out = calculate_raw_features(_snapshot(), pd.concat([stock, market]), AS_OF)
+    row = out.iloc[0]
+    assert row["momentum_20d"] == pytest.approx(adjusted[-1] / adjusted[-21] - 1)
+    assert row["close_60d_high"] == pytest.approx(adjusted[-1] / (adjusted[-1] * 1.01))
+    assert np.isfinite(row["beta_60d"])  # TAIEX uses its index close.
+
+    stock.loc[stock.index[-1], "high_adj"] = np.nan
+    missing_high = calculate_raw_features(_snapshot(), pd.concat([stock, market]), AS_OF).iloc[0]
+    assert pd.isna(missing_high["close_60d_high"])
+
+    stock.loc[stock.index[-1], "close_adj"] = np.nan
+    missing_close = calculate_raw_features(_snapshot(), pd.concat([stock, market]), AS_OF).iloc[0]
+    assert pd.isna(missing_close["momentum_20d"])
+    assert missing_close["missing_flag"] == 1

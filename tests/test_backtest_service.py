@@ -14,7 +14,15 @@ def _prices() -> pd.DataFrame:
     rows = []
     for stock_id, base in (("A", 100.0), ("B", 50.0)):
         for i, day in enumerate(dates):
-            rows.append({"stock_id": stock_id, "trade_date": day, "close": base + i})
+            rows.append(
+                {
+                    "stock_id": stock_id,
+                    "trade_date": day,
+                    "open": base + i,
+                    "open_adj": base + i,
+                    "close_adj": base + i,
+                }
+            )
     return pd.DataFrame(rows)
 
 
@@ -118,7 +126,7 @@ def test_run_backtest_carries_last_close_over_gaps(settings) -> None:
     # Drop B's day-4 bar and append an index-only day: holdings must carry
     # forward, never read as worthless.
     prices = prices.loc[~((prices["stock_id"] == "B") & (prices["trade_date"] == "2020-01-07"))]
-    extra = pd.DataFrame([{"stock_id": "TAIEX", "trade_date": "2020-01-09", "close": 12000.0}])
+    extra = pd.DataFrame([{"stock_id": "TAIEX", "trade_date": "2020-01-09"}])
     prices = pd.concat([prices, extra], ignore_index=True)
     result = run_backtest(_orders(), prices, 1_000_000.0, settings, "r")
     assert result.end_date == "2020-01-09"
@@ -127,3 +135,75 @@ def test_run_backtest_carries_last_close_over_gaps(settings) -> None:
     assert result.nav.loc["2020-01-07"] == pytest.approx(day4)
     # Index-only day carries both positions: no fake crash to cash.
     assert result.nav.loc["2020-01-09"] == pytest.approx(result.nav.loc["2020-01-08"])
+
+
+def test_run_backtest_uses_adjusted_total_return_across_dividend(settings) -> None:
+    prices = pd.DataFrame(
+        [
+            # A 20% cash distribution makes raw prices fall from 100 to 80.
+            # Back-adjusted prices correctly stay at 80 across the event.
+            {"stock_id": "A", "trade_date": "2020-01-02", "open": 100.0,
+             "open_adj": 80.0, "close_adj": 80.0},
+            {"stock_id": "A", "trade_date": "2020-01-03", "open": 80.0,
+             "open_adj": 80.0, "close_adj": 80.0},
+            {"stock_id": "A", "trade_date": "2020-01-06", "open": 80.0,
+             "open_adj": 80.0, "close_adj": 80.0},
+        ]
+    )
+    orders = pd.DataFrame(
+        [
+            {"order_id": "buy", "signal_date": "2020-01-01", "execution_date": "2020-01-02",
+             "stock_id": "A", "side": "BUY", "target_shares": 100,
+             "executed_price": 100.0, "total_cost": 0.0},
+            {"order_id": "sell", "signal_date": "2020-01-03", "execution_date": "2020-01-06",
+             "stock_id": "A", "side": "SELL", "target_shares": 0,
+             "executed_price": 80.0, "total_cost": 0.0},
+        ]
+    )
+    result = run_backtest(orders, prices, 20_000.0, settings, "r")
+    assert result.nav.tolist() == pytest.approx([20_000.0] * 3)
+    assert result.orders.loc[0, "executed_price"] == 100.0  # real exchange quote retained
+    assert result.orders.loc[1, "executed_price"] == 80.0
+
+
+def test_run_backtest_partial_sell_preserves_adjusted_wealth(settings) -> None:
+    prices = pd.DataFrame(
+        [
+            {"stock_id": "A", "trade_date": "2020-01-02", "open": 100.0,
+             "open_adj": 80.0, "close_adj": 80.0},
+            {"stock_id": "A", "trade_date": "2020-01-03", "open": 80.0,
+             "open_adj": 80.0, "close_adj": 80.0},
+            {"stock_id": "A", "trade_date": "2020-01-06", "open": 80.0,
+             "open_adj": 80.0, "close_adj": 80.0},
+        ]
+    )
+    orders = pd.DataFrame(
+        [
+            {"order_id": "buy", "signal_date": "2020-01-01", "execution_date": "2020-01-02",
+             "stock_id": "A", "side": "BUY", "target_shares": 100,
+             "executed_price": 100.0, "total_cost": 0.0},
+            {"order_id": "half", "signal_date": "2020-01-02", "execution_date": "2020-01-03",
+             "stock_id": "A", "side": "SELL", "target_shares": 50,
+             "executed_price": 80.0, "total_cost": 0.0},
+            {"order_id": "rest", "signal_date": "2020-01-03", "execution_date": "2020-01-06",
+             "stock_id": "A", "side": "SELL", "target_shares": 0,
+             "executed_price": 80.0, "total_cost": 0.0},
+        ]
+    )
+    result = run_backtest(orders, prices, 20_000.0, settings, "r")
+    assert result.nav.tolist() == pytest.approx([20_000.0] * 3)
+
+
+def test_run_backtest_rejects_missing_adjusted_quotes(settings) -> None:
+    with pytest.raises(ValueError, match="open_adj"):
+        run_backtest(_orders(), _prices().drop(columns=["open_adj"]), 1_000_000.0, settings, "r")
+    prices = _prices()
+    on_day = (prices["stock_id"] == "A") & (prices["trade_date"] == "2020-01-03")
+    prices.loc[on_day, "close_adj"] = None
+    with pytest.raises(ValueError, match="missing close_adj"):
+        run_backtest(_orders(), prices, 1_000_000.0, settings, "r")
+    prices = _prices()
+    on_day = (prices["stock_id"] == "A") & (prices["trade_date"] == "2020-01-02")
+    prices.loc[on_day, "open_adj"] = None
+    with pytest.raises(ValueError, match="raw/adjusted open"):
+        run_backtest(_orders(), prices, 1_000_000.0, settings, "r")

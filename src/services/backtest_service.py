@@ -1,15 +1,18 @@
 """P2-14: backtest service (SDD 13.3).
 
-Cash-plus-holdings ledger replayed from auditable orders, valued at
-daily closes. Costs are taken from the orders themselves (already split
-by P2-13), so nothing is double-counted. A VectorBT cross-check point:
-``Portfolio.from_orders`` with ``fees=0``/``slippage=0`` on the same
-orders and closes must reproduce this NAV; the pandas ledger stays the
-record of truth for auditability and version-risk reasons.
+Orders record real, unadjusted execution prices and share counts. For
+historical total-return replay, a buy converts those shares to adjusted
+units using that day's raw/adjusted open ratio. Adjusted closes value
+the units, and sells release the same fraction of adjusted units as raw
+shares. This is a reinvested-distribution approximation: it preserves
+economic value across ex-rights/ex-dividend dates without pretending
+that adjusted prices were executable market quotes. The original orders
+and their broker fees, taxes, and slippage remain auditable.
 """
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from contracts import BacktestResult
@@ -50,65 +53,96 @@ def run_backtest(
             raise ValueError("invalid orders: execution_date must exceed signal_date")
     if not isinstance(prices, pd.DataFrame):
         raise ValueError("invalid prices: must be a DataFrame")
-    missing = [c for c in ("stock_id", "trade_date", "close") if c not in prices.columns]
+    missing = [
+        c
+        for c in ("stock_id", "trade_date", "open", "open_adj", "close_adj")
+        if c not in prices.columns
+    ]
     if missing:
         raise ValueError(f"invalid prices: missing columns {missing}")
-
-    close_values = pd.to_numeric(prices["close"], errors="coerce")
-    valid_close = close_values.notna()
-    calendar = sorted(prices.loc[valid_close, "trade_date"].unique().tolist())
+    calendar = sorted(prices["trade_date"].dropna().unique().tolist())
     if not calendar:
-        raise ValueError("invalid prices: no dated closes")
+        raise ValueError("invalid prices: no dated prices")
 
     ledger = orders.sort_values(["execution_date", "order_id"]) if not orders.empty else orders
     cash = float(initial_cash)
     holdings: dict[str, int] = {}
+    adjusted_units: dict[str, float] = {}
     charged = 0.0
     fills = ledger.to_dict("records") if not ledger.empty else []
 
-    # Only symbols that can enter the ledger need daily close updates. Keep
-    # the full calendar so index-only days still carry holdings forward.
+    # Only traded symbols need quotes. Keep the full market calendar so
+    # index-only days still carry the last adjusted close forward.
     if fills:
         traded_symbols = {str(fill["stock_id"]) for fill in fills}
-        held_close = valid_close & prices["stock_id"].astype(str).isin(traded_symbols)
-        close_rows = iter(
-            pd.DataFrame(
-                {
-                    "trade_date": prices.loc[held_close, "trade_date"],
-                    "stock_id": prices.loc[held_close, "stock_id"],
-                    "close": close_values.loc[held_close],
-                }
-            )
-            .sort_values("trade_date")
-            .itertuples(index=False, name=None)
+        traded_quotes = prices.loc[
+            prices["stock_id"].astype(str).isin(traded_symbols),
+            ["trade_date", "stock_id", "open", "open_adj", "close_adj"],
+        ].copy()
+        traded_quotes["stock_id"] = traded_quotes["stock_id"].astype(str)
+        quote_rows = iter(
+            traded_quotes.sort_values("trade_date").itertuples(index=False, name=None)
         )
     else:
-        close_rows = iter(())
-    next_close = next(close_rows, None)
+        quote_rows = iter(())
+    next_quote = next(quote_rows, None)
 
     nav_points: list[tuple[str, float]] = []
     fill_cursor = 0
     ordered_fills = sorted(fills, key=lambda r: (str(r["execution_date"]), str(r["order_id"])))
     last_close: dict[str, float] = {}
     for day in calendar:
+        today_quotes: dict[str, tuple[object, object, object]] = {}
+        while next_quote is not None and next_quote[0] == day:
+            _, stock_id, raw_open, adj_open, adj_close = next_quote
+            if stock_id in today_quotes:
+                raise ValueError(f"invalid prices: duplicate bar for {stock_id} on {day}")
+            today_quotes[stock_id] = (raw_open, adj_open, adj_close)
+            if _positive_price(adj_close):
+                last_close[stock_id] = float(adj_close)
+            next_quote = next(quote_rows, None)
+
         while fill_cursor < len(ordered_fills) and str(
             ordered_fills[fill_cursor]["execution_date"]
         ) <= str(day):
-            cash, charged = _apply_fill(ordered_fills[fill_cursor], holdings, cash, charged)
+            fill = ordered_fills[fill_cursor]
+            stock_id = str(fill["stock_id"])
+            execution_day = str(fill["execution_date"])
+            if execution_day != str(day) or stock_id not in today_quotes:
+                raise ValueError(
+                    f"invalid prices: missing execution bar for {stock_id} on {execution_day}"
+                )
+            raw_open, adj_open, _ = today_quotes[stock_id]
+            if not _positive_price(raw_open) or not _positive_price(adj_open):
+                raise ValueError(
+                    f"invalid prices: missing raw/adjusted open for {stock_id} on {day}"
+                )
+            cash, charged = _apply_fill(
+                fill, holdings, adjusted_units, cash, charged,
+                float(raw_open), float(adj_open),
+            )
             fill_cursor += 1
-        while next_close is not None and next_close[0] == day:
-            _, stock_id, price = next_close
-            last_close[str(stock_id)] = float(price)
-            next_close = next(close_rows, None)
-        # Missing bar carries the last close forward: a data gap must never
-        # read as a worthless position (it once zeroed whole portfolios on
-        # index-only calendar days). Never-seen stocks stay unvalued.
+
+        for stock_id, raw_adj_quotes in today_quotes.items():
+            if holdings.get(stock_id, 0) > 0 and not _positive_price(raw_adj_quotes[2]):
+                raise ValueError(f"invalid prices: missing close_adj for {stock_id} on {day}")
+        missing_close = [s for s, shares in holdings.items() if shares > 0 and s not in last_close]
+        if missing_close:
+            raise ValueError(f"invalid prices: no close_adj for held stocks {missing_close}")
+        # A missing bar carries the last adjusted close forward; a present
+        # but null adjusted close fails instead of silently using raw close.
         equity = sum(
-            shares * last_close[stock_id]
-            for stock_id, shares in holdings.items()
-            if shares > 0 and stock_id in last_close
+            units * last_close[stock_id]
+            for stock_id, units in adjusted_units.items()
+            if holdings.get(stock_id, 0) > 0
         )
         nav_points.append((day, cash + equity))
+
+    if fill_cursor < len(ordered_fills):
+        fill = ordered_fills[fill_cursor]
+        raise ValueError(
+            f"invalid prices: no execution date {fill['execution_date']} for {fill['stock_id']}"
+        )
 
     nav = pd.Series(
         [value for _, value in nav_points],
@@ -127,7 +161,13 @@ def run_backtest(
 
 
 def _apply_fill(
-    fill: dict, holdings: dict[str, int], cash: float, charged: float
+    fill: dict,
+    holdings: dict[str, int],
+    adjusted_units: dict[str, float],
+    cash: float,
+    charged: float,
+    raw_open: float,
+    adj_open: float,
 ) -> tuple[float, float]:
     stock_id = str(fill["stock_id"])
     side = str(fill["side"])
@@ -141,6 +181,9 @@ def _apply_fill(
         if outlay > cash:
             return cash, charged  # skipped whole: no partial fills.
         holdings[stock_id] = holdings.get(stock_id, 0) + shares
+        adjusted_units[stock_id] = (
+            adjusted_units.get(stock_id, 0.0) + shares * raw_open / adj_open
+        )
         return cash - outlay, charged + cost
     if side == "SELL":
         held = holdings.get(stock_id, 0)
@@ -148,6 +191,20 @@ def _apply_fill(
         shares = held - goal if goal > 0 else held
         if shares <= 0:
             return cash, charged
+        # Release the same fraction of historical adjusted units as real
+        # shares. The difference from the raw sale proceeds is the adjusted
+        # series' reinvested corporate-action return, not an extra fee.
+        units_sold = adjusted_units[stock_id] * shares / held
+        economic_proceeds = units_sold * price * adj_open / raw_open
         holdings[stock_id] = held - shares
-        return cash + shares * price - cost, charged + cost
+        adjusted_units[stock_id] -= units_sold
+        return cash + economic_proceeds - cost, charged + cost
     raise ValueError(f"invalid side: {side!r}")
+
+
+def _positive_price(value: object) -> bool:
+    try:
+        price = float(value)
+    except (TypeError, ValueError):
+        return False
+    return np.isfinite(price) and price > 0

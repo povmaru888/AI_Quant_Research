@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Collection
 from datetime import date
 
@@ -34,6 +35,10 @@ def _build_fixture(delist_all: bool = False) -> dict[str, pd.DataFrame]:
                     "high": close * 1.01,
                     "low": close * 0.99,
                     "close": close,
+                    "open_adj": close,
+                    "high_adj": close * 1.01,
+                    "low_adj": close * 0.99,
+                    "close_adj": close,
                     "volume": 2_000_000.0,
                     "traded_value": close * 2_000_000.0,
                 }
@@ -240,6 +245,21 @@ def test_run_research_deterministic(settings, monkeypatch) -> None:
     assert first.total_cost == second.total_cost
 
 
+def test_model_version_isolates_feature_revisions(settings, monkeypatch) -> None:
+    _tiny_optimize(monkeypatch)
+    base_store = FakeStore(_build_fixture())
+    run_research(AS_OF, settings, base_store, "run-base", n_trials=1)
+
+    revised_features = dataclasses.replace(settings.features, feature_version="factor_adj_v3")
+    revised_settings = dataclasses.replace(settings, features=revised_features)
+    revised_store = FakeStore(_build_fixture())
+    run_research(AS_OF, revised_settings, revised_store, "run-revised", n_trials=1)
+
+    assert base_store.saved["model_version"] == f"xgb_202002_{settings.features.feature_version}"
+    assert revised_store.saved["model_version"] == "xgb_202002_factor_adj_v3"
+    assert base_store.saved["model_version"] != revised_store.saved["model_version"]
+
+
 def test_run_research_failure_closes_run(settings, monkeypatch) -> None:
     _tiny_optimize(monkeypatch)
     store = FakeStore(_build_fixture(delist_all=True))
@@ -258,6 +278,6 @@ def test_get_dashboard_snapshot_keys(settings, monkeypatch) -> None:
     assert snapshot["run_id"] == "run-001"
     assert snapshot["data_end_date"] == "2020-02-28"
     assert snapshot["feature_version"] == settings.features.feature_version
-    assert snapshot["model_version"].startswith("xgb_202002")
+    assert snapshot["model_version"] == f"xgb_202002_{settings.features.feature_version}"
     assert snapshot["parameter_version"].startswith("params_")
     assert snapshot["oos_months"] == ["2020-02"]

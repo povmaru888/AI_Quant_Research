@@ -91,7 +91,12 @@ def main(argv: list[str] | None = None) -> int:
         if not summary.ok:
             errors = "; ".join(
                 f"{feed.name}: {feed.error}"
-                for feed in (summary.prices, summary.financials, summary.institutional)
+                for feed in (
+                    summary.prices,
+                    summary.price_adj,
+                    summary.financials,
+                    summary.institutional,
+                )
                 if feed.error is not None
             )
             store.finish_run(run_id, "failed", errors)
@@ -100,7 +105,8 @@ def main(argv: list[str] | None = None) -> int:
         store.finish_run(run_id, "succeeded")
         print(
             f"chunk {chunk_start}..{chunk_end} ok "
-            f"prices={summary.prices.rows} financials={summary.financials.rows} "
+            f"prices={summary.prices.rows} price_adj={summary.price_adj.rows} "
+            f"financials={summary.financials.rows} "
             f"institutional={summary.institutional.rows} "
             f"fallback={summary.fallback_used}"
         )

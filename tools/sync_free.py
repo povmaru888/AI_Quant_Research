@@ -9,7 +9,7 @@ the failures to retry a subset.
 Usage:
     python tools/sync_free.py [--config config.yaml]
         [--start 2015-01-01] [--end 2026-09-22]
-        [--feeds prices|financials|institutional|all]
+        [--feeds prices|price_adj|financials|institutional|all]
         [--symbols 2330,2317] [--symbols-file failed.txt]
         [--limit 10] [--offset 0] [--delay 0.2]
 """
@@ -36,6 +36,27 @@ from runtime.dotenv import load_dotenv  # noqa: E402
 from settings import get_finmind_token, load_settings  # noqa: E402
 
 _FEEDS = ("prices", "price_adj", "financials", "institutional")
+_OPTIONAL_FEEDS = frozenset(("financials", "institutional"))
+
+
+class PriceAdjAccessDenied(RuntimeError):
+    """A required adjusted-price feed is unavailable to this account."""
+
+
+def known_feed_skips(path: Path) -> dict[str, set[str]]:
+    """Read feed-specific gates; legacy bare IDs apply to fundamentals only."""
+    known = {feed: set() for feed in _FEEDS}
+    if not path.is_file():
+        return known
+    for entry in path.read_text(encoding="utf-8").split():
+        if ":" in entry:
+            feed, stock_id = entry.split(":", 1)
+            if feed in _OPTIONAL_FEEDS and stock_id:
+                known[feed].add(stock_id)
+        else:
+            for feed in _OPTIONAL_FEEDS:
+                known[feed].add(entry)
+    return known
 
 
 def is_gated(exc: Exception) -> bool:
@@ -57,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--start", default="2015-01-01")
     parser.add_argument("--end", default=None)
-    parser.add_argument("--feeds", default="prices,financials,institutional")
+    parser.add_argument("--feeds", default="prices,price_adj,financials,institutional")
     parser.add_argument("--symbols", default="")
     parser.add_argument("--symbols-file", default="")
     parser.add_argument("--limit", type=int, default=0)
@@ -95,10 +116,14 @@ def main(argv: list[str] | None = None) -> int:
         ]
     else:
         symbols = store.load_symbols()
-    if args.skip_file and Path(args.skip_file).is_file():
-        skipped_known = set(Path(args.skip_file).read_text(encoding="utf-8").split())
-        symbols = [s for s in symbols if s not in skipped_known]
-        print(f"skipping {len(skipped_known)} known-402 symbols")
+    known_skips = known_feed_skips(Path(args.skip_file)) if args.skip_file else {
+        feed: set() for feed in _FEEDS
+    }
+    symbols = [
+        stock_id
+        for stock_id in symbols
+        if any(stock_id not in known_skips[feed] for feed in feeds)
+    ]
     symbols = symbols[args.offset :]
     if args.limit > 0:
         symbols = symbols[: args.limit]
@@ -112,7 +137,7 @@ def main(argv: list[str] | None = None) -> int:
         pass  # rerun of the same window reuses the run id.
     totals = dict.fromkeys(feeds, 0)
     failed: list[str] = []
-    skipped: list[str] = []
+    skipped: list[tuple[str, str]] = []
     gates_run = 0
     sleeps = 0
 
@@ -121,16 +146,39 @@ def main(argv: list[str] | None = None) -> int:
             frame = fetch_prices(args.start, end, token, stock_id=stock_id)
             totals["prices"] += store.upsert_prices(frame)
         if "price_adj" in feeds:
-            frame = fetch_price_adj(args.start, end, token, stock_id=stock_id)
+            try:
+                frame = fetch_price_adj(args.start, end, token, stock_id=stock_id)
+            except Exception as exc:
+                if is_gated(exc) and ban_wait_seconds(exc) is None:
+                    raise PriceAdjAccessDenied(
+                        f"price_adj access denied for {stock_id}: {exc}"
+                    ) from exc
+                raise
             totals["price_adj"] += store.upsert_price_adj(frame)
         if "financials" in feeds:
-            frame = fetch_financials(args.start, end, token, stock_id=stock_id)
-            totals["financials"] += store.upsert_financials(frame)
+            if stock_id not in known_skips["financials"]:
+                try:
+                    frame = fetch_financials(args.start, end, token, stock_id=stock_id)
+                except Exception as exc:
+                    if is_gated(exc) and ban_wait_seconds(exc) is None:
+                        skipped.append(("financials", stock_id))
+                    else:
+                        raise
+                else:
+                    totals["financials"] += store.upsert_financials(frame)
         if "institutional" in feeds:
-            frame = fetch_institutional(
-                args.start, end, token, stock_id=stock_id, include_floats=False
-            )
-            totals["institutional"] += store.upsert_institutional(frame)
+            if stock_id not in known_skips["institutional"]:
+                try:
+                    frame = fetch_institutional(
+                        args.start, end, token, stock_id=stock_id, include_floats=False
+                    )
+                except Exception as exc:
+                    if is_gated(exc) and ban_wait_seconds(exc) is None:
+                        skipped.append(("institutional", stock_id))
+                    else:
+                        raise
+                else:
+                    totals["institutional"] += store.upsert_institutional(frame)
 
     def abort_run(reason: str) -> int:
         # Never write this run's skip list: entries may be ban victims.
@@ -146,6 +194,8 @@ def main(argv: list[str] | None = None) -> int:
         try:
             sync_one(stock_id)
         except Exception as exc:  # noqa: BLE001 - per-symbol isolation.
+            if isinstance(exc, PriceAdjAccessDenied):
+                return abort_run(str(exc))
             wait = ban_wait_seconds(exc)
             if wait is not None:
                 if ban_sleeps >= 3:
@@ -182,11 +232,11 @@ def main(argv: list[str] | None = None) -> int:
                                 file=sys.stderr,
                             )
                         else:
-                            skipped.append(stock_id)
+                            failed.append(stock_id)
                     gates_run = 0
                     time.sleep(args.delay)
                     continue
-                skipped.append(stock_id)
+                failed.append(stock_id)
                 time.sleep(args.delay)
                 continue
             failed.append(stock_id)
@@ -199,26 +249,37 @@ def main(argv: list[str] | None = None) -> int:
                     f"failed={len(failed)} skipped={len(skipped)}"
                 )
         time.sleep(args.delay)
-    if skipped:
-        skip_path = Path("logs") / "skip_402.txt"
+    if skipped and args.skip_file:
+        skip_path = Path(args.skip_file)
         skip_path.parent.mkdir(parents=True, exist_ok=True)
-        known = set()
-        if skip_path.is_file():
-            known = set(skip_path.read_text(encoding="utf-8").split())
+        known = (
+            {line.strip() for line in skip_path.read_text(encoding="utf-8").splitlines()}
+            if skip_path.is_file()
+            else set()
+        )
         with skip_path.open("a", encoding="utf-8") as handle:
-            for stock_id in skipped:
-                if stock_id not in known:
-                    handle.write(stock_id + "\n")
-                    known.add(stock_id)
+            for feed, stock_id in skipped:
+                entry = f"{feed}:{stock_id}"
+                if entry not in known:
+                    handle.write(entry + "\n")
+                    known.add(entry)
+    coverage_error = None
+    if "prices" in feeds or "price_adj" in feeds:
+        raw_rows, adjusted_rows = store.load_adjusted_coverage(end)
+        if raw_rows <= 0 or adjusted_rows != raw_rows:
+            coverage_error = f"adjusted price coverage {adjusted_rows}/{raw_rows} on {end}"
     try:
-        if failed:
-            store.finish_run(run_id, "failed", f"{len(failed)} symbols: {failed[:10]}")
+        if failed or coverage_error:
+            error = f"{len(failed)} symbols: {failed[:10]}"
+            if coverage_error:
+                error = f"{error}; {coverage_error}"
+            store.finish_run(run_id, "failed", error)
         else:
             store.finish_run(run_id, "succeeded")
     except ValueError:
         pass
-    print(f"done rows={totals} failed={failed} skipped={len(skipped)}")
-    return 0 if not failed else 1
+    print(f"done rows={totals} failed={failed} skipped={len(skipped)} coverage={coverage_error}")
+    return 0 if not failed and not coverage_error else 1
 
 
 if __name__ == "__main__":

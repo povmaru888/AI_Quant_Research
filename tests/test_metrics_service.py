@@ -86,6 +86,8 @@ def test_run_cost_sensitivity_monotonic_cost(settings) -> None:
             "trade_date": dates,
             "open": [100.0, 101.0, 102.0, 103.0, 104.0],
             "close": [100.5, 101.5, 102.5, 103.5, 104.5],
+            "open_adj": [100.0, 101.0, 102.0, 103.0, 104.0],
+            "close_adj": [100.5, 101.5, 102.5, 103.5, 104.5],
         }
     )
     orders = pd.DataFrame(

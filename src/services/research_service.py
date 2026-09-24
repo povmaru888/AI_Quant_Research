@@ -129,7 +129,7 @@ def _execute(
     if labels.empty:
         raise RuntimeError(f"no labels for {as_of.isoformat()}; halting month")
 
-    model_version = f"xgb_{as_of.strftime('%Y%m')}"
+    model_version = f"xgb_{as_of.strftime('%Y%m')}_{settings.features.feature_version}"
     feature_names = list(features.feature_columns)
     matrix = features.frame[feature_names]
     aligned_labels = labels.reindex(features.frame["stock_id"]).astype(int)

@@ -10,7 +10,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 
-from sync_free import ban_wait_seconds, is_gated  # noqa: E402
+from sync_free import ban_wait_seconds, is_gated, known_feed_skips  # noqa: E402
 
 from integrations.finmind import FinMindError, _http_error  # noqa: E402
 
@@ -64,3 +64,73 @@ def test_sync_free_imports_without_side_effects() -> None:
     assert callable(sync_free.main)
     with pytest.raises(SystemExit):
         sync_free.main(["--help"])
+
+
+def test_known_402_skips_do_not_suppress_price_feeds(tmp_path) -> None:
+    path = tmp_path / "skip_402.txt"
+    path.write_text("2330\nfinancials:2317\ninstitutional:0050\n", encoding="utf-8")
+    known = known_feed_skips(path)
+    assert known["prices"] == known["price_adj"] == set()
+    assert known["financials"] == {"2330", "2317"}
+    assert known["institutional"] == {"2330", "0050"}
+
+
+@pytest.mark.parametrize(
+    ("coverage", "expected_status", "expected_code"),
+    [((1, 1), "succeeded", 0), ((1, 0), "failed", 1)],
+)
+def test_default_sync_fetches_adjusted_despite_legacy_fundamental_skip(
+    tmp_path, monkeypatch, coverage, expected_status, expected_code
+) -> None:
+    import pandas as pd
+    import sync_free
+
+    skip_path = tmp_path / "skip_402.txt"
+    skip_path.write_text("2330\n", encoding="utf-8")
+    calls: list[str] = []
+
+    class Store:
+        def start_run(self, metadata):
+            pass
+
+        def finish_run(self, run_id, status, error=None):
+            calls.append(status)
+
+        def upsert_prices(self, frame):
+            calls.append("raw")
+            return len(frame)
+
+        def upsert_price_adj(self, frame):
+            calls.append("adjusted")
+            return len(frame)
+
+        def load_adjusted_coverage(self, on):
+            return coverage
+
+    monkeypatch.setattr(sync_free, "load_dotenv", lambda: None)
+    monkeypatch.setattr(sync_free, "load_settings", lambda path: object())
+    monkeypatch.setattr(sync_free, "get_finmind_token", lambda settings: "tok")
+    monkeypatch.setattr(sync_free, "build_store", lambda settings: Store())
+    monkeypatch.setattr(
+        sync_free, "fetch_prices", lambda *a, **k: pd.DataFrame({"stock_id": ["2330"]})
+    )
+    monkeypatch.setattr(
+        sync_free, "fetch_price_adj", lambda *a, **k: pd.DataFrame({"stock_id": ["2330"]})
+    )
+    monkeypatch.setattr(
+        sync_free,
+        "fetch_financials",
+        lambda *a, **k: pytest.fail("legacy gate should skip only financials"),
+    )
+    monkeypatch.setattr(
+        sync_free,
+        "fetch_institutional",
+        lambda *a, **k: pytest.fail("legacy gate should skip only institutional"),
+    )
+    assert sync_free.main(
+        [
+            "--start", "2020-01-01", "--end", "2020-01-31", "--symbols", "2330",
+            "--skip-file", str(skip_path), "--delay", "0",
+        ]
+    ) == expected_code
+    assert calls == ["raw", "adjusted", expected_status]

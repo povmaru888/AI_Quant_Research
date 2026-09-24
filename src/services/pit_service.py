@@ -3,7 +3,7 @@
 Pandas implementation of the PIT join semantics: for each stock in the
 universe, keep at most one financial row (latest with
 ``available_date <= as_of``) and one institutional row (latest with
-``trade_date <= as_of``), plus the as-of close price. Mirrors the
+``trade_date <= as_of``), plus the as-of nominal and adjusted closes. Mirrors the
 ordering of ``load_pit_financials`` (P1-08) without touching the DB.
 """
 
@@ -17,7 +17,7 @@ from contracts import UniverseSnapshot
 
 _FINANCIAL_KEYS = ("stock_id", "report_period", "announcement_date", "available_date")
 _INSTITUTIONAL_KEYS = ("stock_id", "trade_date")
-_PRICE_KEYS = ("stock_id", "trade_date", "close")
+_PRICE_KEYS = ("stock_id", "trade_date", "close", "close_adj")
 
 
 def build_pit_snapshot(
@@ -73,6 +73,10 @@ def build_pit_snapshot(
         for column in [c for c in institutional.columns if c != "stock_id"]:
             snapshot[column] = pd.NA
 
-    day_close = prices.loc[prices["trade_date"] == as_of_str, ["stock_id", "close"]]
+    day_close = prices.loc[
+        prices["trade_date"] == as_of_str, ["stock_id", "close", "close_adj"]
+    ]
     snapshot = snapshot.merge(day_close, on="stock_id", how="left")
-    return snapshot.rename(columns={"close": "as_of_close"})
+    # Nominal valuation factors multiply close by nominal float shares.
+    # Adjusted close is retained separately for analyses that need it.
+    return snapshot.rename(columns={"close": "as_of_close", "close_adj": "as_of_close_adj"})

@@ -59,7 +59,17 @@ FACTOR_COLUMNS: tuple[str, ...] = (
 )
 
 _MARKET_ID = "TAIEX"
-_PRICE_KEYS = ("stock_id", "trade_date", "open", "high", "low", "close", "volume", "traded_value")
+# Equity factors use adjusted history. The raw close is needed only for
+# TAIEX, an index without a stock split/dividend adjustment series.
+_PRICE_KEYS = (
+    "stock_id",
+    "trade_date",
+    "close",
+    "high_adj",
+    "close_adj",
+    "volume",
+    "traded_value",
+)
 _TRADING_DAYS_PER_YEAR = 252
 
 
@@ -201,7 +211,7 @@ def calculate_raw_features(
     for snap in snapshot.to_dict("records"):
         stock_id = str(snap["stock_id"])
         hist = prices_by_stock.get(stock_id, empty_price)
-        closes = hist["close"].to_numpy(dtype=float, na_value=np.nan)
+        closes = hist["close_adj"].to_numpy(dtype=float, na_value=np.nan)
         row: dict[str, object] = {"stock_id": stock_id}
         row.update(_price_factors(hist, closes, market_rets))
         row.update(_fundamental_factors(snap, fin_by_stock.get(stock_id)))
@@ -219,6 +229,7 @@ def calculate_raw_features(
 def _aligned_market_returns(market: pd.DataFrame) -> pd.Series | None:
     if market.empty:
         return None
+    # TAIEX is an index, so its raw close is the intended benchmark series.
     closes = market.drop_duplicates("trade_date").set_index("trade_date")["close"]
     closes = closes.apply(pd.to_numeric, errors="coerce")
     if closes.le(0).any() or closes.isna().any():
@@ -231,7 +242,7 @@ def _price_factors(
 ) -> dict[str, float]:
     vols = hist["volume"].to_numpy(dtype=float, na_value=np.nan)
     traded = hist["traded_value"].to_numpy(dtype=float, na_value=np.nan)
-    highs = hist["high"].to_numpy(dtype=float, na_value=np.nan)
+    highs = hist["high_adj"].to_numpy(dtype=float, na_value=np.nan)
 
     ma20 = _mean_tail(closes, 20)
     ma60 = _mean_tail(closes, 60)
@@ -314,6 +325,8 @@ def _fundamental_factors(
     stock_id: str | None = None,
     as_of_str: str | None = None,
 ) -> dict[str, float]:
+    # The share count is nominal, so market cap must use the nominal close.
+    # Technical return factors above use close_adj exclusively.
     close = _num(snap.get("as_of_close"))
     float_shares = _num(snap.get("float_shares"))
     market_cap = close * float_shares if close > 0 and float_shares > 0 else float("nan")

@@ -23,6 +23,7 @@ class DailyStore(SyncStore, Protocol):
     """Sync persistence plus the job's read needs."""
 
     def load_latest_trade_date(self) -> str | None: ...
+    def load_adjusted_coverage(self, on: date | str) -> tuple[int, int]: ...
     def load_symbols(self) -> list[str]: ...
     def start_run(self, metadata: dict) -> None: ...
     def finish_run(self, run_id: str, status: str, error: str | None = None) -> None: ...
@@ -42,23 +43,37 @@ def run_daily_update(
     store.start_run(
         {"run_id": job_run_id, "job": "daily_update", "data_end_date": resolved.isoformat()}
     )
-    summary: SyncSummary = sync_fn(
-        settings.data.price_start_date,
-        resolved.isoformat(),
-        settings,
-        store,
-        job_run_id,
-        token,
-        symbols=store.load_symbols(),
-    )
-    if not summary.ok:
-        errors = "; ".join(
-            f"{feed.name}: {feed.error}"
-            for feed in (summary.prices, summary.financials, summary.institutional)
-            if feed.error is not None
+    try:
+        summary: SyncSummary = sync_fn(
+            settings.data.price_start_date,
+            resolved.isoformat(),
+            settings,
+            store,
+            job_run_id,
+            token,
+            symbols=store.load_symbols(),
         )
-        store.finish_run(job_run_id, "failed", errors or "unknown sync failure")
-        raise RuntimeError(f"daily update {job_run_id} failed: {errors}")
+        if not summary.ok:
+            errors = "; ".join(
+                f"{feed.name}: {feed.error}"
+                for feed in (
+                    summary.prices,
+                    summary.price_adj,
+                    summary.financials,
+                    summary.institutional,
+                )
+                if feed.error is not None
+            )
+            raise RuntimeError(f"daily update {job_run_id} failed: {errors}")
+        raw_rows, adjusted_rows = store.load_adjusted_coverage(resolved)
+        if raw_rows <= 0 or adjusted_rows != raw_rows:
+            raise RuntimeError(
+                f"daily update {job_run_id} failed: adjusted price coverage "
+                f"{adjusted_rows}/{raw_rows} on {resolved.isoformat()}"
+            )
+    except Exception as exc:
+        store.finish_run(job_run_id, "failed", str(exc))
+        raise
     store.finish_run(job_run_id, "succeeded")
     return {
         "run_id": job_run_id,
@@ -66,6 +81,7 @@ def run_daily_update(
         "ok": True,
         "rows": {
             "prices": summary.prices.rows,
+            "price_adj": summary.price_adj.rows,
             "financials": summary.financials.rows,
             "institutional": summary.institutional.rows,
         },

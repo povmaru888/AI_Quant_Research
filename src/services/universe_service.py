@@ -31,7 +31,7 @@ def build_universe(
 ) -> UniverseSnapshot:
     """Filter the historical tradable universe as of ``as_of``.
 
-    ``prices`` needs ``stock_id, trade_date, close, traded_value`` columns;
+    ``prices`` needs ``stock_id, trade_date, close, close_adj, traded_value`` columns;
     ``stocks`` needs ``stock_id, listed_date, delisted_date`` plus an
     optional ``flags`` column (comma-separated, e.g. ``"KY"``) and an
     optional ``market_cap`` column. Missing ``market_cap`` fails loud:
@@ -43,7 +43,11 @@ def build_universe(
     if not isinstance(run_id, str) or not run_id.strip():
         raise ValueError(f"invalid run_id: {run_id!r}")
     for name, frame, columns in (
-        ("prices", prices, ("stock_id", "trade_date", "close", "traded_value")),
+        (
+            "prices",
+            prices,
+            ("stock_id", "trade_date", "close", "close_adj", "traded_value"),
+        ),
         ("stocks", stocks, ("stock_id", "listed_date", "delisted_date")),
     ):
         if not isinstance(frame, pd.DataFrame):
@@ -109,9 +113,18 @@ def _screen(
         return f"delisted:{delisted_date}"
     if stock_id not in day_prices.index:
         return "no_price"
+    adjusted_close = day_prices.loc[stock_id, "close_adj"]
+    if isinstance(adjusted_close, pd.Series):
+        adjusted_close = adjusted_close.iloc[-1]
+    # An unadjusted-only bar cannot enter the research universe: later
+    # return factors and labels require the adjusted price on this date.
+    if pd.isna(adjusted_close) or float(adjusted_close) <= 0:
+        return "no_price"
     close = day_prices.loc[stock_id, "close"]
     if isinstance(close, pd.Series):
         close = close.iloc[-1]
+    # The minimum tradable price is a nominal TWD quote, not a back-
+    # adjusted historical signal price.
     if pd.isna(close) or float(close) <= 0:
         return "no_price"
     if float(close) <= min_price:

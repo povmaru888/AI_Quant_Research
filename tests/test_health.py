@@ -105,6 +105,10 @@ def _seed(engine) -> None:
                 high=101.0,
                 low=99.0,
                 close=100.0,
+                open_adj=100.0,
+                high_adj=101.0,
+                low_adj=99.0,
+                close_adj=100.0,
                 volume=1000.0,
                 traded_value=100000.0,
                 source="test",
@@ -139,6 +143,10 @@ def test_health_snapshot(engine) -> None:
     assert health["data_end_date"] == "2020-02-29"
     assert health["feature_coverage"] == 1.0
     assert health["data_lag_days"] == 3
+    assert health["raw_price_date"] == "2020-03-03"
+    assert health["adjusted_price_date"] == "2020-03-03"
+    assert health["raw_data_lag_days"] == 3
+    assert health["adjusted_price_coverage_latest_raw_day"] == 1.0
     dumped = json.dumps(health)
     assert "TOKEN" not in dumped and "token" not in dumped.replace("latest", "")
 
@@ -151,8 +159,37 @@ def test_empty_database_degrades_to_none(engine) -> None:
         "latest_failure": None,
         "data_end_date": None,
         "feature_coverage": None,
+        "raw_price_date": None,
+        "adjusted_price_date": None,
+        "raw_data_lag_days": None,
         "data_lag_days": None,
+        "adjusted_price_coverage_latest_raw_day": None,
     }
+
+
+def test_raw_update_does_not_hide_adjusted_price_lag(engine) -> None:
+    _seed(engine)
+    with session_scope(engine) as session:
+        session.add(
+            Price(
+                trade_date="2020-03-05",
+                stock_id="2330",
+                open=102.0,
+                high=103.0,
+                low=101.0,
+                close=102.0,
+                volume=1000.0,
+                traded_value=102000.0,
+                source="test",
+            )
+        )
+    with session_scope(engine) as session:
+        health = get_system_health(session, today="2020-03-06")
+    assert health["raw_price_date"] == "2020-03-05"
+    assert health["adjusted_price_date"] == "2020-03-03"
+    assert health["raw_data_lag_days"] == 1
+    assert health["data_lag_days"] == 3
+    assert health["adjusted_price_coverage_latest_raw_day"] == 0.0
 
 
 def test_bad_today_rejected(engine) -> None:

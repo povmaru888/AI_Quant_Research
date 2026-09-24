@@ -1,7 +1,7 @@
 """P5-04: system health query (SDD section 16 operations).
 
 Read-only snapshot for operators: latest succeeded/failed runs, data
-end date, feature coverage, and price data lag. Safe on an empty
+end date, feature coverage, and raw/adjusted price data lag. Safe on an empty
 database (every field degrades to ``None``). Only whitelisted columns
 are read, so tokens and sensitive settings can never appear here.
 """
@@ -15,6 +15,8 @@ from sqlalchemy.orm import Session
 
 from models.market import Price
 from models.research import Feature, PipelineRun
+
+_TAIEX_ID = "TAIEX"
 
 
 def get_system_health(session: Session, today: str | None = None) -> dict:
@@ -32,7 +34,27 @@ def get_system_health(session: Session, today: str | None = None) -> dict:
         .order_by(desc(PipelineRun.run_time), desc(PipelineRun.run_id))
         .limit(1)
     ).first()
-    latest_price_day = session.execute(select(func.max(Price.trade_date))).scalar()
+    latest_raw_day = session.execute(
+        select(func.max(Price.trade_date)).where(Price.stock_id != _TAIEX_ID)
+    ).scalar()
+    valid_adjusted = (
+        (Price.open_adj > 0)
+        & (Price.high_adj > 0)
+        & (Price.low_adj > 0)
+        & (Price.close_adj > 0)
+    )
+    latest_adjusted_day = session.execute(
+        select(func.max(Price.trade_date)).where(Price.stock_id != _TAIEX_ID, valid_adjusted)
+    ).scalar()
+    adjusted_coverage = None
+    if latest_raw_day is not None:
+        raw_count, adjusted_count = session.execute(
+            select(
+                func.count(),
+                func.count().filter(valid_adjusted),
+            ).where(Price.stock_id != _TAIEX_ID, Price.trade_date == latest_raw_day)
+        ).one()
+        adjusted_coverage = adjusted_count / raw_count if raw_count else None
     return {
         "latest_success": (
             {"run_id": success[0], "data_end_date": success[1], "run_time": success[2]}
@@ -46,7 +68,11 @@ def get_system_health(session: Session, today: str | None = None) -> dict:
         ),
         "data_end_date": success[1] if success is not None else None,
         "feature_coverage": _feature_coverage(session),
-        "data_lag_days": _lag_days(latest_price_day, anchor),
+        "raw_price_date": latest_raw_day,
+        "adjusted_price_date": latest_adjusted_day,
+        "raw_data_lag_days": _lag_days(latest_raw_day, anchor),
+        "data_lag_days": _lag_days(latest_adjusted_day, anchor),
+        "adjusted_price_coverage_latest_raw_day": adjusted_coverage,
     }
 
 

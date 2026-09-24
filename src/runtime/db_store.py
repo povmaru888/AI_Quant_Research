@@ -58,7 +58,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import Engine, func, select
+from sqlalchemy import Engine, case, func, select
 from sqlalchemy.exc import OperationalError
 
 from database import create_engine_from_settings, session_scope
@@ -87,6 +87,10 @@ _PRICE_LOAD_COLUMNS = (
     "high",
     "low",
     "close",
+    "open_adj",
+    "high_adj",
+    "low_adj",
+    "close_adj",
     "volume",
     "traded_value",
 )
@@ -144,9 +148,9 @@ def load_shares_cache(path: Path | None) -> dict[str, dict[str, float | str]]:
     return data
 
 
-def _model_version_for(signal_date: str) -> str:
-    """Mirror the research model_version rule: xgb_<as_of YYYYMM>."""
-    return f"xgb_{signal_date[:4]}{signal_date[5:7]}"
+def _model_version_for(signal_date: str, feature_version: str) -> str:
+    """Key models by signal month and feature semantics."""
+    return f"xgb_{signal_date[:4]}{signal_date[5:7]}_{feature_version}"
 
 
 def _frame(rows: list[dict], columns: tuple[str, ...] | list[str]) -> pd.DataFrame:
@@ -215,14 +219,22 @@ class DbStore:
     def list_runs(self, status: str | None = None) -> list[dict]:
         with self._scope() as session:
             statement = select(
-                PipelineRun.run_id, PipelineRun.status, PipelineRun.parameter_version
+                PipelineRun.run_id,
+                PipelineRun.status,
+                PipelineRun.parameter_version,
+                PipelineRun.feature_version,
             ).order_by(PipelineRun.run_time, PipelineRun.run_id)
             if status is not None:
                 statement = statement.where(PipelineRun.status == status)
             rows = session.execute(statement).all()
         return [
-            {"run_id": run_id, "status": row_status, "parameter_version": param}
-            for run_id, row_status, param in rows
+            {
+                "run_id": run_id,
+                "status": row_status,
+                "parameter_version": param,
+                "feature_version": feature_version,
+            }
+            for run_id, row_status, param, feature_version in rows
         ]
 
     def get_run_status(self, run_id: str) -> str:
@@ -292,6 +304,24 @@ class DbStore:
                 select(func.max(Price.trade_date)).where(Price.stock_id != TAIEX_ID)
             ).scalar()
 
+    def load_adjusted_coverage(self, on: date | str) -> tuple[int, int]:
+        """Return raw and fully adjusted stock-bar counts for one date."""
+        day = on.isoformat() if isinstance(on, date) else date.fromisoformat(on).isoformat()
+        has_adjusted_ohlc = (
+            (Price.open_adj > 0)
+            & (Price.high_adj > 0)
+            & (Price.low_adj > 0)
+            & (Price.close_adj > 0)
+        )
+        with self._scope() as session:
+            raw, adjusted = session.execute(
+                select(
+                    func.count(),
+                    func.coalesce(func.sum(case((has_adjusted_ohlc, 1), else_=0)), 0),
+                ).where(Price.trade_date == day, Price.stock_id != TAIEX_ID)
+            ).one()
+        return int(raw), int(adjusted)
+
     def load_symbols(self) -> list[str]:
         with self._scope() as session:
             return list(
@@ -310,7 +340,11 @@ class DbStore:
     # -- research loads ------------------------------------------------------
 
     def load_prices(self) -> pd.DataFrame:
-        """Full price history including the TAIEX pseudo-row (market beta)."""
+        """Raw and adjusted history; raw TAIEX is the market index.
+
+        Stock research must use ``*_adj``. Raw OHLC remains available only
+        for actual order fills and conversion to adjusted backtest units.
+        """
         with self._scope() as session:
             rows = session.execute(
                 select(
@@ -320,6 +354,10 @@ class DbStore:
                     Price.high,
                     Price.low,
                     Price.close,
+                    Price.open_adj,
+                    Price.high_adj,
+                    Price.low_adj,
+                    Price.close_adj,
                     Price.volume,
                     Price.traded_value,
                 ).order_by(Price.stock_id, Price.trade_date)
@@ -339,8 +377,10 @@ class DbStore:
         return frame.reset_index(drop=True)
 
     def _market_caps(self, session, as_of: str) -> dict[str, float]:
-        """Latest close times cached shares (ETF fallback: cached market cap).
+        """Latest nominal close times cached shares (ETF cached-cap fallback).
 
+        Market-cap and minimum-price gates use tradeable nominal units;
+        adjusted history is used for returns, labels and factor signals.
         Stocks with neither get no cap and are excluded downstream with
         reason ``market_cap:missing``.
         """
@@ -348,7 +388,10 @@ class DbStore:
             return {}
         latest_close = (
             select(Price.close)
-            .where(Price.stock_id == Stock.stock_id, Price.trade_date <= as_of)
+            .where(
+                Price.stock_id == Stock.stock_id,
+                Price.trade_date <= as_of,
+            )
             .order_by(Price.trade_date.desc())
             .limit(1)
             .correlate(Stock)
@@ -360,10 +403,10 @@ class DbStore:
         caps: dict[str, float] = {}
         for stock_id, close in rows:
             entry = self._shares.get(stock_id)
-            if not isinstance(entry, dict) or close is None:
+            if not isinstance(entry, dict):
                 continue
             shares = entry.get("shares")
-            if isinstance(shares, (int, float)) and shares and shares > 0:
+            if close is not None and isinstance(shares, (int, float)) and shares > 0:
                 caps[stock_id] = float(close) * float(shares)
                 continue
             cached_cap = entry.get("market_cap")
@@ -456,9 +499,9 @@ class DbStore:
         return _frame(rows, columns)
 
     def load_returns(self, stock_ids: Collection[str] | None = None) -> pd.DataFrame:
-        """Log returns for requested stocks, or all non-TAIEX stocks."""
-        columns = ("stock_id", "trade_date", "close")
-        statement = select(Price.stock_id, Price.trade_date, Price.close).where(
+        """Adjusted log returns for requested stocks, or all non-TAIEX stocks."""
+        columns = ("stock_id", "trade_date", "close_adj")
+        statement = select(Price.stock_id, Price.trade_date, Price.close_adj).where(
             Price.stock_id != TAIEX_ID
         )
         if stock_ids is not None:
@@ -471,14 +514,17 @@ class DbStore:
         frame = _frame(rows, columns)
         if frame.empty:
             return _frame([], ("stock_id", "trade_date", "log_return"))
-        frame["close"] = pd.to_numeric(frame["close"], errors="coerce")
-        frame = frame.loc[frame["close"] > 0]
-        previous_close = frame.groupby("stock_id")["close"].shift(1)
-        frame["log_return"] = np.log(frame["close"] / previous_close)
+        frame["close_adj"] = pd.to_numeric(frame["close_adj"], errors="coerce")
+        # Keep missing adjusted bars in the shift so a gap cannot be
+        # misreported as a one-session return on the following date.
+        frame.loc[frame["close_adj"] <= 0, "close_adj"] = np.nan
+        previous_close = frame.groupby("stock_id")["close_adj"].shift(1)
+        frame["log_return"] = np.log(frame["close_adj"] / previous_close)
         frame = frame.dropna(subset=["log_return"])
         return frame.loc[:, ["stock_id", "trade_date", "log_return"]].reset_index(drop=True)
 
     def load_taiex(self) -> pd.DataFrame:
+        """Load the unadjusted market index; TAIEX has no adjusted OHLC."""
         with self._scope() as session:
             rows = session.execute(
                 select(Price.trade_date, Price.close)
@@ -488,6 +534,7 @@ class DbStore:
         return _frame(rows, ("trade_date", "close"))
 
     def load_next_open(self, as_of: date) -> pd.DataFrame:
+        """Load raw next-session opens for executable broker orders."""
         if not isinstance(as_of, date):
             raise ValueError(f"invalid as_of: must be a date, got {as_of!r}")
         with self._scope() as session:
@@ -563,7 +610,7 @@ class DbStore:
             "run_id": run_id_v,
             "data_end_date": data_end,
             "feature_version": feature_v,
-            "model_version": model_v or _model_version_for(data_end),
+            "model_version": model_v or _model_version_for(data_end, feature_v),
             "parameter_version": param_v,
             "metrics": metrics if isinstance(metrics, dict) else {},
             "oos_months": oos_months if isinstance(oos_months, list) else [],
@@ -591,7 +638,7 @@ class DbStore:
         """Persist target actions onto signals; rank comes from predictions."""
         run_id = self._require_run()
         as_of = self._require_as_of()
-        model_version = _model_version_for(as_of)
+        model_version = _model_version_for(as_of, self._settings.features.feature_version)
         with self._scope() as session:
             rank_rows = session.execute(
                 select(Prediction.stock_id, Prediction.rank).where(
@@ -710,7 +757,10 @@ class DbStore:
                     Feature.stock_id,
                     Feature.volatility_60d,
                     Feature.beta_60d,
-                ).where(Feature.rebalance_date == signal_date)
+                ).where(
+                    Feature.rebalance_date == signal_date,
+                    Feature.feature_version == summary["feature_version"],
+                )
             ).all()
         _ = as_of  # holdings are fixed per run; as_of only selects the run view.
         frame = pd.DataFrame([{"stock_id": s, "weight": float(w)} for s, w in signals])
@@ -853,7 +903,9 @@ class DbStore:
         )
         if prices is None:
             prices = self.load_prices()
-        prices = prices.loc[:, ["stock_id", "trade_date", "close"]]
+        prices = prices.loc[
+            :, ["stock_id", "trade_date", "open", "close", "open_adj", "close_adj"]
+        ]
         return run_backtest(orders, prices, self._initial_capital, self._settings, run_id)
 
     def load_factor_ic(self, run_id: str) -> pd.DataFrame:

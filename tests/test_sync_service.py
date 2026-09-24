@@ -21,6 +21,9 @@ class FakeStore:
     def upsert_prices(self, frame: pd.DataFrame) -> int:
         return self._upsert("prices", frame)
 
+    def upsert_price_adj(self, frame: pd.DataFrame) -> int:
+        return self._upsert("price_adj", frame)
+
     def upsert_financials(self, frame: pd.DataFrame) -> int:
         return self._upsert("financials", frame)
 
@@ -42,12 +45,14 @@ def test_sync_all_green(settings) -> None:
         "run-001",
         "tok",
         fetch_prices_fn=lambda s, e, t: _frame(2),
+        fetch_price_adj_fn=lambda s, e, t: _frame(2),
         fetch_financials_fn=lambda s, e, t: _frame(3),
         fetch_institutional_fn=lambda s, e, t: _frame(4),
     )
     assert isinstance(summary, SyncSummary)
     assert summary.ok
     assert (summary.prices.rows, summary.prices.attempts) == (2, 1)
+    assert (summary.price_adj.rows, summary.price_adj.attempts) == (2, 1)
     assert (summary.financials.rows, summary.institutional.rows) == (3, 4)
     assert not summary.fallback_used
     # Rerun is idempotent: same keys overwritten, no growth.
@@ -59,10 +64,11 @@ def test_sync_all_green(settings) -> None:
         "run-002",
         "tok",
         fetch_prices_fn=lambda s, e, t: _frame(2),
+        fetch_price_adj_fn=lambda s, e, t: _frame(2),
         fetch_financials_fn=lambda s, e, t: _frame(3),
         fetch_institutional_fn=lambda s, e, t: _frame(4),
     )
-    assert again.ok and len(store.saved["prices"]) == 2
+    assert again.ok and len(store.saved["prices"]) == len(store.saved["price_adj"]) == 2
 
 
 def test_sync_prices_retry_then_success(settings) -> None:
@@ -83,6 +89,7 @@ def test_sync_prices_retry_then_success(settings) -> None:
         "r",
         "tok",
         fetch_prices_fn=flaky,
+        fetch_price_adj_fn=lambda s, e, t: _frame(),
         fetch_financials_fn=lambda s, e, t: _frame(),
         fetch_institutional_fn=lambda s, e, t: _frame(),
         max_attempts=3,
@@ -107,6 +114,7 @@ def test_sync_prices_fallback_only(settings) -> None:
         "r",
         "tok",
         fetch_prices_fn=dead,
+        fetch_price_adj_fn=lambda s, e, t: _frame(),
         fetch_financials_fn=lambda s, e, t: _frame(),
         fetch_institutional_fn=lambda s, e, t: _frame(),
         fetch_fallback_fn=lambda syms, s, e: fallback,
@@ -129,6 +137,7 @@ def test_sync_feed_failure_has_no_fallback(settings) -> None:
         "r",
         "tok",
         fetch_prices_fn=lambda s, e, t: _frame(),
+        fetch_price_adj_fn=lambda s, e, t: _frame(),
         fetch_financials_fn=lambda s, e, t: (_ for _ in ()).throw(FinMindError("gone")),
         fetch_institutional_fn=lambda s, e, t: _frame(),
         fetch_fallback_fn=lambda syms, s, e: _frame(9),
@@ -156,11 +165,14 @@ def test_sync_value_error_not_retried_and_missing_token(settings) -> None:
         "r",
         "tok",
         fetch_prices_fn=broken,
+        fetch_price_adj_fn=lambda s, e, t: _frame(),
         fetch_financials_fn=lambda s, e, t: _frame(),
         fetch_institutional_fn=lambda s, e, t: _frame(),
     )
     assert calls["n"] == 1
     assert summary.prices.attempts == 1
+    assert summary.price_adj.attempts == 0
+    assert summary.price_adj.error == "raw price sync failed"
     assert not summary.ok
 
     tokenless = sync_market_data(
@@ -171,9 +183,58 @@ def test_sync_value_error_not_retried_and_missing_token(settings) -> None:
         "r",
         None,
         fetch_prices_fn=lambda s, e, t: _frame(),
+        fetch_price_adj_fn=lambda s, e, t: _frame(),
         fetch_financials_fn=lambda s, e, t: _frame(),
         fetch_institutional_fn=lambda s, e, t: _frame(),
     )
     assert tokenless.prices.attempts == 0
     assert tokenless.financials.error == "missing token"
     assert not tokenless.ok
+
+
+def test_adjusted_prices_follow_raw_and_failure_is_reported(settings) -> None:
+    calls: list[str] = []
+
+    class OrderedStore(FakeStore):
+        def upsert_prices(self, frame: pd.DataFrame) -> int:
+            calls.append("raw")
+            return super().upsert_prices(frame)
+
+        def upsert_price_adj(self, frame: pd.DataFrame) -> int:
+            calls.append("adjusted")
+            return super().upsert_price_adj(frame)
+
+    summary = sync_market_data(
+        "2020-01-01",
+        "2020-01-31",
+        settings,
+        OrderedStore(),
+        "r",
+        "tok",
+        fetch_prices_fn=lambda s, e, t: _frame(),
+        fetch_price_adj_fn=lambda s, e, t: (_ for _ in ()).throw(FinMindError("adj down")),
+        fetch_financials_fn=lambda s, e, t: _frame(),
+        fetch_institutional_fn=lambda s, e, t: _frame(),
+        max_attempts=2,
+    )
+    assert calls == ["raw"]
+    assert summary.price_adj.attempts == 2
+    assert summary.price_adj.error == "adj down"
+    assert not summary.ok
+
+
+def test_empty_adjusted_feed_is_not_success(settings) -> None:
+    summary = sync_market_data(
+        "2020-01-01",
+        "2020-01-31",
+        settings,
+        FakeStore(),
+        "r",
+        "tok",
+        fetch_prices_fn=lambda s, e, t: _frame(),
+        fetch_price_adj_fn=lambda s, e, t: pd.DataFrame(),
+        fetch_financials_fn=lambda s, e, t: _frame(),
+        fetch_institutional_fn=lambda s, e, t: _frame(),
+    )
+    assert summary.price_adj.error == "no adjusted prices returned"
+    assert not summary.ok

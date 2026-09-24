@@ -31,7 +31,7 @@ class RunStore(Protocol):
     def list_runs(self, status: str | None = None) -> list[dict]: ...
 
 
-def available_runs(store: RunStore) -> list[str]:
+def available_runs(store: RunStore, feature_version: str | None = None) -> list[str]:
     """Return succeeded RESEARCH run ids, preserving store order.
 
     Daily sync jobs share the runs table; they are filtered by their
@@ -52,6 +52,8 @@ def available_runs(store: RunStore) -> list[str]:
             raise ValueError(f"invalid run row: bad run_id {run_id!r}")
         marker = row.get("parameter_version", "")
         if isinstance(marker, str) and marker.startswith("job:"):
+            continue
+        if feature_version is not None and row.get("feature_version", feature_version) != feature_version:
             continue
         run_ids.append(run_id)
     return run_ids
@@ -110,7 +112,7 @@ def main(
         st = streamlit
     st.title("台股多因子量化交易")
     try:
-        (load_settings_fn or _default_load_settings)()
+        settings = (load_settings_fn or _default_load_settings)()
     except Exception as exc:
         st.error(f"設定載入失敗：{exc}")
         return
@@ -121,7 +123,8 @@ def main(
             st.info("尚未連接資料來源：請先完成資料同步後再回來查看。")
             return
     try:
-        run_ids = available_runs(store)
+        current_version = getattr(getattr(settings, "features", None), "feature_version", None)
+        run_ids = available_runs(store, feature_version=current_version)
     except Exception as exc:
         st.error(f"讀取研究紀錄失敗：{exc}")
         return

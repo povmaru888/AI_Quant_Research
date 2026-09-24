@@ -64,13 +64,18 @@ def _finite(value: object) -> float | None:
 
 
 def _close_panel(prices: pd.DataFrame, start: str) -> dict[str, list[float]]:
-    """One-pass {stock_id: [closes...]} for everything on/after ``start``."""
-    frame = prices.loc[prices["trade_date"] >= start, ["stock_id", "trade_date", "close"]]
+    """One-pass adjusted close history for everything on/after ``start``."""
+    frame = prices.loc[prices["trade_date"] >= start, ["stock_id", "trade_date", "close_adj"]]
     frame = frame.copy()
-    frame["close"] = pd.to_numeric(frame["close"], errors="coerce")
-    frame = frame.loc[frame["close"] > 0].sort_values(["stock_id", "trade_date"])
+    frame["close_adj"] = pd.to_numeric(frame["close_adj"], errors="coerce")
+    # Keep missing adjusted bars in place: removing them would silently
+    # shorten the forward trading-day horizon used by IC calculations.
+    frame.loc[frame["close_adj"] <= 0, "close_adj"] = np.nan
+    frame = frame.sort_values(["stock_id", "trade_date"])
     return (
-        frame.groupby("stock_id")["close"].apply(lambda s: [float(x) for x in s.tolist()]).to_dict()
+        frame.groupby("stock_id")["close_adj"]
+        .apply(lambda s: [float(x) for x in s.tolist()])
+        .to_dict()
     )
 
 
@@ -79,7 +84,8 @@ def _forward_returns(panel: dict[str, list[float]], days: int) -> pd.Series:
     rows = [
         {"stock_id": s, "fwd": float(np.log(c[days] / c[0]))}
         for s, c in panel.items()
-        if len(c) > days
+        if len(c) > days and np.isfinite(c[0]) and np.isfinite(c[days])
+        and c[0] > 0 and c[days] > 0
     ]
     if not rows:
         return pd.Series(dtype=float)
@@ -97,6 +103,10 @@ def _weekly_ics(scores: pd.Series, panel: dict[str, list[float]]) -> list[float]
             }
             for s, c in panel.items()
             if len(c) > 5 * week
+            and np.isfinite(c[5 * (week - 1)])
+            and np.isfinite(c[5 * week])
+            and c[5 * (week - 1)] > 0
+            and c[5 * week] > 0
         ]
         if not rows:
             continue
@@ -125,12 +135,20 @@ def main(argv: list[str] | None = None) -> int:
     else:
         from app import available_runs
 
-        runs = available_runs(store)
+        runs = available_runs(store, feature_version=settings.features.feature_version)
         if not runs:
             print("no succeeded rebalance runs", file=sys.stderr)
             return 1
         run_id = runs[-1]
     summary = store.load_run_summary(run_id)
+    if summary["feature_version"] != settings.features.feature_version:
+        print(
+            f"cannot materialize {run_id}: feature_version "
+            f"{summary['feature_version']!r} differs from current "
+            f"{settings.features.feature_version!r}; rerun research with adjusted prices",
+            file=sys.stderr,
+        )
+        return 1
     as_of = date.fromisoformat(summary["data_end_date"])
     as_of_str = summary["data_end_date"]
     print(f"materializing {run_id} as_of={as_of_str}", flush=True)

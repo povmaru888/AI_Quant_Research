@@ -20,7 +20,7 @@ features:
   winsor_upper_quantile: 0.99
   correlation_threshold: 0.85
   volatility_window: 60
-  feature_version: factor_v1
+  feature_version: factor_adj_v2
 
 label:
   horizon_trading_days: 20

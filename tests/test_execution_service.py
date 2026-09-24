@@ -78,6 +78,17 @@ def test_create_orders_buy_and_sell(settings) -> None:
     assert sell["transaction_tax"] > 0
 
 
+def test_create_orders_executes_at_raw_open_when_adjusted_differs(settings) -> None:
+    opens = _opens()
+    opens["open_adj"] = [80.0, 40.0]
+    orders = create_orders(
+        _target(), SIGNAL, opens, _holdings(), 1_000_000.0, settings, "run-001"
+    )
+    buy = orders.set_index("stock_id").loc["A"]
+    assert buy["target_shares"] == round(0.6 * 1_000_000.0 / 100.0)
+    assert buy["executed_price"] == pytest.approx(100.0 * 1.001)
+
+
 def test_create_orders_hold_rebalance(settings) -> None:
     target = PortfolioTarget(
         run_id="r",

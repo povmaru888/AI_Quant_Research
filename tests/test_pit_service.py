@@ -67,8 +67,8 @@ def _institutional() -> pd.DataFrame:
 def _prices() -> pd.DataFrame:
     return pd.DataFrame(
         [
-            {"stock_id": "2330", "trade_date": "2019-12-31", "close": 300.0},
-            {"stock_id": "2317", "trade_date": "2019-12-31", "close": 80.0},
+            {"stock_id": "2330", "trade_date": "2019-12-31", "close": 900.0, "close_adj": 300.0},
+            {"stock_id": "2317", "trade_date": "2019-12-31", "close": 800.0, "close_adj": 80.0},
         ]
     )
 
@@ -84,6 +84,7 @@ def test_build_pit_snapshot_shape() -> None:
         "roe",
         "foreign_net_buy",
         "as_of_close",
+        "as_of_close_adj",
     }
 
 
@@ -95,7 +96,8 @@ def test_build_pit_snapshot_delayed_announcement_stays_out() -> None:
     assert row["report_period"] == "2019Q3"
     assert row["roe"] == pytest.approx(0.20)
     assert row["foreign_net_buy"] == pytest.approx(200.0)
-    assert row["as_of_close"] == pytest.approx(300.0)
+    assert row["as_of_close"] == pytest.approx(900.0)
+    assert row["as_of_close_adj"] == pytest.approx(300.0)
 
 
 def test_build_pit_snapshot_missing_financials_kept_as_nan() -> None:
@@ -106,6 +108,17 @@ def test_build_pit_snapshot_missing_financials_kept_as_nan() -> None:
     row = snapshot.loc[snapshot["stock_id"] == "2330"].iloc[0]
     assert pd.isna(row["roe"])
     assert row["foreign_net_buy"] == pytest.approx(200.0)
+
+
+def test_build_pit_snapshot_missing_adjusted_close_stays_missing() -> None:
+    prices = _prices()
+    prices.loc[prices["stock_id"] == "2330", "close_adj"] = pd.NA
+    snapshot = build_pit_snapshot(
+        _universe(), date(2019, 12, 31), _financials(), _institutional(), prices
+    )
+    row = snapshot.loc[snapshot["stock_id"] == "2330"].iloc[0]
+    assert row["as_of_close"] == pytest.approx(900.0)
+    assert pd.isna(row["as_of_close_adj"])
 
 
 def test_build_pit_snapshot_ignores_other_stocks() -> None:

@@ -90,6 +90,14 @@ def test_available_runs_skips_daily_job_runs() -> None:
     assert available_runs(FakeStore(rows)) == ["rebalance-2026-07-31b", "legacy"]
 
 
+def test_available_runs_filters_stale_feature_versions() -> None:
+    rows = [
+        {"run_id": "old", "status": "succeeded", "feature_version": "factor_v1"},
+        {"run_id": "adjusted", "status": "succeeded", "feature_version": "factor_adj_v2"},
+    ]
+    assert available_runs(FakeStore(rows), feature_version="factor_adj_v2") == ["adjusted"]
+
+
 def test_available_runs_rejects_bad_rows() -> None:
     with pytest.raises(ValueError, match="run_id"):
         available_runs(FakeStore([{"status": "succeeded"}]))

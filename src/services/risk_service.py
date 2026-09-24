@@ -1,5 +1,7 @@
 """P2-12: weight and market risk service (SDD 12.2).
 
+Input stock log returns come from adjusted closes. TAIEX is an index and
+its regime moving average uses the index's unadjusted close.
 Inverse-volatility relative weights first; total exposure from the
 portfolio covariance and the volatility target; per-name cap with
 iterative redistribution; TAIEX MA60 regime filter last. Unmeasurable

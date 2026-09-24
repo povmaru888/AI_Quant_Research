@@ -1,6 +1,8 @@
 """P2-13: execution and cost service (SDD 13.1, 13.2).
 
-Signal at month-end close, execution at next trading day open. Costs
+Signal at month-end adjusted close, execution at next trading day's
+actual, unadjusted exchange open. Adjusted OHLC is used for historical
+returns and backtest valuation, never as an executable quote. Costs
 follow the SDD table: 0.1425% broker fee both sides, 0.3% tax on sells,
 per-side slippage on the open. Output columns match what P1-10
 ``save_orders`` persists.

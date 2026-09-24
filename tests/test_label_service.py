@@ -23,6 +23,7 @@ def _prices(spec: dict[str, float], start: str = "2019-10-01", periods: int = 10
                     "stock_id": stock_id,
                     "trade_date": dates,
                     "close": closes,
+                    "close_adj": closes,
                 }
             )
         )
@@ -78,4 +79,21 @@ def test_build_labels_rejects_bad_inputs(settings) -> None:
     with pytest.raises(ValueError, match="as_of"):
         build_labels(prices, ["A"], "2019-12-31", settings)
     with pytest.raises(ValueError, match="missing columns"):
-        build_labels(prices.drop(columns=["close"]), ["A"], AS_OF, settings)
+        build_labels(prices.drop(columns=["close_adj"]), ["A"], AS_OF, settings)
+
+
+def test_build_labels_uses_adjusted_prices_and_rejects_missing_adj(settings) -> None:
+    prices = _prices({"A": 0.0, "B": 0.0})
+    a = prices["stock_id"] == "A"
+    b = prices["stock_id"] == "B"
+    prices.loc[a, "close"] = 9999.0
+    prices.loc[b, "close"] = 1.0
+    dates = prices.loc[a, "trade_date"].to_numpy()
+    as_of_idx = list(dates).index(AS_OF.isoformat())
+    a_rows = prices.index[a]
+    prices.loc[a_rows[as_of_idx + settings.label.horizon_trading_days], "close_adj"] = 120.0
+    labels = build_labels(prices, ["A", "B"], AS_OF, settings)
+    assert labels["A"] == 1 and labels["B"] == 0
+
+    prices.loc[a_rows[as_of_idx], "close_adj"] = pd.NA
+    assert build_labels(prices, ["A", "B"], AS_OF, settings).empty

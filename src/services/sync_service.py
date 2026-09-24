@@ -1,6 +1,6 @@
 """P3-04: retryable market data sync service (SDD 7.2).
 
-Fetches the three feeds with retries, falls back to yfinance for prices
+Fetches the four feeds with retries, falls back to yfinance for raw prices
 only, and persists via a ``SyncStore`` seam (upsert idempotency lives in
 the store implementation, as in P1-07/P1-08). Only transient
 ``FinMindError`` is retried; programming errors (``ValueError``) fail
@@ -17,7 +17,7 @@ import pandas as pd
 
 from integrations.finmind import FinMindError
 from integrations.finmind_fundamentals import fetch_financials, fetch_institutional
-from integrations.finmind_prices import fetch_prices
+from integrations.finmind_prices import fetch_price_adj, fetch_prices
 from integrations.yfinance_prices import fetch_fallback_prices
 from settings import Settings
 
@@ -41,6 +41,7 @@ class SyncSummary:
     start: str
     end: str
     prices: FeedResult
+    price_adj: FeedResult
     financials: FeedResult
     institutional: FeedResult
     fallback_used: bool = False
@@ -48,7 +49,7 @@ class SyncSummary:
     @property
     def ok(self) -> bool:
         """True only when every feed landed without error."""
-        feeds = (self.prices, self.financials, self.institutional)
+        feeds = (self.prices, self.price_adj, self.financials, self.institutional)
         return all(feed.error is None for feed in feeds)
 
 
@@ -56,6 +57,7 @@ class SyncStore(Protocol):
     """Persistence seam; implementations must upsert (no duplicates on rerun)."""
 
     def upsert_prices(self, frame: pd.DataFrame) -> int: ...
+    def upsert_price_adj(self, frame: pd.DataFrame) -> int: ...
     def upsert_financials(self, frame: pd.DataFrame) -> int: ...
     def upsert_institutional(self, frame: pd.DataFrame) -> int: ...
 
@@ -73,6 +75,7 @@ def sync_market_data(
     fetch_fallback_fn: Callable[..., pd.DataFrame] = fetch_fallback_prices,
     symbols: Sequence[str] = (),
     max_attempts: int = 3,
+    fetch_price_adj_fn: Callable[..., pd.DataFrame] = fetch_price_adj,
 ) -> SyncSummary:
     """Sync one date range; return the per-feed ledger."""
     _ = settings  # thresholds live downstream; kept for signature parity.
@@ -83,6 +86,21 @@ def sync_market_data(
 
     prices, fallback_used = _sync_prices(
         start, end, store, token, fetch_prices_fn, fetch_fallback_fn, symbols, max_attempts
+    )
+    # Adjusted rows can only attach to raw bars already in prices. A failed
+    # raw sync must not produce a misleading successful adjusted feed.
+    price_adj = (
+        _sync_feed(
+            "price_adj", start, end, store.upsert_price_adj, token, fetch_price_adj_fn, max_attempts
+        )
+        if prices.error is None
+        else FeedResult(
+            name="price_adj",
+            rows=0,
+            attempts=0,
+            source="finmind",
+            error="raw price sync failed",
+        )
     )
     financials = _sync_feed(
         "financials", start, end, store.upsert_financials, token, fetch_financials_fn, max_attempts
@@ -101,6 +119,7 @@ def sync_market_data(
         start=start,
         end=end,
         prices=prices,
+        price_adj=price_adj,
         financials=financials,
         institutional=institutional,
         fallback_used=fallback_used,
@@ -146,6 +165,14 @@ def _sync_feed(
         return FeedResult(name=name, rows=0, attempts=1, source="finmind", error=str(exc))
     if error is not None or frame is None:
         return FeedResult(name=name, rows=0, attempts=attempts, source="finmind", error=error)
+    if name == "price_adj" and frame.empty:
+        return FeedResult(
+            name=name,
+            rows=0,
+            attempts=attempts,
+            source="finmind",
+            error="no adjusted prices returned",
+        )
     stored = upsert(frame)
     return FeedResult(name=name, rows=stored, attempts=attempts, source="finmind")
 

@@ -2,19 +2,28 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import pandas as pd
+import pytest
 
 from jobs.daily_update import main, run_daily_update
 from services.sync_service import FeedResult, SyncSummary
 
 
 class FakeStore:
-    def __init__(self, latest: str | None = "2020-01-31") -> None:
+    def __init__(
+        self, latest: str | None = "2020-01-31", coverage: tuple[int, int] = (1, 1)
+    ) -> None:
         self.latest = latest
+        self.coverage = coverage
         self.started: dict | None = None
         self.finished: tuple[str, str | None] | None = None
 
     def upsert_prices(self, frame: pd.DataFrame) -> int:
+        return len(frame)
+
+    def upsert_price_adj(self, frame: pd.DataFrame) -> int:
         return len(frame)
 
     def upsert_financials(self, frame: pd.DataFrame) -> int:
@@ -25,6 +34,9 @@ class FakeStore:
 
     def load_latest_trade_date(self) -> str | None:
         return self.latest
+
+    def load_adjusted_coverage(self, on) -> tuple[int, int]:
+        return self.coverage
 
     def load_symbols(self) -> list[str]:
         return ["2330"]
@@ -46,6 +58,7 @@ def _ok_summary(run_id: str = "daily-2020-01-31") -> SyncSummary:
         start="2015-01-01",
         end="2020-01-31",
         prices=_feed("prices", 10),
+        price_adj=_feed("price_adj", 10),
         financials=_feed("financials", 5),
         institutional=_feed("institutional", 7),
     )
@@ -58,6 +71,7 @@ def _bad_summary() -> SyncSummary:
         start="s",
         end="e",
         prices=_feed("prices", 1),
+        price_adj=_feed("price_adj", 1),
         financials=broken,
         institutional=_feed("institutional", 1),
     )
@@ -70,7 +84,12 @@ def test_run_daily_update_success(settings, capsys) -> None:
     )
     assert result["run_id"] == "run-001"
     assert result["as_of"] == "2020-01-31"
-    assert result["rows"] == {"prices": 10, "financials": 5, "institutional": 7}
+    assert result["rows"] == {
+        "prices": 10,
+        "price_adj": 10,
+        "financials": 5,
+        "institutional": 7,
+    }
     assert store.finished == ("succeeded", None)
 
 
@@ -85,6 +104,32 @@ def test_run_daily_update_failure_closes_failed(settings) -> None:
     else:
         raise AssertionError("expected RuntimeError")
     assert store.finished is not None and store.finished[0] == "failed"
+
+
+def test_run_daily_update_reports_adjusted_feed_failure(settings) -> None:
+    store = FakeStore()
+    summary = _ok_summary()
+    summary = dataclasses.replace(
+        summary,
+        price_adj=FeedResult(
+            name="price_adj", rows=0, attempts=3, source="finmind", error="access denied"
+        ),
+    )
+    with pytest.raises(RuntimeError, match="price_adj: access denied"):
+        run_daily_update(None, settings, store, "tok", sync_fn=lambda *a, **k: summary)
+    assert store.finished is not None and store.finished[0] == "failed"
+
+
+def test_run_daily_update_requires_full_adjusted_coverage(settings) -> None:
+    store = FakeStore(coverage=(10, 9))
+    with pytest.raises(RuntimeError, match="adjusted price coverage 9/10"):
+        run_daily_update(None, settings, store, "tok", sync_fn=lambda *a, **k: _ok_summary())
+    assert store.finished is not None and store.finished[0] == "failed"
+
+    empty = FakeStore(coverage=(0, 0))
+    with pytest.raises(RuntimeError, match="adjusted price coverage 0/0"):
+        run_daily_update(None, settings, empty, "tok", sync_fn=lambda *a, **k: _ok_summary())
+    assert empty.finished is not None and empty.finished[0] == "failed"
 
 
 def test_main_exit_codes(tmp_path, capsys, monkeypatch) -> None:

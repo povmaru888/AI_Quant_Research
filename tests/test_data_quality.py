@@ -219,6 +219,8 @@ def test_audit_reports_all_five_checks(engine) -> None:
     assert by_check["missing_prices"][0].severity == "warning"
     assert by_check["invalid_prices"][0].severity == "blocker"
     assert "2317" in by_check["invalid_prices"][0].detail
+    assert by_check["adjusted_price_stale"][0].severity == "blocker"
+    assert by_check["missing_adjusted_prices"][0].severity == "warning"
     # PIT time-travel rows are rejected by the DDL CHECK; the probe must
     # report absence rather than fire on seedable data.
     assert "financial_pit_violation" not in by_check
@@ -242,6 +244,10 @@ def test_clean_database_passes(engine) -> None:
                     high=101.0,
                     low=99.0,
                     close=100.0,
+                    open_adj=100.0,
+                    high_adj=101.0,
+                    low_adj=99.0,
+                    close_adj=100.0,
                     volume=1000.0,
                     traded_value=100000.0,
                     source="test",
@@ -265,6 +271,35 @@ def test_clean_database_passes(engine) -> None:
     assert report.passed is True
     assert report.issues == ()
     assert_no_blockers(report)
+
+
+def test_adjusted_gap_warns_and_stale_latest_blocks(engine) -> None:
+    _seed_parents(engine, ("2330",))
+    with session_scope(engine) as session:
+        for day in DAYS:
+            session.add(
+                Price(
+                    trade_date=day,
+                    stock_id="2330",
+                    open=100.0,
+                    high=101.0,
+                    low=99.0,
+                    close=100.0,
+                    open_adj=100.0 if day == DAYS[0] else None,
+                    high_adj=101.0 if day == DAYS[0] else None,
+                    low_adj=99.0 if day == DAYS[0] else None,
+                    close_adj=100.0 if day == DAYS[0] else None,
+                    volume=1000.0,
+                    traded_value=100000.0,
+                    source="test",
+                )
+            )
+    with session_scope(engine) as session:
+        report = audit_data_quality(AS_OF, session)
+    checks = {issue.check: issue for issue in report.issues}
+    assert checks["adjusted_price_stale"].severity == "blocker"
+    assert "2020-02-03" in checks["adjusted_price_stale"].detail
+    assert checks["missing_adjusted_prices"].count == 2
 
 
 def test_bad_as_of_rejected(engine) -> None:
