@@ -173,11 +173,15 @@ def _apply_fill(
     side = str(fill["side"])
     price = float(fill["executed_price"])
     cost = float(fill["total_cost"])
+    # Slippage is already reflected in ``executed_price``.  Keep it in the
+    # reported total cost, but do not deduct it from cash a second time.
+    slippage_cost = float(fill.get("slippage_cost", 0.0) or 0.0)
+    cash_cost = max(cost - slippage_cost, 0.0)
     if side == "BUY":
         shares = int(fill["target_shares"]) - holdings.get(stock_id, 0)
         if shares <= 0:
             return cash, charged
-        outlay = shares * price + cost
+        outlay = shares * price + cash_cost
         if outlay > cash:
             return cash, charged  # skipped whole: no partial fills.
         holdings[stock_id] = holdings.get(stock_id, 0) + shares
@@ -198,7 +202,7 @@ def _apply_fill(
         economic_proceeds = units_sold * price * adj_open / raw_open
         holdings[stock_id] = held - shares
         adjusted_units[stock_id] -= units_sold
-        return cash + economic_proceeds - cost, charged + cost
+        return cash + economic_proceeds - cash_cost, charged + cost
     raise ValueError(f"invalid side: {side!r}")
 
 
