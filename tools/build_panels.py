@@ -104,8 +104,18 @@ def main(argv: list[str] | None = None) -> int:
     for signal_str in months:
         dest = out / f"{signal_str[:7]}.pkl"
         if dest.is_file():
-            done += 1
-            continue
+            try:
+                with open(dest, "rb") as handle:
+                    cached = pickle.load(handle)
+            except Exception:  # noqa: BLE001 - corrupt/stale cache is rebuilt.
+                cached = None
+            if (
+                isinstance(cached, dict)
+                and cached.get("feature_version") == settings.features.feature_version
+            ):
+                done += 1
+                continue
+            print(f"[{signal_str}] rebuilding stale or unreadable panel", flush=True)
         as_of = date.fromisoformat(signal_str)
         try:
             from runtime.db_store import DbStore, default_shares_path, get_engine, load_shares_cache

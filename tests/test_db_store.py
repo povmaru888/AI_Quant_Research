@@ -550,6 +550,69 @@ def test_load_shares_cache_roundtrip(tmp_path: Path) -> None:
     assert default_shares_path("sqlite:///:memory:") is None
 
 
+def test_bind_attaches_to_existing_run(store) -> None:
+    store.start_run({"run_id": "r", "job": "test", "data_end_date": "2020-02-05"})
+    store.finish_run("r", "succeeded")
+    fresh = DbStore(store._engine, store._settings)
+    with pytest.raises(ValueError, match="no run"):
+        fresh.save_predictions(pd.DataFrame({"stock_id": ["2330"]}), "m")
+    fresh.bind("r", "2020-02-05")
+    assert fresh.save_orders(pd.DataFrame()) == 0
+    with pytest.raises(ValueError, match="unknown run"):
+        fresh.bind("ghost")
+    with pytest.raises(ValueError, match="run_id"):
+        fresh.bind("  ")
+
+
+def test_replay_liquidates_full_sell_to_flat(store: DbStore, sample_prices: pd.DataFrame) -> None:
+    _seed_market(store, sample_prices)
+    store.start_run({"run_id": "r", "job": "test", "data_end_date": AS_OF})
+    buy = pd.DataFrame(
+        [
+            {
+                "order_id": "r|2020-02-04|2330|BUY",
+                "run_id": "r",
+                "signal_date": "2020-02-03",
+                "execution_date": "2020-02-04",
+                "stock_id": "2330",
+                "side": "BUY",
+                "target_weight": 0.1,
+                "target_shares": 100,
+                "executed_price": 500.5,
+                "broker_fee": 71.32125,
+                "transaction_tax": 0.0,
+                "slippage_cost": 50.05,
+                "total_cost": 121.37125,
+            }
+        ]
+    )
+    sell = pd.DataFrame(
+        [
+            {
+                "order_id": "r|2020-02-05|2330|SELL",
+                "run_id": "r",
+                "signal_date": "2020-02-04",
+                "execution_date": "2020-02-05",
+                "stock_id": "2330",
+                "side": "SELL",
+                "target_weight": 0.0,
+                "target_shares": 0,
+                "executed_price": 500.0,
+                "broker_fee": 71.25,
+                "transaction_tax": 150.0,
+                "slippage_cost": 50.0,
+                "total_cost": 271.25,
+            }
+        ]
+    )
+    assert store.save_orders(buy) == 1
+    assert store.save_orders(sell) == 1
+    result = store.replay_backtest("r")
+    assert result.nav.iloc[-1] == pytest.approx(INITIAL_CAPITAL - 121.37125 - 271.25 - 50.0)
+    tail = result.nav.loc[result.nav.index.astype(str) >= "2020-02-05"]
+    assert (tail == tail.iloc[0]).all()
+
+
 def test_build_store_factory(settings: Settings, temp_db_path: Path) -> None:
     conn = sqlite3.connect(str(temp_db_path))
     try:
@@ -566,3 +629,51 @@ def test_build_store_factory(settings: Settings, temp_db_path: Path) -> None:
         assert factory_store.load_portfolio_value() == INITIAL_CAPITAL
     finally:
         factory_store._engine.dispose()  # noqa: SLF001
+
+
+def test_save_target_holdings_ranks_unscored_sell_last(
+    store: DbStore, sample_prices: pd.DataFrame
+) -> None:
+    _seed_market(store, sample_prices)
+    store.start_run(
+        {
+            "run_id": "rebalance-2020-02-05",
+            "data_end_date": AS_OF,
+            "feature_version": "factor_v1",
+            "parameter_version": "p1",
+        }
+    )
+    preds = pd.DataFrame(
+        {
+            "stock_id": ["2330"],
+            "probability": [0.9],
+            "rank": [1],
+            "prediction_date": [AS_OF],
+        }
+    )
+    assert store.save_predictions(preds, "xgb_202002_factor_v1") == 1
+    from repositories import stocks as stocks_repo
+
+    with store._scope() as session:  # noqa: SLF001
+        stocks_repo.upsert_stocks(session, pd.DataFrame({"stock_id": ["9999"], "market": ["TWSE"]}))
+    target = PortfolioTarget(
+        run_id="rebalance-2020-02-05",
+        signal_date=AS_OF,
+        top_n=15,
+        actions={"2330": "BUY", "9999": "SELL"},
+        weights={"2330": 0.1},
+        cash_weight=0.9,
+        equity_exposure=0.1,
+    )
+    store.save_target_holdings(target, model_version="xgb_202002_factor_v1")
+    with store._scope() as session:  # noqa: SLF001
+        from sqlalchemy import select
+
+        from models.research import Signal
+
+        rank = session.execute(
+            select(Signal.rank).where(
+                Signal.run_id == "rebalance-2020-02-05", Signal.stock_id == "9999"
+            )
+        ).scalar_one()
+    assert rank == 2

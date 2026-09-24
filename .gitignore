@@ -16,7 +16,6 @@ venv/
 *.db
 *.sqlite
 *.sqlite3
-database/shares.json
 
 # OS / editors
 .DS_Store
@@ -30,10 +29,11 @@ Thumbs.db
 # Outputs
 outputs/
 reports/
-data/
+data/*
+!data/panels/
+!data/panels/**
 
-# Trained model artifacts (derived; retrain via tools/train_model.py)
-models/
+# Trained model artifacts (kept in version control for reproducible OOS runs)
 
 # Local run logs
 logs/
@@ -41,3 +41,4 @@ logs/
 # Shioaji client log
 shioaji.log
 database/shares*.json
+!database/shares.json

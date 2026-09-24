@@ -84,8 +84,11 @@ def _forward_returns(panel: dict[str, list[float]], days: int) -> pd.Series:
     rows = [
         {"stock_id": s, "fwd": float(np.log(c[days] / c[0]))}
         for s, c in panel.items()
-        if len(c) > days and np.isfinite(c[0]) and np.isfinite(c[days])
-        and c[0] > 0 and c[days] > 0
+        if len(c) > days
+        and np.isfinite(c[0])
+        and np.isfinite(c[days])
+        and c[0] > 0
+        and c[days] > 0
     ]
     if not rows:
         return pd.Series(dtype=float)
@@ -174,6 +177,20 @@ def main(argv: list[str] | None = None) -> int:
     if not result.orders.empty:
         first_exec = str(result.orders["execution_date"].min())
         active = result.nav.loc[result.nav.index.astype(str) >= first_exec]
+        with session_scope(engine) as session:
+            qty_rows = session.execute(
+                sqlalchemy.select(Order.stock_id, Order.side, Order.quantity)
+                .where(Order.run_id == run_id)
+            ).all()
+        held = {}
+        for sid, side, qty in qty_rows:
+            held[str(sid)] = held.get(str(sid), 0) + (
+                int(qty) if side == "BUY" else -int(qty)
+            )
+        if all(q == 0 for q in held.values()):
+            last_exec = str(result.orders["execution_date"].max())
+            active = active.loc[active.index.astype(str) <= last_exec]
+            print(f"closed ledger: window ends {last_exec}", flush=True)
         result = _dc.replace(result, nav=active, start_date=str(active.index[0]))
         print(f"active window from {first_exec}: {len(active)} days", flush=True)
 
@@ -181,7 +198,10 @@ def main(argv: list[str] | None = None) -> int:
     with session_scope(engine) as session:
         pred_rows = session.execute(
             sqlalchemy.select(Prediction.stock_id, Prediction.prediction_probability)
-            .where(Prediction.run_id == run_id)
+            .where(
+                Prediction.run_id == run_id,
+                Prediction.prediction_date == as_of_str,
+            )
             .order_by(Prediction.stock_id)
         ).all()
     scores = pd.Series({s: float(p) for s, p in pred_rows}, dtype=float)
@@ -194,6 +214,14 @@ def main(argv: list[str] | None = None) -> int:
     metrics_frame = calculate_metrics(result, rank_ic=month_ic, icir=icir)
     metrics = {k: _finite(v) for k, v in metrics_frame.iloc[0].to_dict().items()}
     nav = result.nav
+    with session_scope(engine) as session:
+        turnover_rows = session.execute(
+            sqlalchemy.select(Order.quantity, Order.executed_price).where(Order.run_id == run_id)
+        ).all()
+    traded = sum(float(q) * float(x) for q, x in turnover_rows)
+    avg_nav = float(nav.mean())
+    turnover = traded / avg_nav if avg_nav > 0 else None
+    metrics["turnover"] = _finite(turnover)
     nav_returns = nav.pct_change().dropna()
     if len(nav_returns) >= 2 and float(nav_returns.std(ddof=1)) > 0:
         metrics["realized_volatility"] = float(nav_returns.std(ddof=1) * np.sqrt(252))
@@ -368,7 +396,7 @@ def _sensitivity(store, engine, run_id: str, prices: pd.DataFrame, settings) -> 
                 "stock_id": sid,
                 "side": side,
                 "target_weight": weights.get(sid, 0.0),
-                "target_shares": int(q),
+                "target_shares": (0 if side == "SELL" else int(q)),
                 "executed_price": float(x),
                 "broker_fee": float(f),
                 "transaction_tax": float(t),

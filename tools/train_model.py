@@ -35,14 +35,22 @@ from services.xgb_service import predict_xgb, rank_ic  # noqa: E402
 from settings import load_settings  # noqa: E402
 
 
-def _load_panels(panels: Path, months: list[str]) -> dict[str, dict]:
+def _load_panels(
+    panels: Path, months: list[str], feature_version: str
+) -> dict[str, dict]:
     out = {}
     for month in months:
         path = panels / f"{month}.pkl"
         if not path.is_file():
             raise FileNotFoundError(f"missing panel: {path}")
         with open(path, "rb") as handle:
-            out[month] = pickle.load(handle)
+            panel = pickle.load(handle)
+        if panel.get("feature_version") != feature_version:
+            raise ValueError(
+                f"stale panel {path}: feature_version {panel.get('feature_version')!r}; "
+                f"expected {feature_version!r}. Rebuild panels before training."
+            )
+        out[month] = panel
     return out
 
 
@@ -83,8 +91,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"train months: {len(train_months)} ({train_months[0]}..{train_months[-1]})")
     print(f"purge month: {args.purge_month} (excluded)")
     print(f"valid months: {len(valid_months)} ({valid_months[0]}..{valid_months[-1]})")
-    train_panels = _load_panels(panels, train_months)
-    valid_panels = _load_panels(panels, valid_months)
+    train_panels = _load_panels(panels, train_months, settings.features.feature_version)
+    valid_panels = _load_panels(panels, valid_months, settings.features.feature_version)
 
     common = set(train_panels[train_months[0]]["feature_columns"])
     for months in (train_months, valid_months):

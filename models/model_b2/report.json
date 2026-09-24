@@ -1,0 +1,57 @@
+{
+ "model_version": "xgb_b2",
+ "refit_months": [
+  "2019-01",
+  "2023-12",
+  60
+ ],
+ "refit_rows": 33273,
+ "oos_months": [
+  "2024-01",
+  "2024-12",
+  12
+ ],
+ "oos_rank_ic": 0.12637802740777396,
+ "oos_top_decile_spread": 0.17184494985431373,
+ "oos_monthly_ic": {
+  "2024-01": 0.1766906685334252,
+  "2024-02": -0.0012008896273723424,
+  "2024-03": 0.13627815655564376,
+  "2024-04": 0.12863661963955658,
+  "2024-05": 0.15538306692435697,
+  "2024-06": 0.1245266279459643,
+  "2024-07": 0.2633743948389017,
+  "2024-08": 0.028436179402441874,
+  "2024-09": 0.16703367201291552,
+  "2024-10": 0.017474477567165615,
+  "2024-11": 0.20590698508010424,
+  "2024-12": 0.11399637002018424
+ },
+ "frozen_from": "models/model_b1",
+ "best_params": {
+  "max_depth": 3,
+  "learning_rate": 0.03616119436314179,
+  "n_estimators": 102,
+  "subsample": 0.7033861603434535,
+  "colsample_bytree": 0.6011063461686903,
+  "min_child_weight": 5,
+  "reg_alpha": 8.311221770473534,
+  "reg_lambda": 7.504342768029315e-07,
+  "random_state": 42
+ },
+ "common_features": [
+  "amihud_illiquidity",
+  "margin_balance_change",
+  "max_drawdown_120d",
+  "momentum_20d",
+  "momentum_60d",
+  "operating_income_qoq",
+  "operating_margin",
+  "revenue_mom",
+  "revenue_yoy",
+  "roe",
+  "short_margin_ratio",
+  "volatility_60d",
+  "volume_ma20_ma60"
+ ]
+}

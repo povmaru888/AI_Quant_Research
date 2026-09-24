@@ -180,6 +180,15 @@ class DbStore:
         self._initial_capital = float(initial_capital)
         self._shares = shares_outstanding or {}
 
+    def bind(self, run_id: str, as_of: date | str | None = None) -> None:
+        """Attach to an existing run without creating a run row."""
+        if not isinstance(run_id, str) or not run_id.strip():
+            raise ValueError(f"invalid run_id: {run_id!r}")
+        self.get_run_status(run_id)
+        self._run_id = run_id
+        if as_of is not None:
+            self._as_of = as_of.isoformat() if isinstance(as_of, date) else as_of
+
     # -- session helper ----------------------------------------------------
 
     def _scope(self):
@@ -644,30 +653,31 @@ class DbStore:
         with self._scope() as session:
             return research_repo.save_predictions(session, frame)
 
-    def save_target_holdings(self, target) -> None:
+    def save_target_holdings(self, target, model_version: str | None = None) -> None:
         """Persist target actions onto signals; rank comes from predictions."""
         run_id = self._require_run()
         as_of = self._require_as_of()
-        model_version = _model_version_for(as_of, self._settings.features.feature_version)
+        version = model_version or _model_version_for(
+            as_of, self._settings.features.feature_version
+        )
         with self._scope() as session:
             rank_rows = session.execute(
                 select(Prediction.stock_id, Prediction.rank).where(
                     Prediction.prediction_date == as_of,
-                    Prediction.model_version == model_version,
+                    Prediction.model_version == version,
                 )
             ).all()
             ranks = {stock_id: int(rank) for stock_id, rank in rank_rows}
+            fallback_rank = max(ranks.values()) + 1 if ranks else 10**6
             rows = []
             for stock_id, action in target.actions.items():
-                if stock_id not in ranks:
-                    raise ValueError(f"no prediction rank for {stock_id!r} on {as_of}")
                 rows.append(
                     {
                         "signal_date": as_of,
                         "stock_id": stock_id,
                         "run_id": run_id,
                         "signal": action,
-                        "rank": ranks[stock_id],
+                        "rank": ranks.get(stock_id, fallback_rank),
                         "target_weight": float(target.weights.get(stock_id, 0.0)),
                     }
                 )
@@ -901,7 +911,7 @@ class DbStore:
                     "stock_id": sid,
                     "side": side,
                     "target_weight": weights.get(sid, 0.0),
-                    "target_shares": int(q),
+                    "target_shares": (0 if side == "SELL" else int(q)),
                     "executed_price": float(x),
                     "broker_fee": float(f),
                     "transaction_tax": float(t),

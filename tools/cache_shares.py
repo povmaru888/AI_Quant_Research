@@ -2,7 +2,7 @@
 
 Free FinMind tokens cannot fetch float shares, but the universe needs a
 market-cap gate. This script caches ``{shares, market_cap, as_of}`` per
-stock into ``database/shares.json`` (next to the DB file, gitignored).
+stock into versioned ``database/shares.json`` (next to the DB file).
 ETFs publish no share count; their market cap is cached directly.
 
 Usage:

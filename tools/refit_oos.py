@@ -72,6 +72,13 @@ def main(argv: list[str] | None = None) -> int:
     panels = Path(args.panels)
     with open(Path(args.src) / "report.json", encoding="utf-8") as handle:
         base = json.load(handle)
+    if base.get("feature_version") != settings.features.feature_version:
+        print(
+            f"stale model report feature_version {base.get('feature_version')!r}; "
+            f"expected {settings.features.feature_version!r}",
+            file=sys.stderr,
+        )
+        return 1
     columns: list[str] = base["common_features"]
     params: dict = dict(base["best_params"])
     print(f"frozen params from {args.src}: {len(columns)} features")
@@ -80,6 +87,9 @@ def main(argv: list[str] | None = None) -> int:
     frames, labels = [], []
     for month in refit_months:
         panel = _load_panel(panels, month)
+        if panel.get("feature_version") != settings.features.feature_version:
+            print(f"[{month}] stale panel feature_version", file=sys.stderr)
+            return 1
         missing = [c for c in columns if c not in panel["frame"].columns]
         if missing:
             print(f"[{month}] missing columns {missing}", file=sys.stderr)
@@ -113,6 +123,9 @@ def main(argv: list[str] | None = None) -> int:
     month_ics, month_spreads = [], []
     for month in oos_months:
         panel = _load_panel(panels, month)
+        if panel.get("feature_version") != settings.features.feature_version:
+            print(f"[{month}] stale panel feature_version", file=sys.stderr)
+            return 1
         frame = panel["frame"][["stock_id", *columns]].copy()
         aligned = panel["labels"].reindex(frame["stock_id"])
         keep = aligned.notna().to_numpy()
@@ -146,8 +159,11 @@ def main(argv: list[str] | None = None) -> int:
     ics = [ic for ic in month_ics if np.isfinite(ic)]
     report = {
         "model_version": args.model_version,
+        "feature_version": settings.features.feature_version,
         "refit_months": [refit_months[0], refit_months[-1], len(refit_months)],
         "refit_rows": len(big),
+        "best_params": params,
+        "common_features": columns,
         "oos_months": [oos_months[0], oos_months[-1], len(oos_months)],
         "oos_rank_ic": float(np.mean(ics)) if ics else float("nan"),
         "oos_top_decile_spread": float(np.mean(month_spreads)) if month_spreads else float("nan"),
