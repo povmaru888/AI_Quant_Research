@@ -304,6 +304,16 @@ class DbStore:
                 select(func.max(Price.trade_date)).where(Price.stock_id != TAIEX_ID)
             ).scalar()
 
+    def trade_days(self, start: str | None = None, end: str | None = None) -> list[str]:
+        """Sorted distinct stock trading days in [start, end] (TAIEX excluded)."""
+        with self._scope() as session:
+            statement = select(Price.trade_date).where(Price.stock_id != TAIEX_ID).distinct()
+            if start is not None:
+                statement = statement.where(Price.trade_date >= start)
+            if end is not None:
+                statement = statement.where(Price.trade_date <= end)
+            return sorted(row[0] for row in session.execute(statement).all())
+
     def load_adjusted_coverage(self, on: date | str) -> tuple[int, int]:
         """Return raw and fully adjusted stock-bar counts for one date."""
         day = on.isoformat() if isinstance(on, date) else date.fromisoformat(on).isoformat()
@@ -903,9 +913,7 @@ class DbStore:
         )
         if prices is None:
             prices = self.load_prices()
-        prices = prices.loc[
-            :, ["stock_id", "trade_date", "open", "close", "open_adj", "close_adj"]
-        ]
+        prices = prices.loc[:, ["stock_id", "trade_date", "open", "close", "open_adj", "close_adj"]]
         return run_backtest(orders, prices, self._initial_capital, self._settings, run_id)
 
     def load_factor_ic(self, run_id: str) -> pd.DataFrame:

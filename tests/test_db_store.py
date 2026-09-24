@@ -154,9 +154,12 @@ def test_upsert_prices_creates_missing_parents(store: DbStore) -> None:
 
 def test_symbols_and_latest_trade_date(store: DbStore, sample_prices: pd.DataFrame) -> None:
     assert store.load_latest_trade_date() is None
+    assert store.trade_days() == []
     _seed_market(store, sample_prices)
     assert store.load_latest_trade_date() == AS_OF
     assert store.load_symbols() == ["0050", "2330"]
+    assert store.trade_days()[-1] == AS_OF
+    assert store.trade_days("2020-02-01", "2020-02-05")[-1] == AS_OF
 
 
 def test_adjusted_price_reads_and_daily_coverage(
@@ -187,9 +190,13 @@ def test_adjusted_price_reads_and_daily_coverage(
     store.upsert_price_adj(
         pd.DataFrame(
             [
-                {"stock_id": "0050", "trade_date": AS_OF, **{
-                    f"{column}_adj": float("nan") for column in ("open", "high", "low", "close")
-                }}
+                {
+                    "stock_id": "0050",
+                    "trade_date": AS_OF,
+                    **{
+                        f"{column}_adj": float("nan") for column in ("open", "high", "low", "close")
+                    },
+                }
             ]
         )
     )
@@ -203,11 +210,17 @@ def test_adjusted_returns_do_not_bridge_missing_day(
     days = sorted(sample_prices["trade_date"].unique())
     missing_day, following_day = days[-2:]
     store.upsert_price_adj(
-        pd.DataFrame([{
-            "stock_id": "0050",
-            "trade_date": missing_day,
-            **{f"{column}_adj": float("nan") for column in ("open", "high", "low", "close")},
-        }])
+        pd.DataFrame(
+            [
+                {
+                    "stock_id": "0050",
+                    "trade_date": missing_day,
+                    **{
+                        f"{column}_adj": float("nan") for column in ("open", "high", "low", "close")
+                    },
+                }
+            ]
+        )
     )
     returns = store.load_returns(["0050"])
     assert missing_day not in set(returns["trade_date"])
@@ -249,9 +262,7 @@ def test_research_loads_and_saves(
             "prediction_date": [AS_OF, AS_OF],
         }
     )
-    assert store.save_predictions(
-        preds, f"xgb_202002_{settings.features.feature_version}"
-    ) == 2
+    assert store.save_predictions(preds, f"xgb_202002_{settings.features.feature_version}") == 2
     target = PortfolioTarget(
         run_id="rebalance-2020-02-05",
         signal_date=AS_OF,
@@ -414,8 +425,12 @@ def test_load_holdings_uses_run_feature_version(
         session.add_all(
             [
                 Signal(
-                    signal_date=AS_OF, stock_id=stock_id, run_id=run_id,
-                    signal="BUY", rank=rank, target_weight=0.1,
+                    signal_date=AS_OF,
+                    stock_id=stock_id,
+                    run_id=run_id,
+                    signal="BUY",
+                    rank=rank,
+                    target_weight=0.1,
                 )
                 for rank, stock_id in enumerate(("2330", "0050"), start=1)
             ]
@@ -423,16 +438,25 @@ def test_load_holdings_uses_run_feature_version(
         session.add_all(
             [
                 Feature(
-                    rebalance_date=AS_OF, stock_id="2330", feature_version="factor_v1",
-                    volatility_60d=9.0, beta_60d=9.0,
+                    rebalance_date=AS_OF,
+                    stock_id="2330",
+                    feature_version="factor_v1",
+                    volatility_60d=9.0,
+                    beta_60d=9.0,
                 ),
                 Feature(
-                    rebalance_date=AS_OF, stock_id="0050", feature_version="factor_v1",
-                    volatility_60d=8.0, beta_60d=8.0,
+                    rebalance_date=AS_OF,
+                    stock_id="0050",
+                    feature_version="factor_v1",
+                    volatility_60d=8.0,
+                    beta_60d=8.0,
                 ),
                 Feature(
-                    rebalance_date=AS_OF, stock_id="2330", feature_version="factor_adj_v2",
-                    volatility_60d=0.2, beta_60d=1.1,
+                    rebalance_date=AS_OF,
+                    stock_id="2330",
+                    feature_version="factor_adj_v2",
+                    volatility_60d=0.2,
+                    beta_60d=1.1,
                 ),
             ]
         )
