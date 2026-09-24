@@ -63,6 +63,14 @@ def test_build_labels_ignores_non_universe_stocks(settings) -> None:
     assert set(labels.index) == {"A", "B"}
 
 
+def test_build_labels_sorts_interleaved_stock_histories(settings) -> None:
+    prices = _prices({"A": 1.0, "B": 0.0, "Z": 999.0})
+    expected = build_labels(prices, ["B", "A"], AS_OF, settings)
+    interleaved = prices.sample(frac=1, random_state=7).reset_index(drop=True)
+    actual = build_labels(interleaved, ["B", "A"], AS_OF, settings)
+    pd.testing.assert_series_equal(actual, expected)
+
+
 def test_build_labels_rejects_bad_inputs(settings) -> None:
     prices = _prices({"A": 1.0})
     with pytest.raises(ValueError, match="stock_ids"):

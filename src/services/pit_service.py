@@ -45,16 +45,16 @@ def build_pit_snapshot(
 
     as_of_str = as_of.isoformat()
     stock_ids = list(universe.included_ids)
-    snapshot = pd.DataFrame({"stock_id": stock_ids})
+    snapshot = pd.DataFrame({"stock_id": pd.Series(stock_ids, dtype=object)})
 
     eligible_fin = financials.loc[financials["available_date"] <= as_of_str]
     if not eligible_fin.empty:
-        latest_fin = (
-            eligible_fin.sort_values(["available_date", "announcement_date"])
-            .groupby("stock_id", as_index=False)
-            .tail(1)
-            .drop(columns=["announcement_date", "available_date"])
-        )
+        latest_fin = eligible_fin.loc[eligible_fin["stock_id"].isin(stock_ids)]
+        if not latest_fin["stock_id"].is_unique:
+            latest_fin = latest_fin.sort_values(
+                ["available_date", "announcement_date"]
+            ).drop_duplicates("stock_id", keep="last")
+        latest_fin = latest_fin.drop(columns=["announcement_date", "available_date"])
         snapshot = snapshot.merge(latest_fin, on="stock_id", how="left")
     else:
         for column in [c for c in financials.columns if c not in ("stock_id",)]:
@@ -62,12 +62,12 @@ def build_pit_snapshot(
 
     eligible_inst = institutional.loc[institutional["trade_date"] <= as_of_str]
     if not eligible_inst.empty:
-        latest_inst = (
-            eligible_inst.sort_values("trade_date")
-            .groupby("stock_id", as_index=False)
-            .tail(1)
-            .drop(columns=["trade_date"])
-        )
+        latest_inst = eligible_inst.loc[eligible_inst["stock_id"].isin(stock_ids)]
+        if not latest_inst["stock_id"].is_unique:
+            latest_inst = latest_inst.sort_values("trade_date").drop_duplicates(
+                "stock_id", keep="last"
+            )
+        latest_inst = latest_inst.drop(columns=["trade_date"])
         snapshot = snapshot.merge(latest_inst, on="stock_id", how="left", suffixes=("", "_inst"))
     else:
         for column in [c for c in institutional.columns if c != "stock_id"]:

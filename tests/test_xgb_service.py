@@ -6,7 +6,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from services.xgb_service import DEFAULT_PARAMS, predict_xgb, rank_ic, train_xgb
+from services.xgb_service import (
+    DEFAULT_PARAMS,
+    _frame_inputs,
+    _resolve_params,
+    predict_xgb,
+    rank_ic,
+    train_xgb,
+)
 
 rng = np.random.default_rng(42)
 
@@ -100,3 +107,24 @@ def test_rank_ic_known_values() -> None:
     scores = pd.Series([1.0, 2.0, 3.0, 4.0])
     assert rank_ic(scores, pd.Series([0, 0, 1, 1])) == pytest.approx(0.894427, abs=1e-5)
     assert np.isnan(rank_ic(scores, pd.Series([1, 1, 1, 1])))
+
+
+def test_frame_inputs_numeric_and_string_features() -> None:
+    numeric = pd.DataFrame({"f1": [1.0, 2.0], "f2": [3, 4]})
+    assert np.array_equal(
+        _frame_inputs("features", numeric, ("f1", "f2")),
+        np.array([[1.0, 3.0], [2.0, 4.0]]),
+    )
+    strings = pd.DataFrame({"f1": ["1.5", "2.5"], "f2": [3, 4]})
+    assert np.array_equal(
+        _frame_inputs("features", strings, ("f1", "f2")),
+        np.array([[1.5, 3.0], [2.5, 4.0]]),
+    )
+    with pytest.raises(ValueError, match="must not contain NaN"):
+        _frame_inputs(
+            "features", pd.DataFrame({"f1": pd.Series([1, None], dtype="Int64")}), ("f1",)
+        )
+
+
+def test_default_params_include_random_state() -> None:
+    assert _resolve_params(None)["random_state"] == 42

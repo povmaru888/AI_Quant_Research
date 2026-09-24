@@ -54,9 +54,13 @@ def apply_risk_controls(
         return target
 
     portfolio = settings.portfolio
+    signal_day = signal_date.isoformat()
+    active_returns = returns.loc[
+        (returns["trade_date"] <= signal_day) & returns["stock_id"].isin(active)
+    ]
     volatilities: dict[str, float] = {}
     for stock_id in active:
-        series = _window(returns, stock_id, signal_date.isoformat())
+        series = _window(active_returns, stock_id, signal_day)
         if series is None:
             continue
         sigma = float(series.std(ddof=1) * np.sqrt(_TRADING_DAYS_PER_YEAR))
@@ -82,7 +86,7 @@ def apply_risk_controls(
     raw = {s: 1.0 / volatilities[s] for s in active}
     total = sum(raw.values())
     relative = {s: w / total for s, w in raw.items()}
-    covariance = _covariance(returns, active, signal_date.isoformat())
+    covariance = _covariance(active_returns, active, signal_day)
     weights_vector = np.array([relative[s] for s in active])
     portfolio_variance = float(weights_vector @ covariance @ weights_vector)
     if not np.isfinite(portfolio_variance) or portfolio_variance <= 0:

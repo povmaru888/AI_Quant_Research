@@ -8,6 +8,8 @@ travels explicitly so train/serve skew is caught by column checks in
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 from xgboost import XGBClassifier
@@ -38,14 +40,13 @@ def rank_ic(scores: pd.Series, labels: pd.Series) -> float:
 
 def _resolve_params(params: dict | None) -> dict:
     merged = dict(DEFAULT_PARAMS)
-    if params is None:
-        return merged
-    if not isinstance(params, dict):
-        raise ValueError("invalid params: must be a dict")
-    unknown = [k for k in params if k not in DEFAULT_PARAMS and k != "random_state"]
-    if unknown:
-        raise ValueError(f"invalid params: unknown keys {unknown}")
-    merged.update(params)
+    if params is not None:
+        if not isinstance(params, dict):
+            raise ValueError("invalid params: must be a dict")
+        unknown = [k for k in params if k not in DEFAULT_PARAMS and k != "random_state"]
+        if unknown:
+            raise ValueError(f"invalid params: unknown keys {unknown}")
+        merged.update(params)
     merged.setdefault("random_state", DEFAULT_RANDOM_STATE)
     n_estimators = merged["n_estimators"]
     if isinstance(n_estimators, bool) or not isinstance(n_estimators, int) or n_estimators <= 0:
@@ -57,12 +58,21 @@ def _frame_inputs(name: str, frame: pd.DataFrame, columns: tuple[str, ...]) -> n
     missing = [c for c in columns if c not in frame.columns]
     if missing:
         raise ValueError(f"invalid {name}: missing columns {missing}")
-    matrix = frame[list(columns)].apply(pd.to_numeric, errors="coerce")
-    if matrix.isna().any().any():
-        raise ValueError(f"invalid {name}: must not contain NaN")
-    if matrix.empty:
+    if frame.empty:
         raise ValueError(f"invalid {name}: must be non-empty")
-    return matrix.to_numpy(dtype=float)
+    selected = frame.loc[:, columns]
+    if all(pd.api.types.is_numeric_dtype(dtype) for dtype in selected.dtypes):
+        # Processed features are numeric. Avoid per-column pandas conversion on
+        # every Optuna trial and prediction; nullable numeric columns still map
+        # missing values to NaN for the same validation below.
+        matrix = selected.to_numpy(dtype=float, copy=False, na_value=np.nan)
+        if np.isnan(matrix).any():
+            raise ValueError(f"invalid {name}: must not contain NaN")
+        return matrix
+    converted = selected.apply(pd.to_numeric, errors="coerce")
+    if converted.isna().any().any():
+        raise ValueError(f"invalid {name}: must not contain NaN")
+    return converted.to_numpy(dtype=float)
 
 
 def _label_inputs(name: str, labels: pd.Series, size: int) -> np.ndarray:
@@ -70,6 +80,74 @@ def _label_inputs(name: str, labels: pd.Series, size: int) -> np.ndarray:
     if len(values) != size or set(np.unique(values)) - {0, 1}:
         raise ValueError(f"invalid {name}: must be 0/1 with one label per row")
     return values.astype(int)
+
+
+@dataclass(frozen=True)
+class _TrainingData:
+    feature_columns: tuple[str, ...]
+    x_train: np.ndarray
+    y_train: np.ndarray
+    x_valid: np.ndarray
+    y_valid: np.ndarray
+
+
+def _prepare_training(
+    train_x: pd.DataFrame,
+    train_y: pd.Series,
+    valid_x: pd.DataFrame,
+    valid_y: pd.Series,
+) -> _TrainingData:
+    """Validate and convert a fold once before its hyperparameter trials."""
+    feature_columns = tuple(train_x.columns)
+    if not feature_columns or "stock_id" in feature_columns:
+        raise ValueError("invalid train_x: needs feature columns only, no stock_id")
+    x_train = _frame_inputs("train_x", train_x, feature_columns)
+    y_train = _label_inputs("train_y", train_y, len(x_train))
+    x_valid = _frame_inputs("valid_x", valid_x, feature_columns)
+    y_valid = _label_inputs("valid_y", valid_y, len(x_valid))
+    return _TrainingData(feature_columns, x_train, y_train, x_valid, y_valid)
+
+
+def _validate_metadata(
+    model_version: str, feature_version: str, parameter_version: str, run_id: str
+) -> None:
+    for name, value in (
+        ("model_version", model_version),
+        ("feature_version", feature_version),
+        ("parameter_version", parameter_version),
+        ("run_id", run_id),
+    ):
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"invalid {name}: {value!r}")
+
+
+def _fit_prepared(
+    data: _TrainingData,
+    resolved: dict,
+    model_version: str,
+    feature_version: str,
+    parameter_version: str,
+    run_id: str,
+) -> tuple[ModelArtifact, XGBClassifier]:
+    booster = XGBClassifier(**resolved)  # type: ignore[arg-type]
+    booster.fit(data.x_train, data.y_train)
+    valid_prob = booster.predict_proba(data.x_valid)[:, 1]
+    valid_ic = rank_ic(pd.Series(valid_prob), pd.Series(data.y_valid, dtype=int))
+    if not np.isfinite(valid_ic):
+        # Degenerate validation (constant scores or single class) carries no
+        # rank information: record the Spearman minimum instead of NaN so the
+        # artifact stays finite and optimizers can rank the trial last.
+        valid_ic = -1.0
+    artifact = ModelArtifact(
+        run_id=run_id,
+        model_version=model_version,
+        feature_version=feature_version,
+        parameter_version=parameter_version,
+        feature_columns=data.feature_columns,
+        best_params={k: resolved[k] for k in (*DEFAULT_PARAMS, "random_state")},
+        validation_rank_ic=valid_ic,
+    )
+    return artifact, booster
 
 
 def train_xgb(
@@ -84,42 +162,12 @@ def train_xgb(
     run_id: str,
 ) -> tuple[ModelArtifact, XGBClassifier]:
     """Train and score on validation; return artifact plus fitted booster."""
-    for name, value in (
-        ("model_version", model_version),
-        ("feature_version", feature_version),
-        ("parameter_version", parameter_version),
-        ("run_id", run_id),
-    ):
-        if not isinstance(value, str) or not value.strip():
-            raise ValueError(f"invalid {name}: {value!r}")
-    feature_columns = tuple(train_x.columns)
-    if not feature_columns or "stock_id" in feature_columns:
+    _validate_metadata(model_version, feature_version, parameter_version, run_id)
+    if not train_x.columns.size or "stock_id" in train_x.columns:
         raise ValueError("invalid train_x: needs feature columns only, no stock_id")
     resolved = _resolve_params(params)
-    x_train = _frame_inputs("train_x", train_x, feature_columns)
-    y_train = _label_inputs("train_y", train_y, len(x_train))
-    x_valid = _frame_inputs("valid_x", valid_x, feature_columns)
-    y_valid = _label_inputs("valid_y", valid_y, len(x_valid))
-
-    booster = XGBClassifier(**resolved)  # type: ignore[arg-type]
-    booster.fit(x_train, y_train)
-    valid_prob = booster.predict_proba(x_valid)[:, 1]
-    valid_ic = rank_ic(pd.Series(valid_prob), pd.Series(y_valid, dtype=int))
-    if not np.isfinite(valid_ic):
-        # Degenerate validation (constant scores or single class) carries no
-        # rank information: record the Spearman minimum instead of NaN so the
-        # artifact stays finite and optimizers can rank the trial last.
-        valid_ic = -1.0
-    artifact = ModelArtifact(
-        run_id=run_id,
-        model_version=model_version,
-        feature_version=feature_version,
-        parameter_version=parameter_version,
-        feature_columns=feature_columns,
-        best_params={k: resolved[k] for k in (*DEFAULT_PARAMS, "random_state")},
-        validation_rank_ic=valid_ic,
-    )
-    return artifact, booster
+    data = _prepare_training(train_x, train_y, valid_x, valid_y)
+    return _fit_prepared(data, resolved, model_version, feature_version, parameter_version, run_id)
 
 
 def predict_xgb(

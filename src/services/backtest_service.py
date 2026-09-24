@@ -54,12 +54,9 @@ def run_backtest(
     if missing:
         raise ValueError(f"invalid prices: missing columns {missing}")
 
-    closes = (
-        prices.assign(close=pd.to_numeric(prices["close"], errors="coerce"))
-        .dropna(subset=["close"])
-        .sort_values("trade_date")
-    )
-    calendar = sorted(closes["trade_date"].unique().tolist())
+    close_values = pd.to_numeric(prices["close"], errors="coerce")
+    valid_close = close_values.notna()
+    calendar = sorted(prices.loc[valid_close, "trade_date"].unique().tolist())
     if not calendar:
         raise ValueError("invalid prices: no dated closes")
 
@@ -68,6 +65,26 @@ def run_backtest(
     holdings: dict[str, int] = {}
     charged = 0.0
     fills = ledger.to_dict("records") if not ledger.empty else []
+
+    # Only symbols that can enter the ledger need daily close updates. Keep
+    # the full calendar so index-only days still carry holdings forward.
+    if fills:
+        traded_symbols = {str(fill["stock_id"]) for fill in fills}
+        held_close = valid_close & prices["stock_id"].astype(str).isin(traded_symbols)
+        close_rows = iter(
+            pd.DataFrame(
+                {
+                    "trade_date": prices.loc[held_close, "trade_date"],
+                    "stock_id": prices.loc[held_close, "stock_id"],
+                    "close": close_values.loc[held_close],
+                }
+            )
+            .sort_values("trade_date")
+            .itertuples(index=False, name=None)
+        )
+    else:
+        close_rows = iter(())
+    next_close = next(close_rows, None)
 
     nav_points: list[tuple[str, float]] = []
     fill_cursor = 0
@@ -79,9 +96,10 @@ def run_backtest(
         ) <= str(day):
             cash, charged = _apply_fill(ordered_fills[fill_cursor], holdings, cash, charged)
             fill_cursor += 1
-        day_closes = closes.loc[closes["trade_date"] == day].set_index("stock_id")["close"]
-        for stock_id, price in day_closes.items():
+        while next_close is not None and next_close[0] == day:
+            _, stock_id, price = next_close
             last_close[str(stock_id)] = float(price)
+            next_close = next(close_rows, None)
         # Missing bar carries the last close forward: a data gap must never
         # read as a worthless position (it once zeroed whole portfolios on
         # index-only calendar days). Never-seen stocks stay unvalued.

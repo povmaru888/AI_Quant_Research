@@ -61,6 +61,10 @@ def build_universe(
     listed = stocks.set_index("stock_id")
     day_prices = prices.loc[prices["trade_date"] == as_of_str].set_index("stock_id")
     history = prices.loc[prices["trade_date"] <= as_of_str].sort_values("trade_date")
+    recent_values = {
+        stock_id: values.tail(_HISTORY_WINDOW)
+        for stock_id, values in history.groupby("stock_id", sort=False)["traded_value"]
+    }
 
     entries: list[UniverseEntry] = []
     for stock_id, info in listed.iterrows():
@@ -68,7 +72,7 @@ def build_universe(
             str(stock_id),
             info,
             day_prices,
-            history,
+            recent_values,
             has_flags,
             has_market_cap,
             excluded_flags,
@@ -87,7 +91,7 @@ def _screen(
     stock_id: str,
     info: pd.Series,
     day_prices: pd.DataFrame,
-    history: pd.DataFrame,
+    recent_values: dict[str, pd.Series],
     has_flags: bool,
     has_market_cap: bool,
     excluded_flags: set[str],
@@ -116,10 +120,11 @@ def _screen(
         return "market_cap:missing"
     if float(info["market_cap"]) <= min_market_cap:
         return f"market_cap:{float(info['market_cap']):.0f}"
-    past = history.loc[history["stock_id"] == stock_id].tail(_HISTORY_WINDOW)
-    if len(past) < _HISTORY_WINDOW:
-        return f"avg_traded_value:insufficient_history:{len(past)}"
-    avg_value = float(past["traded_value"].mean())
+    past = recent_values.get(stock_id)
+    count = 0 if past is None else len(past)
+    if count < _HISTORY_WINDOW:
+        return f"avg_traded_value:insufficient_history:{count}"
+    avg_value = float(past.mean())
     if avg_value <= min_avg_traded_value:
         return f"avg_traded_value:{avg_value:.0f}"
     if has_flags:

@@ -19,6 +19,7 @@ MVP approximations (documented, revisit with richer ETL):
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import date
 
 import numpy as np
@@ -154,15 +155,20 @@ def calculate_raw_features(
         raise ValueError(f"invalid prices: missing columns {missing}")
 
     as_of_str = as_of.isoformat()
-    past_prices = prices.loc[prices["trade_date"] <= as_of_str].sort_values("trade_date")
-    market = past_prices.loc[past_prices["stock_id"] == _MARKET_ID]
-    market_rets = _aligned_market_returns(market)
-
     target_stocks = {str(s) for s in snapshot["stock_id"]}
     target_filter = target_stocks | {int(s) for s in target_stocks if s.isdigit()}
 
-    # Pre-filter and index prices by stock_id
+    # Filter before sorting the full price history, then retain only the
+    # longest factor window (120-day momentum needs 121 closes) per stock.
+    past_prices = prices.loc[
+        (prices["trade_date"] <= as_of_str) & prices["stock_id"].isin(target_filter | {_MARKET_ID})
+    ].sort_values("trade_date")
+    market_rets_series = _aligned_market_returns(
+        past_prices.loc[past_prices["stock_id"] == _MARKET_ID]
+    )
+    market_rets = market_rets_series.to_dict() if market_rets_series is not None else None
     past_prices_target = past_prices.loc[past_prices["stock_id"].isin(target_filter)]
+    past_prices_target = past_prices_target.groupby("stock_id", sort=False).tail(121)
     prices_by_stock: dict[str, pd.DataFrame] = {
         str(sid): df for sid, df in past_prices_target.groupby("stock_id", sort=False)
     }
@@ -171,27 +177,28 @@ def calculate_raw_features(
     fin_by_stock: dict[str, pd.DataFrame] = {}
     if financials is not None and not financials.empty and "stock_id" in financials.columns:
         fin_filtered = financials.loc[
-            financials["stock_id"].isin(target_filter)
-            & (financials["available_date"] <= as_of_str)
+            financials["stock_id"].isin(target_filter) & (financials["available_date"] <= as_of_str)
         ].sort_values("available_date")
-        fin_by_stock = {
-            str(sid): df for sid, df in fin_filtered.groupby("stock_id", sort=False)
-        }
+        fin_filtered = fin_filtered.groupby("stock_id", sort=False).tail(5)
+        fin_by_stock = {str(sid): df for sid, df in fin_filtered.groupby("stock_id", sort=False)}
 
     # Pre-filter and index institutional history by stock_id
     inst_by_stock: dict[str, pd.DataFrame] = {}
-    if institutional is not None and not institutional.empty and "stock_id" in institutional.columns:
+    if (
+        institutional is not None
+        and not institutional.empty
+        and "stock_id" in institutional.columns
+    ):
         inst_filtered = institutional.loc[
             institutional["stock_id"].isin(target_filter)
             & (institutional["trade_date"] <= as_of_str)
         ].sort_values("trade_date")
-        inst_by_stock = {
-            str(sid): df for sid, df in inst_filtered.groupby("stock_id", sort=False)
-        }
+        inst_filtered = inst_filtered.groupby("stock_id", sort=False).tail(21)
+        inst_by_stock = {str(sid): df for sid, df in inst_filtered.groupby("stock_id", sort=False)}
 
     empty_price = pd.DataFrame(columns=_PRICE_KEYS)
     rows: list[dict] = []
-    for _, snap in snapshot.iterrows():
+    for snap in snapshot.to_dict("records"):
         stock_id = str(snap["stock_id"])
         hist = prices_by_stock.get(stock_id, empty_price)
         closes = hist["close"].to_numpy(dtype=float, na_value=np.nan)
@@ -220,7 +227,7 @@ def _aligned_market_returns(market: pd.DataFrame) -> pd.Series | None:
 
 
 def _price_factors(
-    hist: pd.DataFrame, closes: np.ndarray, market_rets: pd.Series | None
+    hist: pd.DataFrame, closes: np.ndarray, market_rets: dict[object, float] | None
 ) -> dict[str, float]:
     vols = hist["volume"].to_numpy(dtype=float, na_value=np.nan)
     traded = hist["traded_value"].to_numpy(dtype=float, na_value=np.nan)
@@ -252,7 +259,7 @@ def _price_factors(
     return out
 
 
-def _turnover(hist: pd.DataFrame, snap: pd.Series) -> float:
+def _turnover(hist: pd.DataFrame, snap: Mapping[str, object]) -> float:
     """Mean 60d volume over float shares; NaN when either leg is missing."""
     float_shares = _num(snap.get("float_shares"))
     if not np.isfinite(float_shares) or float_shares <= 0:
@@ -263,18 +270,21 @@ def _turnover(hist: pd.DataFrame, snap: pd.Series) -> float:
     return _strict_mean(vols[-60:] / float_shares)
 
 
-def _beta(hist: pd.DataFrame, rets60: np.ndarray | None, market_rets: pd.Series | None) -> float:
+def _beta(
+    hist: pd.DataFrame, rets60: np.ndarray | None, market_rets: dict[object, float] | None
+) -> float:
     if rets60 is None or market_rets is None:
         return float("nan")
     dates = hist["trade_date"].to_numpy()
     if len(dates) < 61:
         return float("nan")
-    stock = pd.Series(rets60, index=dates[-60:])
-    joined = pd.DataFrame({"s": stock}).join(market_rets.rename("m"), how="inner").dropna()
-    if len(joined) < 60 or joined["m"].std(ddof=1) == 0:
+    aligned_market = np.fromiter(
+        (market_rets.get(day, np.nan) for day in dates[-60:]), dtype=float, count=60
+    )
+    if not np.all(np.isfinite(aligned_market)) or np.std(aligned_market, ddof=1) == 0:
         return float("nan")
-    covariance = float(joined["s"].cov(joined["m"]))
-    return _safe_div(covariance, float(joined["m"].var(ddof=1)))
+    covariance = float(np.cov(rets60, aligned_market, ddof=1)[0, 1])
+    return _safe_div(covariance, float(np.var(aligned_market, ddof=1)))
 
 
 def _drawdown(closes: np.ndarray) -> float:
@@ -299,7 +309,7 @@ def _amihud(rets60: np.ndarray | None, traded: np.ndarray) -> float:
 
 
 def _fundamental_factors(
-    snap: pd.Series,
+    snap: Mapping[str, object],
     financials: pd.DataFrame | None,
     stock_id: str | None = None,
     as_of_str: str | None = None,
@@ -318,7 +328,12 @@ def _fundamental_factors(
     book_to_market = _safe_div(equity, market_cap)
     sales_yield = _safe_div(revenue, market_cap)
 
-    if stock_id is not None and as_of_str is not None and financials is not None and not financials.empty:
+    if (
+        stock_id is not None
+        and as_of_str is not None
+        and financials is not None
+        and not financials.empty
+    ):
         eligible = financials.loc[
             (financials["stock_id"] == stock_id) & (financials["available_date"] <= as_of_str)
         ].sort_values("available_date")
@@ -366,7 +381,7 @@ def _trailing_change(
 
 
 def _chip_factors(
-    snap: pd.Series,
+    snap: Mapping[str, object],
     institutional: pd.DataFrame | None,
     stock_id: str | None = None,
     as_of_str: str | None = None,

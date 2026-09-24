@@ -108,6 +108,20 @@ def test_build_pit_snapshot_missing_financials_kept_as_nan() -> None:
     assert row["foreign_net_buy"] == pytest.approx(200.0)
 
 
+def test_build_pit_snapshot_ignores_other_stocks() -> None:
+    # Eligible data exists, but none belongs to the selected universe.
+    financials = _financials().assign(stock_id="9999")
+    institutional = _institutional().assign(stock_id="9999")
+    snapshot = build_pit_snapshot(
+        _universe(), date(2019, 12, 31), financials, institutional, _prices()
+    )
+    assert list(snapshot["stock_id"]) == ["2330", "2317"]
+    assert snapshot["roe"].isna().all()
+    assert snapshot["foreign_net_buy"].isna().all()
+    assert "available_date" not in snapshot.columns
+    assert "trade_date" not in snapshot.columns
+
+
 def test_build_pit_snapshot_empty_universe() -> None:
     empty = UniverseSnapshot(run_id="run-001", as_of="2019-12-31", entries=[])
     snapshot = build_pit_snapshot(

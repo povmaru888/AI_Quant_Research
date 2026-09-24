@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import date
 
+import numpy as np
 import pandas as pd
 
 from settings import Settings
@@ -38,21 +39,30 @@ def build_labels(
     quantile = settings.label.top_quantile
     as_of_str = as_of.isoformat()
 
+    # Group once so each stock does not rescan the entire price table.
+    target_prices = prices.loc[
+        prices["stock_id"].isin(members), ["stock_id", "trade_date", "close"]
+    ]
+    prices_by_stock = {
+        stock_id: rows.sort_values("trade_date")
+        for stock_id, rows in target_prices.groupby("stock_id", sort=False)
+    }
+
     future_returns: dict[str, float] = {}
     for stock_id in members:
-        rows = (
-            prices.loc[prices["stock_id"] == stock_id]
-            .sort_values("trade_date")
-            .reset_index(drop=True)
-        )
-        hit = rows.index[rows["trade_date"] == as_of_str]
-        if len(hit) == 0:
+        rows = prices_by_stock.get(stock_id)
+        if rows is None:
+            return pd.Series(dtype=int, name=as_of_str)
+        dates = rows["trade_date"].to_numpy()
+        hit = np.flatnonzero(dates == as_of_str)
+        if not len(hit):
             return pd.Series(dtype=int, name=as_of_str)
         pos = int(hit[0])
         if pos + horizon >= len(rows):
             return pd.Series(dtype=int, name=as_of_str)
-        base = float(rows.iloc[pos]["close"])
-        ahead = float(rows.iloc[pos + horizon]["close"])
+        closes = rows["close"].to_numpy()
+        base = float(closes[pos])
+        ahead = float(closes[pos + horizon])
         if not base > 0 or not ahead > 0:
             return pd.Series(dtype=int, name=as_of_str)
         future_returns[str(stock_id)] = ahead / base - 1

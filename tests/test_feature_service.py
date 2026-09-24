@@ -178,3 +178,15 @@ def test_missing_taiex_leaves_beta_nan() -> None:
     row = out.iloc[0]
     assert pd.isna(row["beta_60d"])
     assert row["momentum_20d"] == pytest.approx(closes[-1] / closes[-21] - 1)
+
+
+def test_beta_requires_all_60_matching_market_dates() -> None:
+    closes = 100.0 + np.arange(150)
+    stock = _price_history("2330", closes)
+    market = _price_history("TAIEX", closes)
+    complete = calculate_raw_features(_snapshot(), pd.concat([stock, market]), AS_OF)
+    assert complete.iloc[0]["beta_60d"] == pytest.approx(1.0)
+
+    missing_market_day = market.drop(market.index[-30])
+    incomplete = calculate_raw_features(_snapshot(), pd.concat([stock, missing_market_day]), AS_OF)
+    assert pd.isna(incomplete.iloc[0]["beta_60d"])

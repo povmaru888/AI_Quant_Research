@@ -13,6 +13,7 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
+from collections.abc import Collection
 from datetime import date
 from typing import Protocol
 
@@ -43,7 +44,7 @@ class ResearchStore(Protocol):
     def load_institutional_snapshot(self) -> pd.DataFrame: ...
     def load_financials_history(self) -> pd.DataFrame: ...
     def load_institutional_history(self) -> pd.DataFrame: ...
-    def load_returns(self) -> pd.DataFrame: ...
+    def load_returns(self, stock_ids: Collection[str] | None = None) -> pd.DataFrame: ...
     def load_taiex(self) -> pd.DataFrame: ...
     def load_next_open(self, as_of: date) -> pd.DataFrame: ...
     def load_current_holdings(self) -> pd.DataFrame: ...
@@ -78,16 +79,17 @@ def run_research(
     """Execute one research month; always close the run, then return/raise."""
     if not isinstance(as_of, date):
         raise ValueError(f"invalid as_of: must be a date, got {as_of!r}")
+    parameter_version = _parameter_version(settings)
     store.start_run(
         {
             "run_id": run_id,
             "data_end_date": as_of.isoformat(),
             "feature_version": settings.features.feature_version,
-            "parameter_version": _parameter_version(settings),
+            "parameter_version": parameter_version,
         }
     )
     try:
-        result = _execute(as_of, settings, store, run_id, n_trials, optimize)
+        result = _execute(as_of, settings, store, run_id, parameter_version, n_trials, optimize)
     except Exception as exc:
         store.finish_run(run_id, "failed", str(exc))
         raise
@@ -100,6 +102,7 @@ def _execute(
     settings: Settings,
     store: ResearchStore,
     run_id: str,
+    parameter_version: str,
     n_trials: int | None,
     optimize,
 ) -> BacktestResult:
@@ -141,30 +144,34 @@ def _execute(
         settings,
         model_version,
         features.feature_version,
-        _parameter_version(settings),
+        parameter_version,
         run_id,
         n_trials=n_trials,
     )
-    scored = predict_xgb(artifact, features.frame[["stock_id", *feature_names]], booster)
+    scored = predict_xgb(artifact, features.frame, booster)
     scored["prediction_date"] = as_of.isoformat()
     store.save_predictions(scored, model_version)
 
     target = build_target_holdings(scored, store.load_previous_positions(), settings, run_id, as_of)
+    active_ids = [
+        stock_id for stock_id, action in target.actions.items() if action in ("BUY", "HOLD")
+    ]
     controlled = apply_risk_controls(
-        target, store.load_returns(), store.load_taiex(), as_of, settings
+        target, store.load_returns(active_ids), store.load_taiex(), as_of, settings
     )
     store.save_target_holdings(controlled)
+    portfolio_value = store.load_portfolio_value()
     orders = create_orders(
         controlled,
         as_of,
         store.load_next_open(as_of),
         store.load_current_holdings(),
-        store.load_portfolio_value(),
+        portfolio_value,
         settings,
         run_id,
     )
     store.save_orders(orders)
-    return run_backtest(orders, prices, store.load_portfolio_value(), settings, run_id)
+    return run_backtest(orders, prices, portfolio_value, settings, run_id)
 
 
 def _stratified_split(

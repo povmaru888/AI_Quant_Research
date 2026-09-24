@@ -162,6 +162,8 @@ def test_research_loads_and_saves(store: DbStore, sample_prices: pd.DataFrame) -
     returns = store.load_returns()
     assert set(returns.columns) == {"stock_id", "trade_date", "log_return"}
     assert not returns.empty
+    assert set(store.load_returns(["2330"])["stock_id"]) == {"2330"}
+    assert store.load_returns([]).empty
 
     preds = pd.DataFrame(
         {
@@ -348,6 +350,20 @@ def test_market_cap_shares_and_etf_fallback(store: DbStore, sample_prices: pd.Da
     stocks = store.load_stocks().set_index("stock_id")
     assert stocks.loc["2330", "market_cap"] == pytest.approx(524.0 * 25_000_000_000.0)
     assert stocks.loc["0050", "market_cap"] == pytest.approx(500_000_000_000.0)
+
+
+def test_market_cap_uses_latest_close_before_run_date(
+    store: DbStore, sample_prices: pd.DataFrame
+) -> None:
+    _seed_market(store, sample_prices)
+    first_day = sample_prices["trade_date"].min()
+    store.start_run({"run_id": "early-cap", "job": "test", "data_end_date": first_day})
+    first_close = sample_prices.loc[
+        (sample_prices["stock_id"] == "2330") & (sample_prices["trade_date"] == first_day),
+        "close",
+    ].iloc[0]
+    caps = store.load_stocks().set_index("stock_id")["market_cap"]
+    assert caps.loc["2330"] == pytest.approx(first_close * 25_000_000_000.0)
 
 
 def test_market_cap_missing_without_cache(

@@ -52,6 +52,7 @@ Design notes (all consequences of frozen service contracts):
 from __future__ import annotations
 
 import json
+from collections.abc import Collection
 from datetime import date
 from pathlib import Path
 
@@ -323,10 +324,7 @@ class DbStore:
                     Price.traded_value,
                 ).order_by(Price.stock_id, Price.trade_date)
             ).all()
-        return _frame(
-            [dict(zip(_PRICE_LOAD_COLUMNS, row, strict=True)) for row in rows],
-            _PRICE_LOAD_COLUMNS,
-        )
+        return _frame(rows, _PRICE_LOAD_COLUMNS)
 
     def load_stocks(self) -> pd.DataFrame:
         """Active stocks plus derived market_cap; TAIEX pseudo-row excluded."""
@@ -348,17 +346,16 @@ class DbStore:
         """
         if not self._shares:
             return {}
-        latest = (
-            select(Price.stock_id, func.max(Price.trade_date).label("day"))
-            .where(Price.trade_date <= as_of, Price.stock_id != TAIEX_ID)
-            .group_by(Price.stock_id)
-            .subquery()
+        latest_close = (
+            select(Price.close)
+            .where(Price.stock_id == Stock.stock_id, Price.trade_date <= as_of)
+            .order_by(Price.trade_date.desc())
+            .limit(1)
+            .correlate(Stock)
+            .scalar_subquery()
         )
         rows = session.execute(
-            select(Price.stock_id, Price.close).join(
-                latest,
-                (Price.stock_id == latest.c.stock_id) & (Price.trade_date == latest.c.day),
-            )
+            select(Stock.stock_id, latest_close).where(Stock.stock_id != TAIEX_ID)
         ).all()
         caps: dict[str, float] = {}
         for stock_id, close in rows:
@@ -393,10 +390,7 @@ class DbStore:
                 .where(Financial.available_date <= as_of)
                 .order_by(Financial.stock_id, Financial.available_date)
             ).all()
-        return _frame(
-            [dict(zip(_FIN_HISTORY_COLUMNS, row, strict=True)) for row in rows],
-            _FIN_HISTORY_COLUMNS,
-        )
+        return _frame(rows, _FIN_HISTORY_COLUMNS)
 
     def load_institutional_snapshot(self) -> pd.DataFrame:
         as_of = self._require_as_of()
@@ -436,7 +430,7 @@ class DbStore:
                 )
                 .order_by(Institutional.stock_id)
             ).all()
-        return _frame([dict(zip(columns, row, strict=True)) for row in rows], columns)
+        return _frame(rows, columns)
 
     def load_institutional_history(self) -> pd.DataFrame:
         as_of = self._require_as_of()
@@ -459,19 +453,28 @@ class DbStore:
                 .where(Institutional.trade_date <= as_of)
                 .order_by(Institutional.stock_id, Institutional.trade_date)
             ).all()
-        return _frame([dict(zip(columns, row, strict=True)) for row in rows], columns)
+        return _frame(rows, columns)
 
-    def load_returns(self) -> pd.DataFrame:
-        """Log returns per stock over full history (TAIEX excluded)."""
-        frame = self.load_prices()
-        frame = frame.loc[frame["stock_id"] != TAIEX_ID].sort_values(["stock_id", "trade_date"])
+    def load_returns(self, stock_ids: Collection[str] | None = None) -> pd.DataFrame:
+        """Log returns for requested stocks, or all non-TAIEX stocks."""
+        columns = ("stock_id", "trade_date", "close")
+        statement = select(Price.stock_id, Price.trade_date, Price.close).where(
+            Price.stock_id != TAIEX_ID
+        )
+        if stock_ids is not None:
+            ids = list(stock_ids)
+            if not ids:
+                return _frame([], ("stock_id", "trade_date", "log_return"))
+            statement = statement.where(Price.stock_id.in_(ids))
+        with self._scope() as session:
+            rows = session.execute(statement.order_by(Price.stock_id, Price.trade_date)).all()
+        frame = _frame(rows, columns)
         if frame.empty:
             return _frame([], ("stock_id", "trade_date", "log_return"))
         frame["close"] = pd.to_numeric(frame["close"], errors="coerce")
         frame = frame.loc[frame["close"] > 0]
-        frame["log_return"] = frame.groupby("stock_id")["close"].transform(
-            lambda s: np.log(s / s.shift(1))
-        )
+        previous_close = frame.groupby("stock_id")["close"].shift(1)
+        frame["log_return"] = np.log(frame["close"] / previous_close)
         frame = frame.dropna(subset=["log_return"])
         return frame.loc[:, ["stock_id", "trade_date", "log_return"]].reset_index(drop=True)
 
@@ -482,10 +485,7 @@ class DbStore:
                 .where(Price.stock_id == TAIEX_ID)
                 .order_by(Price.trade_date)
             ).all()
-        return _frame(
-            [{"trade_date": day, "close": close} for day, close in rows],
-            ("trade_date", "close"),
-        )
+        return _frame(rows, ("trade_date", "close"))
 
     def load_next_open(self, as_of: date) -> pd.DataFrame:
         if not isinstance(as_of, date):
@@ -505,10 +505,7 @@ class DbStore:
                     .where(Price.trade_date == day, Price.stock_id != TAIEX_ID)
                     .order_by(Price.stock_id)
                 ).all()
-        return _frame(
-            [{"stock_id": s, "trade_date": d, "open": o} for s, d, o in rows],
-            ("stock_id", "trade_date", "open"),
-        )
+        return _frame(rows, ("stock_id", "trade_date", "open"))
 
     def load_current_holdings(self) -> pd.DataFrame:
         """Empty until position carry-over is wired (first-run correct)."""

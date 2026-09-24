@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from datetime import date
 
 import numpy as np
@@ -136,6 +137,7 @@ class FakeStore:
         self.started: dict | None = None
         self.finished: tuple[str, str | None] | None = None
         self.saved: dict[str, object] = {}
+        self.portfolio_value_loads = 0
 
     def load_prices(self) -> pd.DataFrame:
         return self.fixture["prices"]
@@ -155,8 +157,9 @@ class FakeStore:
     def load_institutional_history(self) -> pd.DataFrame:
         return self.fixture["institutional_history"]
 
-    def load_returns(self) -> pd.DataFrame:
-        return self.fixture["returns"]
+    def load_returns(self, stock_ids: Collection[str] | None = None) -> pd.DataFrame:
+        frame = self.fixture["returns"]
+        return frame if stock_ids is None else frame.loc[frame["stock_id"].isin(stock_ids)]
 
     def load_taiex(self) -> pd.DataFrame:
         return self.fixture["taiex"]
@@ -172,6 +175,7 @@ class FakeStore:
         return pd.DataFrame({"stock_id": []})
 
     def load_portfolio_value(self) -> float:
+        self.portfolio_value_loads += 1
         return 30_000_000.0
 
     def start_run(self, metadata: dict) -> None:
@@ -223,6 +227,7 @@ def test_run_research_smoke(settings, monkeypatch) -> None:
     assert len(result.orders) == 12
     assert store.started is not None and store.started["run_id"] == "run-001"
     assert store.finished == ("succeeded", None)
+    assert store.portfolio_value_loads == 1
     metrics = calculate_metrics(result)
     assert list(metrics.columns) == list(METRIC_COLUMNS)
 

@@ -139,7 +139,7 @@ def run_walk_forward(
             month_features = features_by_month[month]
             scored = predict_xgb(
                 artifact,
-                month_features.frame[["stock_id", *common]],
+                month_features.frame,
                 booster,
             )
             scored["prediction_date"] = month_features.as_of

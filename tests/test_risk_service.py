@@ -117,6 +117,24 @@ def test_unmeasurable_stock_flips_to_sell(settings) -> None:
     assert set(target.weights) == {"A"}
 
 
+def test_irrelevant_and_future_returns_do_not_change_risk(settings) -> None:
+    settings = _wide_settings(settings)
+    sample = rng.normal(0, 0.005, 60)
+    base = _returns({"A": sample.copy(), "B": sample.copy()})
+    extra = _returns({"OTHER": rng.normal(0, 0.02, 60)})
+    extra = pd.concat(
+        [extra, pd.DataFrame([{"stock_id": "A", "trade_date": "2020-01-02", "log_return": 1.0}])],
+        ignore_index=True,
+    )
+    target = _target({"A": "BUY", "B": "HOLD"})
+    expected = apply_risk_controls(target, base, _taiex(100, 160), SIGNAL, settings)
+    actual = apply_risk_controls(
+        target, pd.concat([base, extra], ignore_index=True), _taiex(100, 160), SIGNAL, settings
+    )
+    assert actual.weights == expected.weights
+    assert actual.equity_exposure == expected.equity_exposure
+
+
 def test_insufficient_overlap_raises_risk_failure(settings) -> None:
     early = _returns({"A": rng.normal(0, 0.01, 60)}, end="2019-10-31")
     late = _returns({"B": rng.normal(0, 0.01, 60)}, end="2019-12-31")

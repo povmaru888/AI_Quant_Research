@@ -14,7 +14,12 @@ import pandas as pd
 from xgboost import XGBClassifier
 
 from contracts import ModelArtifact
-from services.xgb_service import train_xgb
+from services.xgb_service import (
+    _fit_prepared,
+    _prepare_training,
+    _resolve_params,
+    _validate_metadata,
+)
 from settings import Settings
 
 SEARCH_SPACE: tuple[str, ...] = (
@@ -59,19 +64,20 @@ def optimize_xgb(
     if isinstance(trials, bool) or not isinstance(trials, int) or trials <= 0:
         raise ValueError(f"invalid n_trials: {n_trials!r}")
 
+    _validate_metadata(model_version, feature_version, parameter_version, run_id)
+    data = _prepare_training(train_x, train_y, valid_x, valid_y)
     records: list[dict] = []
-    boosters: list[XGBClassifier] = []
-    artifacts: list[ModelArtifact] = []
+    best_score = -np.inf
+    best_artifact: ModelArtifact | None = None
+    best_booster: XGBClassifier | None = None
 
     def objective(trial: optuna.Trial) -> float:
+        nonlocal best_score, best_artifact, best_booster
         params = _suggest(trial)
         params["random_state"] = settings.project.random_state
-        artifact, booster = train_xgb(
-            train_x,
-            train_y,
-            valid_x,
-            valid_y,
-            params,
+        artifact, booster = _fit_prepared(
+            data,
+            _resolve_params(params),
             model_version,
             feature_version,
             parameter_version,
@@ -81,8 +87,10 @@ def optimize_xgb(
         # Optuna rejects NaN objectives; floor to the Spearman minimum.
         score = -1.0 if not np.isfinite(score) else float(score)
         records.append({"trial": trial.number, **params, "rank_ic": score})
-        boosters.append(booster)
-        artifacts.append(artifact)
+        # Keep the first winner on ties, matching numpy.argmax without
+        # retaining every fitted model in a long search.
+        if score > best_score:
+            best_score, best_artifact, best_booster = score, artifact, booster
         return score
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -91,6 +99,6 @@ def optimize_xgb(
         sampler=optuna.samplers.TPESampler(seed=settings.project.random_state),
     )
     study.optimize(objective, n_trials=trials)
-    best = int(np.argmax([r["rank_ic"] for r in records]))
     trial_log = pd.DataFrame(records, columns=["trial", *SEARCH_SPACE, "random_state", "rank_ic"])
-    return artifacts[best], boosters[best], trial_log
+    assert best_artifact is not None and best_booster is not None
+    return best_artifact, best_booster, trial_log

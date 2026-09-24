@@ -110,6 +110,22 @@ def test_build_universe_insufficient_history(settings) -> None:
     assert snapshot.entries[0].reason.startswith("avg_traded_value:insufficient_history")
 
 
+def test_build_universe_uses_each_stocks_last_20_bars(settings) -> None:
+    rows = _history("steady", 300.0, 500_000_000.0, days=21) + _history(
+        "rising", 300.0, 500_000_000.0, days=20
+    )
+    rows[0]["traded_value"] = 0.0  # Outside steady's 20-bar window.
+    for row in rows:
+        if row["stock_id"] == "rising":
+            row["traded_value"] = 1_000_000.0
+    prices = _prices(rows).sample(frac=1.0, random_state=42).reset_index(drop=True)
+    stocks = _stocks([_good_stock("steady"), _good_stock("rising")])
+    result = build_universe(prices, stocks, date(2019, 12, 31), settings, "run-001")
+    by_id = {entry.stock_id: entry for entry in result.entries}
+    assert by_id["steady"].included
+    assert by_id["rising"].reason.startswith("avg_traded_value:")
+
+
 def test_build_universe_missing_market_cap_fails_loud(settings) -> None:
     prices = _prices(_history("2330", 300.0, 500_000_000.0))
     stocks = _stocks(

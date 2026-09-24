@@ -61,6 +61,7 @@ def _logit_scores(
     aligned = labels.reindex(stock_ids.tolist())
     if aligned.isna().any() or aligned.nunique() < 2:
         return np.full(len(matrix), np.nan)
+    values = matrix.to_numpy(dtype=float)
     model = LogisticRegression(max_iter=1000)
-    model.fit(matrix.to_numpy(dtype=float), aligned.to_numpy(dtype=int))
-    return model.predict_proba(matrix.to_numpy(dtype=float))[:, 1]
+    model.fit(values, aligned.to_numpy(dtype=int))
+    return model.predict_proba(values)[:, 1]
