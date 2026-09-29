@@ -1,0 +1,15 @@
+{
+  "cpu_seconds": 0.6875,
+  "end": "2024-12",
+  "feature_version": "factor_adj_v2",
+  "months": {},
+  "months_cache_hit": 72,
+  "months_pending": 0,
+  "months_requested": 72,
+  "no_op": true,
+  "peak_working_set_bytes": 114290688,
+  "rows_loaded": {},
+  "stages_seconds": {},
+  "start": "2019-01",
+  "wall_seconds": 0.7050078000174835
+}

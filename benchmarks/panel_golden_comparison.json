@@ -1,0 +1,437 @@
+{
+  "months": 72,
+  "panels": [
+    {
+      "month": "2019-01",
+      "rows": 346,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2019-02",
+      "rows": 391,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2019-03",
+      "rows": 402,
+      "features": 17,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2019-04",
+      "rows": 410,
+      "features": 17,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2019-05",
+      "rows": 401,
+      "features": 15,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2019-06",
+      "rows": 371,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2019-07",
+      "rows": 437,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2019-08",
+      "rows": 403,
+      "features": 17,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2019-09",
+      "rows": 400,
+      "features": 17,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2019-10",
+      "rows": 416,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2019-11",
+      "rows": 434,
+      "features": 17,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2019-12",
+      "rows": 422,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2020-01",
+      "rows": 435,
+      "features": 17,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2020-02",
+      "rows": 411,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2020-03",
+      "rows": 426,
+      "features": 15,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2020-04",
+      "rows": 449,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2020-05",
+      "rows": 466,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2020-06",
+      "rows": 510,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2020-07",
+      "rows": 536,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2020-08",
+      "rows": 543,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2020-09",
+      "rows": 518,
+      "features": 20,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2020-10",
+      "rows": 510,
+      "features": 20,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2020-11",
+      "rows": 583,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2020-12",
+      "rows": 597,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2021-01",
+      "rows": 589,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2021-02",
+      "rows": 609,
+      "features": 20,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2021-03",
+      "rows": 682,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2021-04",
+      "rows": 754,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2021-05",
+      "rows": 697,
+      "features": 20,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2021-06",
+      "rows": 652,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2021-07",
+      "rows": 686,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2021-08",
+      "rows": 629,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2021-09",
+      "rows": 590,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2021-10",
+      "rows": 591,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2021-11",
+      "rows": 638,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2021-12",
+      "rows": 635,
+      "features": 20,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2022-01",
+      "rows": 622,
+      "features": 20,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2022-02",
+      "rows": 616,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2022-03",
+      "rows": 637,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2022-04",
+      "rows": 607,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2022-05",
+      "rows": 545,
+      "features": 20,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2022-06",
+      "rows": 543,
+      "features": 17,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2022-07",
+      "rows": 519,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2022-08",
+      "rows": 577,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2022-09",
+      "rows": 524,
+      "features": 17,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2022-10",
+      "rows": 477,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2022-11",
+      "rows": 544,
+      "features": 20,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2022-12",
+      "rows": 529,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2023-01",
+      "rows": 519,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2023-02",
+      "rows": 635,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2023-03",
+      "rows": 666,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2023-04",
+      "rows": 679,
+      "features": 17,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2023-05",
+      "rows": 686,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2023-06",
+      "rows": 743,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2023-07",
+      "rows": 745,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2023-08",
+      "rows": 672,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2023-09",
+      "rows": 630,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2023-10",
+      "rows": 614,
+      "features": 20,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2023-11",
+      "rows": 684,
+      "features": 20,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2023-12",
+      "rows": 707,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2024-01",
+      "rows": 674,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2024-02",
+      "rows": 750,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2024-03",
+      "rows": 818,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2024-04",
+      "rows": 844,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2024-05",
+      "rows": 864,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2024-06",
+      "rows": 854,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2024-07",
+      "rows": 878,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2024-08",
+      "rows": 809,
+      "features": 20,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2024-09",
+      "rows": 758,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2024-10",
+      "rows": 757,
+      "features": 19,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2024-11",
+      "rows": 731,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    },
+    {
+      "month": "2024-12",
+      "rows": 718,
+      "features": 18,
+      "max_abs_numeric_delta": 0.0
+    }
+  ]
+}
