@@ -1,8 +1,8 @@
 """P4-04: portfolio page (SDD 14.1 投組).
 
-Renders stock id, rank, predicted probability, weight, volatility, and
-beta from a ``get_holdings`` frame, plus the weight total and holding
-count so the reader can verify consistency with the selected run.
+Renders stock id, Chinese stock name, rank, predicted probability, weight,
+volatility, and beta from a ``get_holdings`` frame, plus the weight
+total and holding count for the selected run.
 Missing columns or non-finite weights fail fast; an empty frame is a
 legal "no positions" state and degrades to an info line.
 """
@@ -15,6 +15,7 @@ import pandas as pd
 
 REQUIRED_COLUMNS: tuple[str, ...] = (
     "stock_id",
+    "stock_name",
     "rank",
     "prediction_probability",
     "weight",
@@ -42,9 +43,14 @@ def render_portfolio(holdings: pd.DataFrame, st=None) -> None:
         st.info("此截止日無持股。")
         return
     _validate(holdings)
-    ordered = holdings.sort_values("rank", ignore_index=True)
+    active = holdings.loc[holdings["weight"].astype(float) > 0]
+    if active.empty:
+        st.info("此截止日無持股。")
+        return
+    ordered = active.sort_values("rank", ignore_index=True)
     st.header("投組")
-    st.dataframe(ordered.loc[:, list(REQUIRED_COLUMNS)])
+    table = ordered.loc[:, list(REQUIRED_COLUMNS)].rename(columns={"stock_name": "股票名稱"})
+    st.dataframe(table)
     summary = summarize_holdings(ordered)
     st.write(f"權重總和：{summary['total_weight']:.4f}")
     st.write(f"股票數量：{summary['count']}")

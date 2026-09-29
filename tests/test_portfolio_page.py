@@ -29,6 +29,7 @@ def _holdings() -> pd.DataFrame:
     return pd.DataFrame(
         {
             "stock_id": ["2317", "2330", "2454"],
+            "stock_name": ["鴻海", "台積電", "聯發科"],
             "rank": [2, 1, 3],
             "prediction_probability": [0.6, 0.7, 0.55],
             "weight": [0.15, 0.2, 0.1],
@@ -44,8 +45,10 @@ def test_render_shows_sorted_table_and_consistency() -> None:
     render_portfolio(frame, st=st)
     shown = next(c[1] for c in st.calls if c[0] == "dataframe")
     assert shown["stock_id"].tolist() == ["2330", "2317", "2454"]
+    assert shown["股票名稱"].tolist() == ["台積電", "鴻海", "聯發科"]
     assert list(shown.columns) == [
         "stock_id",
+        "股票名稱",
         "rank",
         "prediction_probability",
         "weight",
@@ -60,6 +63,16 @@ def test_render_shows_sorted_table_and_consistency() -> None:
 def test_summarize_holdings() -> None:
     summary = summarize_holdings(_holdings())
     assert summary == {"count": 3, "total_weight": pytest.approx(0.45)}
+
+
+def test_render_hides_zero_weight_signal_rows() -> None:
+    st = FakeSt()
+    frame = _holdings()
+    frame.loc[2, "weight"] = 0.0
+    render_portfolio(frame, st=st)
+    shown = next(c[1] for c in st.calls if c[0] == "dataframe")
+    assert shown["stock_id"].tolist() == ["2330", "2317"]
+    assert ("write", "股票數量：2") in st.calls
 
 
 def test_empty_frame_is_info_state() -> None:

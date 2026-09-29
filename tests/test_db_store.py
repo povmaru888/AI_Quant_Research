@@ -90,7 +90,7 @@ def _seed_market(store: DbStore, sample_prices: pd.DataFrame) -> None:
             pd.DataFrame(
                 {
                     "stock_id": ["2330", "0050"],
-                    "stock_name": ["t1", "t2"],
+                    "stock_name": ["台積電", "元大台灣50"],
                     "market": ["TWSE", "TWSE"],
                     "listed_date": ["2010-01-01", "2010-01-01"],
                 }
@@ -277,7 +277,7 @@ def test_research_loads_and_saves(
     store.save_target_holdings(target)
     assert store.load_previous_positions()["stock_id"].tolist() == ["2330"]
     holdings = store.load_holdings("rebalance-2020-02-05", AS_OF)
-    assert len(holdings) == 2
+    assert holdings["stock_id"].tolist() == ["2330"]
     assert holdings["volatility_60d"].isna().all()  # features never persisted.
     assert holdings.set_index("stock_id").loc["2330", "weight"] == pytest.approx(0.1)
 
@@ -381,6 +381,7 @@ def test_dashboard_reads(store: DbStore, sample_prices: pd.DataFrame) -> None:
     holdings = store.load_holdings("rebalance-2020-02-05", AS_OF)
     assert list(holdings.columns) == [
         "stock_id",
+        "stock_name",
         "rank",
         "prediction_probability",
         "weight",
@@ -469,6 +470,145 @@ def test_load_holdings_uses_run_feature_version(
     assert holdings.loc["2330", "beta_60d"] == pytest.approx(1.1)
     assert pd.isna(holdings.loc["0050", "volatility_60d"])
     assert pd.isna(holdings.loc["0050", "beta_60d"])
+
+
+def test_load_holdings_scopes_signal_prediction_and_features_to_selected_month(
+    store: DbStore, sample_prices: pd.DataFrame
+) -> None:
+    from models.research import Feature, Prediction, Signal
+
+    _seed_market(store, sample_prices)
+    run_id = "oos-multimonth"
+    store.start_run(
+        {
+            "run_id": run_id,
+            "data_end_date": "2024-02-29",
+            "feature_version": "factor_adj_v2",
+            "parameter_version": "p1",
+        }
+    )
+    summary = store.load_run_summary(run_id)
+    model_version = summary["model_version"]
+    with store._scope() as session:  # noqa: SLF001 - seed multi-month OOS rows.
+        session.add_all(
+            [
+                Signal(
+                    signal_date="2024-01-31",
+                    stock_id="2330",
+                    run_id=run_id,
+                    signal="BUY",
+                    rank=1,
+                    target_weight=0.5,
+                ),
+                Signal(
+                    signal_date="2024-01-31",
+                    stock_id="0050",
+                    run_id=run_id,
+                    signal="NONE",
+                    rank=2,
+                    target_weight=0.0,
+                ),
+                Signal(
+                    signal_date="2024-02-29",
+                    stock_id="2330",
+                    run_id=run_id,
+                    signal="NONE",
+                    rank=2,
+                    target_weight=0.0,
+                ),
+                Signal(
+                    signal_date="2024-02-29",
+                    stock_id="0050",
+                    run_id=run_id,
+                    signal="BUY",
+                    rank=1,
+                    target_weight=0.25,
+                ),
+            ]
+        )
+        session.add_all(
+            [
+                Prediction(
+                    prediction_date="2024-01-31",
+                    stock_id="2330",
+                    run_id=run_id,
+                    model_version=model_version,
+                    prediction_probability=0.8,
+                    rank=1,
+                ),
+                Prediction(
+                    prediction_date="2024-01-31",
+                    stock_id="0050",
+                    run_id=run_id,
+                    model_version=model_version,
+                    prediction_probability=0.4,
+                    rank=2,
+                ),
+                Prediction(
+                    prediction_date="2024-02-29",
+                    stock_id="2330",
+                    run_id=run_id,
+                    model_version=model_version,
+                    prediction_probability=0.5,
+                    rank=2,
+                ),
+                Prediction(
+                    prediction_date="2024-02-29",
+                    stock_id="0050",
+                    run_id=run_id,
+                    model_version=model_version,
+                    prediction_probability=0.9,
+                    rank=1,
+                ),
+            ]
+        )
+        session.add_all(
+            [
+                Feature(
+                    rebalance_date="2024-01-31",
+                    stock_id="2330",
+                    feature_version="factor_adj_v2",
+                    volatility_60d=0.11,
+                    beta_60d=0.21,
+                ),
+                Feature(
+                    rebalance_date="2024-01-31",
+                    stock_id="0050",
+                    feature_version="factor_adj_v2",
+                    volatility_60d=0.22,
+                    beta_60d=0.32,
+                ),
+                Feature(
+                    rebalance_date="2024-02-29",
+                    stock_id="2330",
+                    feature_version="factor_adj_v2",
+                    volatility_60d=0.44,
+                    beta_60d=0.54,
+                ),
+                Feature(
+                    rebalance_date="2024-02-29",
+                    stock_id="0050",
+                    feature_version="factor_adj_v2",
+                    volatility_60d=0.55,
+                    beta_60d=0.65,
+                ),
+            ]
+        )
+
+    assert store.list_holding_dates(run_id) == ["2024-01-31", "2024-02-29"]
+    january = store.load_holdings(run_id, "2024-01")
+    february = store.load_holdings(run_id, "2024-02")
+    assert january["stock_id"].tolist() == ["2330"]
+    assert january["stock_name"].tolist() == ["台積電"]
+    assert january["rank"].tolist() == [1]
+    assert january["prediction_probability"].tolist() == [pytest.approx(0.8)]
+    assert january["volatility_60d"].tolist() == [pytest.approx(0.11)]
+    assert february["stock_id"].tolist() == ["0050"]
+    assert february["stock_name"].tolist() == ["元大台灣50"]
+    assert february["rank"].tolist() == [1]
+    assert february["prediction_probability"].tolist() == [pytest.approx(0.9)]
+    assert february["volatility_60d"].tolist() == [pytest.approx(0.55)]
+    assert store.load_holdings(run_id, "2024-03").empty
 
 
 def test_load_performance_replays_orders(store: DbStore, sample_prices: pd.DataFrame) -> None:

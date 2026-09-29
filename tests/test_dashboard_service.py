@@ -8,6 +8,7 @@ import pytest
 from services.dashboard_service import (
     HOLDING_COLUMNS,
     get_comparison,
+    get_holding_months,
     get_holdings,
     get_model_data,
     get_overview,
@@ -38,11 +39,16 @@ class FakeStore:
             "orm_entity": object(),
         }
 
+    def list_holding_dates(self, run_id: str) -> list[str]:
+        assert run_id
+        return ["2024-01-31", "2024-02-29", "2024-02-29"]
+
     def load_holdings(self, run_id: str, as_of: str) -> pd.DataFrame:
         assert run_id and isinstance(as_of, str)
         frame = pd.DataFrame(
             {
                 "stock_id": ["2330", "2317"],
+                "stock_name": ["台積電", "鴻海"],
                 "rank": [1, 2],
                 "prediction_probability": [0.7, 0.6],
                 "weight": [0.2, 0.15],
@@ -101,6 +107,21 @@ def test_get_holdings_columns_and_index() -> None:
     assert frame["weight"].tolist() == [0.2, 0.15]
 
 
+def test_get_holding_months_deduplicates_dates() -> None:
+    assert get_holding_months("run-001", FakeStore()) == ["2024-01", "2024-02"]
+
+
+def test_get_holdings_accepts_month_and_rejects_bad_month() -> None:
+    class MonthStore(FakeStore):
+        def load_holdings(self, run_id: str, as_of: str) -> pd.DataFrame:
+            assert as_of == "2024-02"
+            return super().load_holdings(run_id, as_of)
+
+    assert len(get_holdings("run-001", "2024-02", MonthStore())) == 2
+    with pytest.raises(ValueError, match="YYYY-MM"):
+        get_holdings("run-001", "2024-13", FakeStore())
+
+
 def test_get_model_and_risk() -> None:
     model = get_model_data("run-001", FakeStore())
     assert model["shap_top"][0]["feature"] == "momentum_20d"
@@ -123,6 +144,8 @@ def test_incomplete_run_rejected_everywhere() -> None:
         get_overview("run-001", store)
     with pytest.raises(ValueError, match="not completed"):
         get_holdings("run-001", "", store)
+    with pytest.raises(ValueError, match="not completed"):
+        get_holding_months("run-001", store)
     with pytest.raises(ValueError, match="not completed"):
         get_model_data("run-001", store)
     with pytest.raises(ValueError, match="not completed"):

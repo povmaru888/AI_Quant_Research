@@ -18,8 +18,9 @@ class FakeSidebar:
         self._st = st
 
     def selectbox(self, label, options, **kwargs):
-        self._st.calls.append(("selectbox", label, list(options)))
-        return list(options)[0]
+        self._st.calls.append(("selectbox", label, list(options), kwargs))
+        values = list(options)
+        return values[kwargs.get("index", 0)]
 
     def text_input(self, label, value="", **kwargs):
         self._st.calls.append(("text_input", label, value))
@@ -27,7 +28,8 @@ class FakeSidebar:
 
     def radio(self, label, options, **kwargs):
         self._st.calls.append(("radio", label, list(options)))
-        return list(options)[0]
+        selected = getattr(self._st, "selected_page", None)
+        return selected if selected in options else list(options)[0]
 
 
 class FakeSt:
@@ -56,6 +58,14 @@ class FakeStore:
         if isinstance(self._rows, list) and self.honor_status_arg and status is not None:
             return [r for r in self._rows if r.get("status") == status]
         return self._rows
+
+
+class FakeHoldingsStore(FakeStore):
+    def get_run_status(self, run_id):
+        return "succeeded"
+
+    def list_holding_dates(self, run_id):
+        return ["2024-01-31", "2024-02-29"]
 
 
 def _run_ids(*statuses: str) -> list[dict]:
@@ -133,6 +143,28 @@ def test_main_happy_path_dispatches_first_page() -> None:
     assert ("load", "總覽", "run-00", "") in seen
     assert ("render", "總覽", "總覽") in seen
     assert not [c for c in st.calls if c[0] in ("info", "error")]
+
+
+def test_main_offers_month_selector_for_portfolio() -> None:
+    st = FakeSt()
+    st.selected_page = "投組"
+    store = FakeHoldingsStore(_run_ids("succeeded"))
+    seen: list = []
+    main(
+        st=st,
+        store=store,
+        load_settings_fn=lambda: object(),
+        loaders={"投組": lambda run_id, as_of: seen.append((run_id, as_of)) or "holdings"},
+        pages={"投組": lambda _st, payload: seen.append(payload)},
+    )
+    month_select = next(
+        call
+        for call in st.calls
+        if call[0] == "selectbox" and call[1] == "持股年月（只顯示權重大於 0 的持股）"
+    )
+    assert month_select[2] == ["2024-01", "2024-02"]
+    assert month_select[3]["index"] == 1
+    assert seen == [("run-00", "2024-02"), "holdings"]
 
 
 def test_main_empty_states_never_raise() -> None:

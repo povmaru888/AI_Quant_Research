@@ -10,6 +10,7 @@ never leak to the UI (NaN -> None, fixed column order, reset index).
 from __future__ import annotations
 
 import math
+from datetime import date
 from typing import Protocol
 
 import pandas as pd
@@ -28,6 +29,7 @@ OVERVIEW_OPTIONAL_KEYS: tuple[str, ...] = ("equity_curve", "monthly_returns")
 
 HOLDING_COLUMNS: tuple[str, ...] = (
     "stock_id",
+    "stock_name",
     "rank",
     "prediction_probability",
     "weight",
@@ -58,6 +60,7 @@ class DashboardStore(Protocol):
 
     def get_run_status(self, run_id: str) -> str: ...
     def load_run_summary(self, run_id: str) -> dict: ...
+    def list_holding_dates(self, run_id: str) -> list[str]: ...
     def load_holdings(self, run_id: str, as_of: str) -> pd.DataFrame: ...
     def load_model_data(self, run_id: str) -> dict: ...
     def load_risk(self, run_id: str) -> dict: ...
@@ -105,10 +108,24 @@ def get_overview(run_id: str, store: DashboardStore) -> dict:
 
 
 def get_holdings(run_id: str, as_of: str, store: DashboardStore) -> pd.DataFrame:
-    """Return holdings with explicit columns; never ORM entities."""
+    """Return one month's positive-weight holdings with explicit columns."""
     _require_completed(store, run_id)
     if not isinstance(as_of, str):
         raise ValueError(f"invalid as_of: must be a string, got {as_of!r}")
+    if as_of:
+        try:
+            if len(as_of) == 7:
+                month_date = date.fromisoformat(f"{as_of}-01")
+                if month_date.strftime("%Y-%m") != as_of:
+                    raise ValueError
+            else:
+                parsed = date.fromisoformat(as_of)
+                if parsed.isoformat() != as_of:
+                    raise ValueError
+        except ValueError as exc:
+            raise ValueError(
+                f"invalid as_of: expected empty, YYYY-MM, or YYYY-MM-DD, got {as_of!r}"
+            ) from exc
     frame = store.load_holdings(run_id, as_of)
     if not isinstance(frame, pd.DataFrame):
         raise ValueError("invalid holdings: must be a DataFrame")
@@ -118,6 +135,26 @@ def get_holdings(run_id: str, as_of: str, store: DashboardStore) -> pd.DataFrame
     if missing:
         raise ValueError(f"invalid holdings: missing columns {missing}")
     return frame.loc[:, list(HOLDING_COLUMNS)].reset_index(drop=True)
+
+
+def get_holding_months(run_id: str, store: DashboardStore) -> list[str]:
+    """Return sorted YYYY-MM values with signals for one completed run."""
+    _require_completed(store, run_id)
+    dates = store.list_holding_dates(run_id)
+    if not isinstance(dates, list):
+        raise ValueError("invalid holding dates: must be a list")
+    months: set[str] = set()
+    for value in dates:
+        if not isinstance(value, str):
+            raise ValueError(f"invalid holding date: expected string, got {value!r}")
+        try:
+            parsed = date.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError(f"invalid holding date: {value!r}") from exc
+        if parsed.isoformat() != value:
+            raise ValueError(f"invalid holding date: {value!r}")
+        months.add(value[:7])
+    return sorted(months)
 
 
 def get_model_data(run_id: str, store: DashboardStore) -> dict:

@@ -58,7 +58,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import Engine, case, func, select
+from sqlalchemy import Engine, and_, case, func, select
 from sqlalchemy.exc import OperationalError
 
 from database import create_engine_from_settings, session_scope
@@ -797,49 +797,97 @@ class DbStore:
 
     # -- dashboard / report --------------------------------------------------
 
+    def list_holding_dates(self, run_id: str) -> list[str]:
+        """List signal dates available for a run, in chronological order."""
+        with self._scope() as session:
+            rows = session.execute(
+                select(Signal.signal_date)
+                .where(Signal.run_id == run_id)
+                .distinct()
+                .order_by(Signal.signal_date)
+            ).all()
+        return [str(row[0]) for row in rows]
+
     def load_holdings(self, run_id: str, as_of: str) -> pd.DataFrame:
         summary = self.load_run_summary(run_id)
-        signal_date = summary["data_end_date"]
+        signal_date = None
         with self._scope() as session:
-            signals = session.execute(
-                select(Signal.stock_id, Signal.target_weight).where(Signal.run_id == run_id)
-            ).all()
-            preds = session.execute(
-                select(
-                    Prediction.stock_id,
-                    Prediction.rank,
-                    Prediction.prediction_probability,
-                ).where(Prediction.run_id == run_id)
-            ).all()
-            feats = session.execute(
-                select(
-                    Feature.stock_id,
-                    Feature.volatility_60d,
-                    Feature.beta_60d,
-                ).where(
-                    Feature.rebalance_date == signal_date,
-                    Feature.feature_version == summary["feature_version"],
+            if not as_of:
+                signal_date = session.execute(
+                    select(func.max(Signal.signal_date)).where(Signal.run_id == run_id)
+                ).scalar_one_or_none()
+            elif len(as_of) == 7:
+                month_start = date.fromisoformat(f"{as_of}-01")
+                if month_start.strftime("%Y-%m") != as_of:
+                    raise ValueError(f"invalid as_of month: {as_of!r}")
+                if month_start.month == 12:
+                    month_end = date(month_start.year + 1, 1, 1)
+                else:
+                    month_end = date(month_start.year, month_start.month + 1, 1)
+                signal_date = session.execute(
+                    select(func.max(Signal.signal_date)).where(
+                        Signal.run_id == run_id,
+                        Signal.signal_date >= month_start.isoformat(),
+                        Signal.signal_date < month_end.isoformat(),
+                    )
+                ).scalar_one_or_none()
+            else:
+                requested_date = date.fromisoformat(as_of)
+                if requested_date.isoformat() != as_of:
+                    raise ValueError(f"invalid as_of date: {as_of!r}")
+                signal_date = session.execute(
+                    select(func.max(Signal.signal_date)).where(
+                        Signal.run_id == run_id,
+                        Signal.signal_date == as_of,
+                    )
+                ).scalar_one_or_none()
+
+            if signal_date is None:
+                rows = []
+            else:
+                statement = (
+                    select(
+                        Signal.stock_id,
+                        Stock.stock_name,
+                        Signal.rank,
+                        Prediction.prediction_probability,
+                        Signal.target_weight,
+                        Feature.volatility_60d,
+                        Feature.beta_60d,
+                    )
+                    .select_from(Signal)
+                    .outerjoin(Stock, Stock.stock_id == Signal.stock_id)
+                    .outerjoin(
+                        Prediction,
+                        and_(
+                            Prediction.stock_id == Signal.stock_id,
+                            Prediction.prediction_date == Signal.signal_date,
+                            Prediction.run_id == Signal.run_id,
+                            Prediction.model_version == summary["model_version"],
+                        ),
+                    )
+                    .outerjoin(
+                        Feature,
+                        and_(
+                            Feature.stock_id == Signal.stock_id,
+                            Feature.rebalance_date == Signal.signal_date,
+                            Feature.feature_version == summary["feature_version"],
+                        ),
+                    )
+                    .where(
+                        Signal.run_id == run_id,
+                        Signal.signal_date == signal_date,
+                        Signal.target_weight > 0,
+                    )
+                    .order_by(Signal.rank, Signal.stock_id)
                 )
-            ).all()
-        _ = as_of  # holdings are fixed per run; as_of only selects the run view.
-        frame = pd.DataFrame([{"stock_id": s, "weight": float(w)} for s, w in signals])
-        pred_frame = pd.DataFrame(
-            [
-                {"stock_id": s, "rank": int(r), "prediction_probability": float(p)}
-                for s, r, p in preds
-            ],
-            columns=["stock_id", "rank", "prediction_probability"],
-        )
-        feat_frame = pd.DataFrame(
-            [{"stock_id": s, "volatility_60d": v, "beta_60d": b} for s, v, b in feats],
-            columns=["stock_id", "volatility_60d", "beta_60d"],
-        )
+                rows = session.execute(statement).all()
+
+        frame = pd.DataFrame(rows, columns=list(HOLDING_COLUMNS))
         if not frame.empty:
-            frame = frame.merge(pred_frame, on="stock_id", how="left")
-            frame = frame.merge(feat_frame, on="stock_id", how="left")
-        for column in HOLDING_COLUMNS:
-            if column not in frame.columns:
-                frame[column] = pd.NA
+            frame["stock_id"] = frame["stock_id"].astype(str)
+            frame["rank"] = pd.to_numeric(frame["rank"], errors="raise").astype(int)
+            frame["weight"] = pd.to_numeric(frame["weight"], errors="raise").astype(float)
         return frame.loc[:, list(HOLDING_COLUMNS)].reset_index(drop=True)
 
     def load_model_data(self, run_id: str) -> dict:

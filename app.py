@@ -65,15 +65,16 @@ def _default_load_settings():
     return load_settings(CONFIG_PATH, env=os.environ)
 
 
-def _default_loaders() -> dict[str, Callable[[str, str], object]]:
+def _default_loaders(store=None) -> dict[str, Callable[[str, str], object]]:
     from services import dashboard_service as dashboard
 
+    dashboard_store = store if store is not None else _dashboard_store()
     return {
-        "總覽": lambda run_id, as_of: dashboard.get_overview(run_id, _dashboard_store()),
-        "投組": lambda run_id, as_of: dashboard.get_holdings(run_id, as_of, _dashboard_store()),
-        "模型": lambda run_id, as_of: dashboard.get_model_data(run_id, _dashboard_store()),
-        "風險": lambda run_id, as_of: dashboard.get_risk(run_id, _dashboard_store()),
-        "研究比較": lambda run_id, as_of: dashboard.get_comparison(run_id, _dashboard_store()),
+        "總覽": lambda run_id, as_of: dashboard.get_overview(run_id, dashboard_store),
+        "投組": lambda run_id, as_of: dashboard.get_holdings(run_id, as_of, dashboard_store),
+        "模型": lambda run_id, as_of: dashboard.get_model_data(run_id, dashboard_store),
+        "風險": lambda run_id, as_of: dashboard.get_risk(run_id, dashboard_store),
+        "研究比較": lambda run_id, as_of: dashboard.get_comparison(run_id, dashboard_store),
     }
 
 
@@ -132,10 +133,23 @@ def main(
         st.info("尚無已完成的研究 run：請先執行月度訊號 job。")
         return
     run_id = st.sidebar.selectbox("研究 run（僅顯示已完成）", run_ids)
-    as_of = st.sidebar.text_input("資料截止日（空白為最新）", "")
     page = st.sidebar.radio("頁面", list(PAGES))
     try:
-        active_loaders = loaders if loaders is not None else _default_loaders()
+        if page == "投組" and callable(getattr(store, "list_holding_dates", None)):
+            from services.dashboard_service import get_holding_months
+
+            months = get_holding_months(run_id, store)
+            if not months:
+                st.info("此研究 run 尚無可查詢的持股月份。")
+                return
+            as_of = st.sidebar.selectbox(
+                "持股年月（只顯示權重大於 0 的持股）",
+                months,
+                index=len(months) - 1,
+            )
+        else:
+            as_of = st.sidebar.text_input("資料截止日（空白為最新）", "")
+        active_loaders = loaders if loaders is not None else _default_loaders(store)
         active_pages = pages if pages is not None else _default_pages()
         payload = active_loaders[page](run_id, as_of)
         active_pages[page](st, payload)
