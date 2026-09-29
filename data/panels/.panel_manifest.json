@@ -1,8 +1,6 @@
 {
   "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
   "months": [
-    "2018-01-31",
-    "2018-02-27",
     "2018-03-31",
     "2018-04-30",
     "2018-05-31",
@@ -15,6 +13,6 @@
     "2018-12-28"
   ],
   "panel_format_version": 2,
-  "source_fingerprint": "2f7c648f40d2a1f9a7b77747fe04b727fc967f8fc70f2820c9fdc1f187b3de6f",
-  "updated_at": "2026-09-29T07:30:53.651722+00:00"
+  "source_fingerprint": "1b271768b76fe89f9fd9f8ee1fb36075afaf3d87fbd6e6d32c4233285f4d6eb8",
+  "updated_at": "2026-09-29T20:05:58.990465+00:00"
 }
