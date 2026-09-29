@@ -30,6 +30,7 @@ Thumbs.db
 outputs/
 reports/
 data/*
+!/data/pit_v3_nonformal_mainboard_exclusions.csv
 !data/panels/
 !data/panels/**
 !data/panels_pit_v3/
