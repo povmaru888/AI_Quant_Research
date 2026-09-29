@@ -14,7 +14,8 @@ Approximations are labeled in payload ``meta`` instead of hidden:
   "what drove this month's scores", not "what the global model learned".
 - ``predicted_volatility`` is the trailing-60d realized vol at the signal
   date (the forecast basis risk controls actually had).
-- ``icir`` is mean/std of four weekly prediction ICs in the forward month.
+- Run-level ``rank_ic`` and ``icir`` summarize monthly forward-return ICs;
+  one-month runs fall back to the existing four-week ICIR estimate.
 
 Usage:
     python tools/materialize_run.py --run-id rebalance-2026-07-31b
@@ -95,6 +96,42 @@ def _forward_returns(panel: dict[str, list[float]], days: int) -> pd.Series:
     return pd.DataFrame(rows).set_index("stock_id")["fwd"]
 
 
+def _close_history(prices: pd.DataFrame, start: str) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """Sorted per-stock dates and adjusted closes from ``start`` onward."""
+    frame = prices.loc[
+        prices["trade_date"] >= start, ["stock_id", "trade_date", "close_adj"]
+    ].copy()
+    frame["close_adj"] = pd.to_numeric(frame["close_adj"], errors="coerce")
+    frame.loc[frame["close_adj"] <= 0, "close_adj"] = np.nan
+    frame["trade_date"] = frame["trade_date"].astype(str)
+    frame = frame.sort_values(["stock_id", "trade_date"])
+    return {
+        str(stock_id): (
+            group["trade_date"].to_numpy(dtype=str),
+            group["close_adj"].to_numpy(dtype=float, na_value=np.nan),
+        )
+        for stock_id, group in frame.groupby("stock_id", sort=False)
+    }
+
+
+def _forward_returns_at(
+    history: dict[str, tuple[np.ndarray, np.ndarray]], signal_date: str, days: int
+) -> pd.Series:
+    """Forward return from each stock's first bar on/after a signal date."""
+    rows = []
+    for stock_id, (dates, closes) in history.items():
+        start_idx = int(np.searchsorted(dates, signal_date, side="left"))
+        end_idx = start_idx + days
+        if end_idx >= len(closes):
+            continue
+        start, end = closes[start_idx], closes[end_idx]
+        if np.isfinite(start) and np.isfinite(end) and start > 0 and end > 0:
+            rows.append({"stock_id": stock_id, "fwd": float(np.log(end / start))})
+    if not rows:
+        return pd.Series(dtype=float)
+    return pd.DataFrame(rows).set_index("stock_id")["fwd"]
+
+
 def _weekly_ics(scores: pd.Series, panel: dict[str, list[float]]) -> list[float]:
     """Rank IC of one score vector against each of 4 weekly forward legs."""
     ics = []
@@ -167,8 +204,20 @@ def main(argv: list[str] | None = None) -> int:
     print("loading prices...", flush=True)
     prices = store.load_prices()
     print(f"prices: {len(prices)} bars", flush=True)
+    with session_scope(engine) as session:
+        last_execution_date = session.execute(
+            sqlalchemy.select(sqlalchemy.func.max(Order.execution_date)).where(
+                Order.run_id == run_id
+            )
+        ).scalar()
+    if last_execution_date is None:
+        print(f"cannot materialize {run_id}: no orders", file=sys.stderr)
+        return 1
+    last_execution_date = str(last_execution_date)
+    backtest_prices = prices.loc[prices["trade_date"] <= last_execution_date]
+    print(f"backtest price window ends {last_execution_date}", flush=True)
     print("replaying backtest...", flush=True)
-    result = store.replay_backtest(run_id, prices)
+    result = store.replay_backtest(run_id, backtest_prices)
     print("backtest done", flush=True)
     # Dashboard metrics describe the active window (first execution onward):
     # the pre-trade flat-cash stretch would corrupt annualization and rates.
@@ -197,21 +246,50 @@ def main(argv: list[str] | None = None) -> int:
     # -- prediction IC -------------------------------------------------
     with session_scope(engine) as session:
         pred_rows = session.execute(
-            sqlalchemy.select(Prediction.stock_id, Prediction.prediction_probability)
-            .where(
-                Prediction.run_id == run_id,
-                Prediction.prediction_date == as_of_str,
+            sqlalchemy.select(
+                Prediction.prediction_date,
+                Prediction.stock_id,
+                Prediction.prediction_probability,
             )
-            .order_by(Prediction.stock_id)
+            .where(Prediction.run_id == run_id)
+            .order_by(Prediction.prediction_date, Prediction.stock_id)
         ).all()
-    scores = pd.Series({s: float(p) for s, p in pred_rows}, dtype=float)
+    predictions_by_date: dict[str, dict[str, float]] = {}
+    for prediction_date, stock_id, probability in pred_rows:
+        predictions_by_date.setdefault(str(prediction_date), {})[str(stock_id)] = float(probability)
+    if as_of_str not in predictions_by_date:
+        print(f"cannot materialize {run_id}: no predictions for {as_of_str}", file=sys.stderr)
+        return 1
+    close_history = _close_history(prices, min(predictions_by_date))
+    monthly_payload = []
+    scores = pd.Series(dtype=float)
+    month_ic = float("nan")
+    for prediction_date, prediction_scores in sorted(predictions_by_date.items()):
+        monthly_scores = pd.Series(prediction_scores, dtype=float)
+        forward = _forward_returns_at(close_history, prediction_date, _FORWARD_DAYS)
+        ic = rank_ic(monthly_scores, forward)
+        monthly_payload.append({"month": prediction_date[:7], "ic": _finite(ic)})
+        if prediction_date == as_of_str:
+            scores = monthly_scores
+            month_ic = ic
     panel = _close_panel(prices, as_of_str)
-    month_ic = rank_ic(scores, _forward_returns(panel, _FORWARD_DAYS))
     weeklies = _weekly_ics(scores, panel)
-    icir = float(np.mean(weeklies) / np.std(weeklies, ddof=1)) if len(weeklies) >= 2 else None
+    monthly_ics = [float(row["ic"]) for row in monthly_payload if row["ic"] is not None]
+    run_rank_ic = float(np.mean(monthly_ics)) if monthly_ics else float("nan")
+    monthly_ic_std = float(np.std(monthly_ics, ddof=1)) if len(monthly_ics) >= 2 else 0.0
+    if len(monthly_ics) >= 2 and monthly_ic_std > 0:
+        icir = run_rank_ic / monthly_ic_std
+        icir_method = "monthly_forward_return_ic"
+    else:
+        icir = (
+            float(np.mean(weeklies) / np.std(weeklies, ddof=1))
+            if len(weeklies) >= 2
+            else None
+        )
+        icir_method = "weekly_forward_return_ic"
 
     # -- metrics ----------------------------------------------------------
-    metrics_frame = calculate_metrics(result, rank_ic=month_ic, icir=icir)
+    metrics_frame = calculate_metrics(result, rank_ic=run_rank_ic, icir=icir)
     metrics = {k: _finite(v) for k, v in metrics_frame.iloc[0].to_dict().items()}
     nav = result.nav
     with session_scope(engine) as session:
@@ -244,7 +322,17 @@ def main(argv: list[str] | None = None) -> int:
         "monthly_returns": monthly_returns,
         "oos_months": months,
         "equity_curve": equity_curve,
-        "meta": {"icir_weeks": len(weeklies), "rank_ic_month": _finite(month_ic)},
+        "meta": {
+            "icir_method": icir_method,
+            "icir_observations": (
+                len(monthly_ics)
+                if icir_method == "monthly_forward_return_ic"
+                else len(weeklies)
+            ),
+            "icir_weeks": len(weeklies),
+            "rank_ic_month": _finite(month_ic),
+            "rank_ic_mean_monthly": _finite(run_rank_ic),
+        },
     }
 
     # -- features (mirror _execute, then persist) --------------------------
@@ -284,8 +372,6 @@ def main(argv: list[str] | None = None) -> int:
         if np.isfinite(ic):
             factor_rows.append({"factor": factor, "ic": float(ic)})
     factor_rows.sort(key=lambda r: abs(r["ic"]), reverse=True)
-    monthly_payload = [{"month": as_of_str[:7], "ic": _finite(month_ic)}]
-
     # -- proxy model: importance + SHAP --------------------------------------
     print("training proxy model...", flush=True)
     labels = build_labels(prices, universe.included_ids, as_of, settings)
@@ -293,7 +379,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # -- sensitivity ----------------------------------------------------------
     print("running cost sensitivity...", flush=True)
-    sensitivity_payload = _sensitivity(store, engine, run_id, prices, settings)
+    sensitivity_payload = _sensitivity(store, engine, run_id, backtest_prices, settings)
 
     with session_scope(engine) as session:
         artifacts_repo.save_artifact(session, run_id, "metrics", metrics_payload)

@@ -1,9 +1,8 @@
-"""Refit on train+validation with frozen best params, then blind OOS test.
+"""Refit with frozen best params, then score a held-out period.
 
-Stage 2 of 方案B: loads model_b1's best params and 13 feature columns,
-trains one XGB on 2019-01..2023-12 (all 60 months, purge month included:
-nothing is held out anymore), saves model_b2, then scores the untouched
-2024 panels month by month (rank IC + top-decile spread, same as stage 1).
+Loads a prior model report's fixed params and feature columns, trains one
+XGB on the requested refit period, then scores the requested OOS panels
+month by month (rank IC + top-decile spread, same as stage 1).
 
 The eval split passed to train_xgb is the full set itself: with fixed
 n_estimators there is no early stopping to be honest about, and every
@@ -11,8 +10,8 @@ row trains the deployed model.
 
 Usage:
     python tools/refit_oos.py [--config config.yaml] [--panels data/panels]
-        [--from models/model_b1] [--refit-start 2019-01] [--refit-end 2023-12]
-        [--oos-start 2024-01] [--oos-end 2024-12] [--out models/model_b2]
+        [--from models/model_b2] [--refit-start 2018-01] [--refit-end 2022-11]
+        [--oos-start 2023-01] [--oos-end 2023-12] [--out models/model_oos2023]
 """
 
 from __future__ import annotations
@@ -60,6 +59,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--refit-end", default="2023-12")
     parser.add_argument("--oos-start", default="2024-01")
     parser.add_argument("--oos-end", default="2024-12")
+    parser.add_argument(
+        "--exclude-month",
+        action="append",
+        default=[],
+        help="Skip a low-coverage month from the refit training set (repeatable).",
+    )
     parser.add_argument("--out", default="models/model_b2")
     parser.add_argument("--model-version", default="xgb_b2")
     args = parser.parse_args(argv)
@@ -72,29 +77,58 @@ def main(argv: list[str] | None = None) -> int:
     panels = Path(args.panels)
     with open(Path(args.src) / "report.json", encoding="utf-8") as handle:
         base = json.load(handle)
-    if base.get("feature_version") != settings.features.feature_version:
+    if base.get("feature_version") not in (None, settings.features.feature_version):
         print(
             f"stale model report feature_version {base.get('feature_version')!r}; "
             f"expected {settings.features.feature_version!r}",
             file=sys.stderr,
         )
         return 1
-    columns: list[str] = base["common_features"]
+    frozen_columns: list[str] = base["common_features"]
     params: dict = dict(base["best_params"])
-    print(f"frozen params from {args.src}: {len(columns)} features")
 
-    refit_months = _months(args.refit_start, args.refit_end)
-    frames, labels = [], []
+    all_refit_months = _months(args.refit_start, args.refit_end)
+    excluded_months = set(args.exclude_month)
+    invalid_exclusions = excluded_months - set(all_refit_months)
+    if invalid_exclusions:
+        print(
+            f"excluded months fall outside the refit range: {sorted(invalid_exclusions)}",
+            file=sys.stderr,
+        )
+        return 2
+    refit_months = [month for month in all_refit_months if month not in excluded_months]
+    if not refit_months:
+        print("no refit months remain after exclusions", file=sys.stderr)
+        return 2
+    if excluded_months:
+        print(f"excluded refit months: {', '.join(sorted(excluded_months))}")
+    refit_panels: dict[str, dict] = {}
+    common_columns = set(frozen_columns)
     for month in refit_months:
         panel = _load_panel(panels, month)
         if panel.get("feature_version") != settings.features.feature_version:
             print(f"[{month}] stale panel feature_version", file=sys.stderr)
             return 1
-        missing = [c for c in columns if c not in panel["frame"].columns]
-        if missing:
-            print(f"[{month}] missing columns {missing}", file=sys.stderr)
+        panel_frame = panel["frame"]
+        if "stock_id" not in panel_frame.columns:
+            print(f"[{month}] missing stock_id column", file=sys.stderr)
             return 1
-        frame = panel["frame"][["stock_id", *columns]].copy()
+        common_columns.intersection_update(panel_frame.columns)
+        refit_panels[month] = panel
+    columns = [column for column in frozen_columns if column in common_columns]
+    dropped_features = [column for column in frozen_columns if column not in common_columns]
+    if not columns:
+        print("no frozen features are common to every refit month", file=sys.stderr)
+        return 1
+    print(
+        f"frozen params from {args.src}: {len(columns)}/{len(frozen_columns)} features "
+        f"common to all refit months"
+    )
+    frames, labels = [], []
+    for month in refit_months:
+        panel = refit_panels[month]
+        panel_frame = panel["frame"]
+        frame = panel_frame[["stock_id", *columns]].copy()
         aligned = panel["labels"].reindex(frame["stock_id"])
         keep = aligned.notna().to_numpy()
         frames.append(frame.loc[keep])
@@ -121,12 +155,22 @@ def main(argv: list[str] | None = None) -> int:
 
     oos_months = _months(args.oos_start, args.oos_end)
     month_ics, month_spreads = [], []
+    oos_missing_features: dict[str, list[str]] = {}
     for month in oos_months:
         panel = _load_panel(panels, month)
         if panel.get("feature_version") != settings.features.feature_version:
             print(f"[{month}] stale panel feature_version", file=sys.stderr)
             return 1
-        frame = panel["frame"][["stock_id", *columns]].copy()
+        panel_frame = panel["frame"]
+        if "stock_id" not in panel_frame.columns:
+            print(f"[{month}] missing stock_id column", file=sys.stderr)
+            return 1
+        missing = [c for c in columns if c not in panel_frame.columns]
+        if missing:
+            oos_missing_features[month] = missing
+            print(f"[{month}] missing model features {missing}", file=sys.stderr)
+            return 1
+        frame = panel_frame[["stock_id", *columns]].copy()
         aligned = panel["labels"].reindex(frame["stock_id"])
         keep = aligned.notna().to_numpy()
         frame, truth_m = frame.loc[keep], aligned.loc[keep].astype(int)
@@ -161,7 +205,10 @@ def main(argv: list[str] | None = None) -> int:
         "model_version": args.model_version,
         "feature_version": settings.features.feature_version,
         "refit_months": [refit_months[0], refit_months[-1], len(refit_months)],
+        "refit_months_included": refit_months,
+        "excluded_refit_months": sorted(excluded_months),
         "refit_rows": len(big),
+        "frozen_features_dropped_for_refit_schema": dropped_features,
         "best_params": params,
         "common_features": columns,
         "oos_months": [oos_months[0], oos_months[-1], len(oos_months)],
@@ -171,6 +218,7 @@ def main(argv: list[str] | None = None) -> int:
             month: (float(v) if np.isfinite(v) else None)
             for month, v in zip(oos_months, month_ics, strict=True)
         },
+        "oos_missing_features_by_month": oos_missing_features,
         "frozen_from": args.src,
     }
     print(

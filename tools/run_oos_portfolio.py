@@ -187,7 +187,11 @@ def main(argv: list[str] | None = None) -> int:
         store._run_id = args.run_id  # noqa: SLF001 - saves bind to this run.
         store._as_of = signal_str  # noqa: SLF001 - snapshot loads bind here.
         store.save_predictions(scored, args.model_version)
-        prev_positions = pd.DataFrame({"stock_id": list(positions)})
+        # Sold-out positions remain as zero-valued keys in the fill ledger;
+        # never feed those names back into the rank-buffer holding set.
+        prev_positions = pd.DataFrame(
+            {"stock_id": [sid for sid, shares in positions.items() if shares > 0]}
+        )
         target: PortfolioTarget = build_target_holdings(
             scored, prev_positions, settings, args.run_id, as_of
         )
@@ -205,7 +209,12 @@ def main(argv: list[str] | None = None) -> int:
         if next_open.empty:
             print(f"[{signal_str}] no next open, skipped")
             continue
-        current = pd.DataFrame({"stock_id": list(positions), "shares": list(positions.values())})
+        current_positions = {
+            sid: shares for sid, shares in positions.items() if shares > 0
+        }
+        current = pd.DataFrame(
+            {"stock_id": list(current_positions), "shares": list(current_positions.values())}
+        )
         orders = create_orders(controlled, as_of, next_open, current, nav, settings, args.run_id)
         n_saved = store.save_orders(orders)
         if not orders.empty:
@@ -224,6 +233,10 @@ def main(argv: list[str] | None = None) -> int:
                 cash, _ = _apply_fill(
                     record, positions, adjusted_units, cash, 0.0, raw_open, adj_open
                 )
+            for stock_id in list(positions):
+                if positions[stock_id] <= 0:
+                    positions.pop(stock_id)
+                    adjusted_units.pop(stock_id, None)
         # Mark the portfolio on adjusted closes. If this month produced
         # fills, value it after execution on that session; otherwise use
         # the signal-date close. Raw share counts are for orders only.
@@ -260,7 +273,8 @@ def main(argv: list[str] | None = None) -> int:
         store.finish_run(args.run_id, "succeeded")
     except ValueError:
         pass
-    print(f"done months={len(all_orders)} final_positions={len(positions)}")
+    final_positions = sum(shares > 0 for shares in positions.values())
+    print(f"done months={len(all_orders)} final_positions={final_positions}")
     return 0
 
 
