@@ -12,6 +12,7 @@ import pytest
 from database import create_engine_from_settings, session_scope
 from models.market import Financial, Institutional, Price
 from models.research import Feature
+from tests.migration_utils import apply_pit_v3_feature_migration
 from models.security import Stock
 from observability.data_quality import (
     assert_no_blockers,
@@ -73,6 +74,7 @@ def engine(settings: Settings, temp_db_path: Path):
     try:
         migration.upgrade(conn)
         migration_003.upgrade(conn)
+        apply_pit_v3_feature_migration(conn)
     finally:
         conn.close()
     engine = _engine_for(settings, temp_db_path)

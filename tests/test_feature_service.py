@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from services.feature_service import FACTOR_COLUMNS, calculate_raw_features
+from services.feature_service import FACTOR_COLUMNS, FACTOR_COLUMNS_PIT_V3, calculate_raw_features
 
 AS_OF = date(2019, 12, 31)
 
@@ -229,3 +229,25 @@ def test_stock_factors_use_adjusted_close_and_high_without_raw_fallback() -> Non
     missing_close = calculate_raw_features(_snapshot(), pd.concat([stock, market]), AS_OF).iloc[0]
     assert pd.isna(missing_close["momentum_20d"])
     assert missing_close["missing_flag"] == 1
+
+
+def test_pit_v3_uses_market_value_and_issued_shares() -> None:
+    snapshot = _snapshot(
+        as_of_close=900.0,
+        as_of_close_adj=30.0,
+        market_value=4500.0,
+        issued_shares=5.0,
+    ).drop(columns="float_shares")
+    out = calculate_raw_features(
+        snapshot, _full_prices(), AS_OF, _financials(), _institutional()
+    )
+    assert list(out.columns) == ["stock_id", *FACTOR_COLUMNS_PIT_V3, "missing_flag"]
+    row = out.iloc[0]
+    assert row["earnings_yield"] == pytest.approx(10e9 / 4500.0)
+    assert row["book_to_market"] == pytest.approx(100e9 / 4500.0)
+    assert row["log_market_cap"] == pytest.approx(np.log(4500.0))
+    assert row["turnover_60d"] == pytest.approx(10_000.0 / 5.0)
+    assert row["foreign_net_buy_to_issued_shares"] == pytest.approx(20 * 1000.0 / 5.0)
+    assert row["trust_net_buy_to_issued_shares"] == pytest.approx(20 * 500.0 / 5.0)
+    assert "foreign_net_buy_float" not in out.columns
+    assert "trust_net_buy_float" not in out.columns

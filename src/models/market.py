@@ -6,7 +6,7 @@ this module only declares types, composite keys, nullability and FKs.
 
 from __future__ import annotations
 
-from sqlalchemy import Float, ForeignKey, String
+from sqlalchemy import Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models import Base
@@ -63,3 +63,27 @@ class Institutional(Base):
     short_balance: Mapped[float | None] = mapped_column(Float, nullable=True)
     float_shares: Mapped[float | None] = mapped_column(Float, nullable=True)
     source: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class MarketValue(Base):
+    """Daily nominal equity market value, keyed by (trade_date, stock_id)."""
+
+    __tablename__ = "market_values"
+
+    trade_date: Mapped[str] = mapped_column(String, primary_key=True)
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.stock_id"), primary_key=True)
+    market_value: Mapped[float] = mapped_column(Float, nullable=False)
+    source: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class MarketValueSyncDay(Base):
+    """Checkpoint for an all-market daily market-value import."""
+
+    __tablename__ = "market_value_sync_days"
+
+    trade_date: Mapped[str] = mapped_column(String, primary_key=True)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    content_hash: Mapped[str | None] = mapped_column(String, nullable=True)
+    synced_at: Mapped[str] = mapped_column(String, nullable=False)

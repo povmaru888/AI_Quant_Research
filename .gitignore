@@ -32,7 +32,10 @@ reports/
 data/*
 !data/panels/
 !data/panels/**
+!data/panels_pit_v3/
+!data/panels_pit_v3/**
 !/data/panels/.panel_manifest.json
+!/data/panels_pit_v3/.panel_manifest.json
 
 # Trained model artifacts (kept in version control for reproducible OOS runs)
 

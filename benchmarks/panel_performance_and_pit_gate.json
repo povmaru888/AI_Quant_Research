@@ -1,0 +1,99 @@
+{
+  "feature_version": "factor_adj_v2",
+  "period": [
+    "2019-01",
+    "2024-12"
+  ],
+  "months": 72,
+  "optimized": {
+    "wall_seconds": 472.82523509999737,
+    "cpu_seconds": 470.140625,
+    "peak_working_set_bytes": 844267520,
+    "monthly_p95_seconds": 5.8490951000130735,
+    "monthly_max_seconds": 6.30394020001404,
+    "stages_seconds": {
+      "financials": 0.3145605999743566,
+      "institutional": 6.232224699982908,
+      "market_values_and_universes": 140.92485050001414,
+      "prices": 59.83248569996795
+    },
+    "rows_loaded": {
+      "financials": 87495,
+      "institutional_retained": 895991,
+      "institutional_scanned": 2605475,
+      "prices": 3403757,
+      "stocks": 3100
+    }
+  },
+  "legacy_six_month_sample": {
+    "wall_seconds": 227.436534,
+    "peak_working_set_bytes": 6275555328,
+    "full_price_bars_loaded": 5929255,
+    "monthly_times": [
+      {
+        "month": "2019-01",
+        "legacy_seconds": 11.504537,
+        "optimized_seconds": 2.1305217999615707,
+        "speedup_x": 5.4
+      },
+      {
+        "month": "2020-03",
+        "legacy_seconds": 16.085656,
+        "optimized_seconds": 2.7450624000048265,
+        "speedup_x": 5.86
+      },
+      {
+        "month": "2022-12",
+        "legacy_seconds": 24.330725,
+        "optimized_seconds": 3.083863299980294,
+        "speedup_x": 7.89
+      },
+      {
+        "month": "2023-12",
+        "legacy_seconds": 27.666005,
+        "optimized_seconds": 5.157733300002292,
+        "speedup_x": 5.364
+      },
+      {
+        "month": "2024-06",
+        "legacy_seconds": 39.71142,
+        "optimized_seconds": 5.956744999974035,
+        "speedup_x": 6.667
+      },
+      {
+        "month": "2024-12",
+        "legacy_seconds": 46.415929,
+        "optimized_seconds": 5.148634699988179,
+        "speedup_x": 9.015
+      }
+    ],
+    "p95_month_seconds": 46.415929
+  },
+  "cache_hit": {
+    "wall_seconds": 0.7050078000174835,
+    "cpu_seconds": 0.6875,
+    "months_cache_hit": 72,
+    "months_pending": 0,
+    "no_op": true
+  },
+  "comparisons": {
+    "legacy_sample_p95_ratio": 0.126,
+    "peak_working_set_ratio": 0.1345,
+    "legacy_72_wall_estimate_seconds": 2050.3,
+    "estimated_speedup_x": 4.34,
+    "estimate_method": "Estimated from the six representative legacy month timings plus one shared legacy full-price-load overhead; the full 72-month legacy rebuild was not run."
+  },
+  "golden": {
+    "months": 72,
+    "all_universe_columns_labels_dtypes_equal": true,
+    "max_abs_numeric_delta": 0.0
+  },
+  "pit_v3_market_value_gate": {
+    "coverage": 0.9901235441962547,
+    "coverage_threshold": 0.99,
+    "covered": 55940,
+    "candidates": 56498,
+    "near_4_to_6_billion_missing": 92,
+    "passed": false
+  }
+}

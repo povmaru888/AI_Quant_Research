@@ -163,6 +163,11 @@ def main(argv: list[str] | None = None) -> int:
                 monthly.load_financials_snapshot(),
                 monthly.load_institutional_snapshot(),
                 prices,
+                market_values=(
+                    monthly.load_market_value_snapshot()
+                    if settings.features.feature_version == "factor_adj_pit_v3"
+                    else None
+                ),
             )
             raw = calculate_raw_features(
                 snapshot,

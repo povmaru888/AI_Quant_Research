@@ -21,6 +21,7 @@ from models.research import (
     Prediction,
     Signal,
 )
+from tests.migration_utils import apply_pit_v3_feature_migration
 from models.security import Stock
 from settings import Settings
 
@@ -55,6 +56,7 @@ def _init_schema(path: Path) -> None:
     conn = sqlite3.connect(str(path))
     try:
         migration.upgrade(conn)
+        apply_pit_v3_feature_migration(conn)
     finally:
         conn.close()
 
@@ -304,6 +306,7 @@ def test_signal_position_daily(settings: Settings, temp_db_path: Path) -> None:
 
 def test_mappings_match_migration(temp_db_conn: sqlite3.Connection) -> None:
     migration.upgrade(temp_db_conn)
+    apply_pit_v3_feature_migration(temp_db_conn)
     models = (PipelineRun, Feature, Prediction, Signal, Position, Order, PortfolioDaily)
     for model in models:
         info = temp_db_conn.execute(f"PRAGMA table_info({model.__tablename__})").fetchall()

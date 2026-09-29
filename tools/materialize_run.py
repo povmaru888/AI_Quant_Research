@@ -257,6 +257,11 @@ def main(argv: list[str] | None = None) -> int:
         store.load_financials_snapshot(),
         store.load_institutional_snapshot(),
         prices,
+        market_values=(
+            store.load_market_value_snapshot()
+            if settings.features.feature_version == "factor_adj_pit_v3"
+            else None
+        ),
     )
     raw = calculate_raw_features(
         snapshot,

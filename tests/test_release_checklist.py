@@ -10,6 +10,7 @@ from pathlib import Path
 from database import create_engine_from_settings, session_scope
 from models.market import Price
 from models.research import Feature
+from tests.migration_utils import apply_pit_v3_feature_migration
 from models.security import Stock
 from observability.data_quality import audit_data_quality
 from observability.health import get_system_health
@@ -114,6 +115,7 @@ def test_mvp_fixture_completes_checklist(
     try:
         migration.upgrade(conn)
         migration_003.upgrade(conn)
+        apply_pit_v3_feature_migration(conn)
     finally:
         conn.close()
     db_settings = dataclasses.replace(

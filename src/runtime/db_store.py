@@ -62,11 +62,12 @@ from sqlalchemy import Engine, case, func, select
 from sqlalchemy.exc import OperationalError
 
 from database import create_engine_from_settings, session_scope
-from models.market import Financial, Institutional, Price
+from models.market import Financial, Institutional, MarketValue, MarketValueSyncDay, Price
 from models.research import Feature, Order, PipelineRun, Prediction, Signal
 from models.security import Stock
 from repositories import artifacts as artifacts_repo
 from repositories import fundamentals as fundamentals_repo
+from repositories import market_values as market_values_repo
 from repositories import prices as prices_repo
 from repositories import research as research_repo
 from repositories import runs as runs_repo
@@ -305,6 +306,25 @@ class DbStore:
             self._ensure_stocks(session, self._frame_ids(frame))
             return fundamentals_repo.upsert_institutional(session, frame)
 
+    def upsert_market_value_day(
+        self, trade_day: date, frame: pd.DataFrame, *, source_content_hash: str | None = None
+    ) -> int:
+        """Persist one validated FinMind market-value day and its checkpoint."""
+        with self._scope() as session:
+            self._ensure_stocks(session, self._frame_ids(frame))
+            return market_values_repo.upsert_market_value_day(
+                session, trade_day, frame, source_content_hash=source_content_hash
+            )
+
+    def mark_market_value_sync_day(self, trade_day: str, status: str) -> None:
+        """Persist a failed/running sync checkpoint without market values."""
+        with self._scope() as session:
+            market_values_repo.mark_sync_day(session, trade_day, status)
+
+    def load_completed_market_value_days(self, start: str, end: str) -> set[str]:
+        with self._scope() as session:
+            return market_values_repo.load_completed_days(session, start, end)
+
     # -- daily extras --------------------------------------------------------
 
     def load_latest_trade_date(self) -> str | None:
@@ -389,11 +409,30 @@ class DbStore:
         as_of_date = date.fromisoformat(as_of)
         with self._scope() as session:
             actives = stocks_repo.get_active_stocks(session, as_of_date)
-            caps = self._market_caps(session, as_of)
+            caps = (
+                self._pit_market_caps(session, as_of)
+                if self._settings.features.feature_version == "factor_adj_pit_v3"
+                else self._market_caps(session, as_of)
+            )
         frame = actives.loc[actives["stock_id"] != TAIEX_ID].copy()
         frame["flags"] = ""
         frame["market_cap"] = frame["stock_id"].map(caps)
         return frame.reset_index(drop=True)
+
+    def load_market_value_snapshot(self) -> pd.DataFrame:
+        """Load direct PIT market values for this store's signal date."""
+        as_of = date.fromisoformat(self._require_as_of())
+        with self._scope() as session:
+            return market_values_repo.load_market_value_snapshot(session, as_of)
+
+    def _pit_market_caps(self, session, as_of: str) -> dict[str, float]:
+        rows = session.execute(
+            select(MarketValue.stock_id, MarketValue.market_value)
+            .join(MarketValueSyncDay, MarketValueSyncDay.trade_date == MarketValue.trade_date)
+            .where(MarketValue.trade_date == as_of)
+            .where(MarketValueSyncDay.status == "succeeded")
+        ).all()
+        return {stock_id: float(market_value) for stock_id, market_value in rows}
 
     def _market_caps(self, session, as_of: str) -> dict[str, float]:
         """Latest nominal close times cached shares (ETF cached-cap fallback).

@@ -50,7 +50,15 @@ FACTOR_COLUMNS = (
     "revenue_mom",
 )
 
-FEATURE_COLUMNS = ("rebalance_date", "stock_id", "feature_version", *FACTOR_COLUMNS, "missing_flag")
+FEATURE_COLUMNS = (
+    "rebalance_date",
+    "stock_id",
+    "feature_version",
+    *FACTOR_COLUMNS,
+    "foreign_net_buy_to_issued_shares",
+    "trust_net_buy_to_issued_shares",
+    "missing_flag",
+)
 
 PREDICTION_COLUMNS = (
     "prediction_date",

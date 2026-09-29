@@ -57,6 +57,13 @@ FACTOR_COLUMNS: tuple[str, ...] = (
     "short_margin_ratio",
     "operating_margin",
 )
+FACTOR_COLUMNS_PIT_V3: tuple[str, ...] = tuple(
+    {
+        "foreign_net_buy_float": "foreign_net_buy_to_issued_shares",
+        "trust_net_buy_float": "trust_net_buy_to_issued_shares",
+    }.get(column, column)
+    for column in FACTOR_COLUMNS
+)
 
 _MARKET_ID = "TAIEX"
 # Equity factors use adjusted history. The raw close is needed only for
@@ -207,6 +214,11 @@ def calculate_raw_features(
         inst_by_stock = {str(sid): df for sid, df in inst_filtered.groupby("stock_id", sort=False)}
 
     empty_price = pd.DataFrame(columns=_PRICE_KEYS)
+    factor_columns = (
+        FACTOR_COLUMNS_PIT_V3
+        if {"market_value", "issued_shares"}.issubset(snapshot.columns)
+        else FACTOR_COLUMNS
+    )
     rows: list[dict] = []
     for snap in snapshot.to_dict("records"):
         stock_id = str(snap["stock_id"])
@@ -217,12 +229,12 @@ def calculate_raw_features(
         row.update(_fundamental_factors(snap, fin_by_stock.get(stock_id)))
         row.update(_chip_factors(snap, inst_by_stock.get(stock_id)))
         row["turnover_60d"] = _turnover(hist, snap)
-        values = np.array([row[c] for c in FACTOR_COLUMNS], dtype=float)
+        values = np.array([row[c] for c in factor_columns], dtype=float)
         row["missing_flag"] = int(bool(np.isnan(values).any()))
         rows.append(row)
 
-    frame = pd.DataFrame(rows, columns=["stock_id", *FACTOR_COLUMNS, "missing_flag"])
-    frame[list(FACTOR_COLUMNS)] = frame[list(FACTOR_COLUMNS)].replace([np.inf, -np.inf], np.nan)
+    frame = pd.DataFrame(rows, columns=["stock_id", *factor_columns, "missing_flag"])
+    frame[list(factor_columns)] = frame[list(factor_columns)].replace([np.inf, -np.inf], np.nan)
     return frame
 
 
@@ -272,7 +284,8 @@ def _price_factors(
 
 def _turnover(hist: pd.DataFrame, snap: Mapping[str, object]) -> float:
     """Mean 60d volume over float shares; NaN when either leg is missing."""
-    float_shares = _num(snap.get("float_shares"))
+    denominator_name = "issued_shares" if "issued_shares" in snap else "float_shares"
+    float_shares = _num(snap.get(denominator_name))
     if not np.isfinite(float_shares) or float_shares <= 0:
         return float("nan")
     vols = hist["volume"].to_numpy(dtype=float, na_value=np.nan)
@@ -328,8 +341,12 @@ def _fundamental_factors(
     # The share count is nominal, so market cap must use the nominal close.
     # Technical return factors above use close_adj exclusively.
     close = _num(snap.get("as_of_close"))
-    float_shares = _num(snap.get("float_shares"))
-    market_cap = close * float_shares if close > 0 and float_shares > 0 else float("nan")
+    denominator_name = "issued_shares" if "issued_shares" in snap else "float_shares"
+    float_shares = _num(snap.get(denominator_name))
+    if "market_value" in snap:
+        market_cap = _num(snap.get("market_value"))
+    else:
+        market_cap = close * float_shares if close > 0 and float_shares > 0 else float("nan")
     net_income = _num(snap.get("net_income"))
     equity = _num(snap.get("equity"))
     revenue = _num(snap.get("revenue"))
@@ -419,10 +436,17 @@ def _chip_factors(
     if len(eligible) < 20:
         return out
     window = eligible.tail(20)
-    float_shares = _num(snap.get("float_shares"))
+    denominator_name = "issued_shares" if "issued_shares" in snap else "float_shares"
+    float_shares = _num(snap.get(denominator_name))
     for factor, column in (
-        ("foreign_net_buy_float", "foreign_net_buy"),
-        ("trust_net_buy_float", "trust_net_buy"),
+        (
+            "foreign_net_buy_to_issued_shares" if "issued_shares" in snap else "foreign_net_buy_float",
+            "foreign_net_buy",
+        ),
+        (
+            "trust_net_buy_to_issued_shares" if "issued_shares" in snap else "trust_net_buy_float",
+            "trust_net_buy",
+        ),
     ):
         if column in window.columns:
             total = window[column].to_numpy(dtype=float, na_value=np.nan)

@@ -121,6 +121,25 @@ def test_build_pit_snapshot_missing_adjusted_close_stays_missing() -> None:
     assert pd.isna(row["as_of_close_adj"])
 
 
+def test_pit_market_value_is_exact_day_and_uses_nominal_close_for_issued_shares() -> None:
+    market_values = pd.DataFrame(
+        [
+            {"stock_id": "2330", "trade_date": "2019-12-31", "market_value": 4500.0},
+            {"stock_id": "2330", "trade_date": "2020-01-02", "market_value": 9999.0},
+            # A future value and a prior-day value must never be substituted.
+            {"stock_id": "2317", "trade_date": "2020-01-02", "market_value": 9999.0},
+        ]
+    )
+    snapshot = build_pit_snapshot(
+        _universe(), date(2019, 12, 31), _financials(), _institutional(), _prices(), market_values
+    )
+    rows = snapshot.set_index("stock_id")
+    assert rows.loc["2330", "market_value"] == pytest.approx(4500.0)
+    assert rows.loc["2330", "issued_shares"] == pytest.approx(5.0)
+    assert pd.isna(rows.loc["2317", "market_value"])
+    assert pd.isna(rows.loc["2317", "issued_shares"])
+
+
 def test_build_pit_snapshot_ignores_other_stocks() -> None:
     # Eligible data exists, but none belongs to the selected universe.
     financials = _financials().assign(stock_id="9999")

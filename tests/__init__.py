@@ -1,1 +1,1 @@
-"""Test package."""
+"""Project test helpers and test modules."""

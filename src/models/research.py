@@ -61,6 +61,8 @@ class Feature(Base):
     turnover_60d: Mapped[float | None] = mapped_column(Float, nullable=True)
     foreign_net_buy_float: Mapped[float | None] = mapped_column(Float, nullable=True)
     trust_net_buy_float: Mapped[float | None] = mapped_column(Float, nullable=True)
+    foreign_net_buy_to_issued_shares: Mapped[float | None] = mapped_column(Float, nullable=True)
+    trust_net_buy_to_issued_shares: Mapped[float | None] = mapped_column(Float, nullable=True)
     margin_balance_change: Mapped[float | None] = mapped_column(Float, nullable=True)
     close_60d_high: Mapped[float | None] = mapped_column(Float, nullable=True)
     log_market_cap: Mapped[float | None] = mapped_column(Float, nullable=True)

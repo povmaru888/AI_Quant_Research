@@ -110,12 +110,20 @@ def _execute(
     universe = build_universe(prices, store.load_stocks(), as_of, settings, run_id)
     if not universe.included_ids:
         raise RuntimeError(f"empty universe for {as_of.isoformat()}; halting month")
+    market_value_loader = getattr(store, "load_market_value_snapshot", None)
+    market_values = (
+        market_value_loader()
+        if settings.features.feature_version == "factor_adj_pit_v3"
+        and callable(market_value_loader)
+        else None
+    )
     snapshot = build_pit_snapshot(
         universe,
         as_of,
         store.load_financials_snapshot(),
         store.load_institutional_snapshot(),
         prices,
+        market_values=market_values,
     )
     raw = calculate_raw_features(
         snapshot,

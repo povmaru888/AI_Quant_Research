@@ -1,0 +1,57 @@
+{
+  "source": "FinMind TaiwanStockMarketValue",
+  "interval": [
+    "2015-01-01",
+    "2026-09-22"
+  ],
+  "price_calendar_dates": 2864,
+  "succeeded_snapshot_days": 2849,
+  "confirmed_non_trading_days": 15,
+  "failed_days": 0,
+  "stored_positive_market_value_rows": 5776021,
+  "non_trading_dates": [
+    "2015-07-10",
+    "2015-09-29",
+    "2016-01-30",
+    "2016-06-04",
+    "2016-07-08",
+    "2016-09-10",
+    "2016-09-27",
+    "2016-09-28",
+    "2017-02-18",
+    "2017-06-03",
+    "2017-09-30",
+    "2018-03-31",
+    "2018-12-22",
+    "2024-12-01",
+    "2026-07-10"
+  ],
+  "low_count_source_rechecks": [
+    {
+      "date": "2025-02-07",
+      "stored_positive_rows": 2176,
+      "source_content_hash": "ff45c98e3ba56f9e50fefc75c9d3946fa98d773cf7506506141f7598bde683fd"
+    },
+    {
+      "date": "2025-02-10",
+      "stored_positive_rows": 2175,
+      "source_content_hash": "4baaa798a02b176312de4ce9a104468aed6ee97d0191e6ed47236b0a580d5c2e"
+    },
+    {
+      "date": "2025-02-11",
+      "stored_positive_rows": 2168,
+      "source_content_hash": "7409edd2b3e8c919c9b92ffb88511630bb1e20627eeb6a94100ab37218bd289e"
+    },
+    {
+      "date": "2025-02-12",
+      "stored_positive_rows": 2168,
+      "source_content_hash": "679c8b556555685bb7effebc1ba582f847ab05bf5d935cf52040c721ea75f291"
+    },
+    {
+      "date": "2025-02-13",
+      "stored_positive_rows": 2177,
+      "source_content_hash": "8c7e1d8506f06dda7b65ae7c21cfc4e8da66137acdede99a22d3c92efd383673"
+    }
+  ],
+  "low_count_note": "The five Feb 2025 dates were refreshed from FinMind and returned the same low row counts and hashes. They are outside the 2019-2024 v3 coverage gate; the local database retains the source responses for audit."
+}

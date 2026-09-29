@@ -18,6 +18,7 @@ from contracts import UniverseSnapshot
 _FINANCIAL_KEYS = ("stock_id", "report_period", "announcement_date", "available_date")
 _INSTITUTIONAL_KEYS = ("stock_id", "trade_date")
 _PRICE_KEYS = ("stock_id", "trade_date", "close", "close_adj")
+_MARKET_VALUE_KEYS = ("stock_id", "trade_date", "market_value")
 
 
 def build_pit_snapshot(
@@ -26,6 +27,7 @@ def build_pit_snapshot(
     financials: pd.DataFrame,
     institutional: pd.DataFrame,
     prices: pd.DataFrame,
+    market_values: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Join one PIT row per universe stock; unknown future data never leaks."""
     if not isinstance(as_of, date):
@@ -42,6 +44,10 @@ def build_pit_snapshot(
         missing = [c for c in keys if c not in frame.columns]
         if missing:
             raise ValueError(f"invalid {name}: missing columns {missing}")
+    if market_values is not None:
+        missing = [c for c in _MARKET_VALUE_KEYS if c not in market_values.columns]
+        if missing:
+            raise ValueError(f"invalid market_values: missing columns {missing}")
 
     as_of_str = as_of.isoformat()
     stock_ids = list(universe.included_ids)
@@ -77,6 +83,15 @@ def build_pit_snapshot(
         prices["trade_date"] == as_of_str, ["stock_id", "close", "close_adj"]
     ]
     snapshot = snapshot.merge(day_close, on="stock_id", how="left")
+    if market_values is not None:
+        day_market_value = market_values.loc[
+            market_values["trade_date"] == as_of_str,
+            ["stock_id", "trade_date", "market_value"],
+        ].drop(columns=["trade_date"])
+        snapshot = snapshot.merge(day_market_value, on="stock_id", how="left")
+        nominal_close = pd.to_numeric(snapshot["close"], errors="coerce")
+        market_value = pd.to_numeric(snapshot["market_value"], errors="coerce")
+        snapshot["issued_shares"] = market_value / nominal_close.where(nominal_close > 0)
     # Nominal valuation factors multiply close by nominal float shares.
     # Adjusted close is retained separately for analyses that need it.
     return snapshot.rename(columns={"close": "as_of_close", "close_adj": "as_of_close_adj"})

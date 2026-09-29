@@ -1,0 +1,3820 @@
+{
+  "feature_version": "factor_adj_pit_v3",
+  "start": "2019-01",
+  "end": "2024-12",
+  "months": 72,
+  "pre_market_cap_candidates": 56498,
+  "market_value_covered": 55940,
+  "market_value_missing": 558,
+  "coverage": 0.9901235441962547,
+  "coverage_threshold": 0.99,
+  "near_4_to_6_billion_candidates": 6098,
+  "near_4_to_6_billion_missing": 92,
+  "near_band_estimation_note": "When the PIT market value is missing, shares.json is used only to flag likely 4-6bn candidates for this coverage diagnostic; it is never used in v3 panels.",
+  "monthly": [
+    {
+      "signal_date": "2019-01-30",
+      "pre_market_cap_candidates": 450,
+      "market_value_covered": 448,
+      "market_value_missing": 2,
+      "missing_stock_ids": [
+        "4564",
+        "6669"
+      ]
+    },
+    {
+      "signal_date": "2019-02-27",
+      "pre_market_cap_candidates": 515,
+      "market_value_covered": 512,
+      "market_value_missing": 3,
+      "missing_stock_ids": [
+        "4564",
+        "4572",
+        "6669"
+      ]
+    },
+    {
+      "signal_date": "2019-03-29",
+      "pre_market_cap_candidates": 568,
+      "market_value_covered": 567,
+      "market_value_missing": 1,
+      "missing_stock_ids": [
+        "6407"
+      ]
+    },
+    {
+      "signal_date": "2019-04-30",
+      "pre_market_cap_candidates": 592,
+      "market_value_covered": 585,
+      "market_value_missing": 7,
+      "missing_stock_ids": [
+        "3138",
+        "4572",
+        "4580",
+        "6491",
+        "6679",
+        "6706",
+        "6712"
+      ]
+    },
+    {
+      "signal_date": "2019-05-31",
+      "pre_market_cap_candidates": 526,
+      "market_value_covered": 523,
+      "market_value_missing": 3,
+      "missing_stock_ids": [
+        "6491",
+        "6691",
+        "6712"
+      ]
+    },
+    {
+      "signal_date": "2019-06-28",
+      "pre_market_cap_candidates": 469,
+      "market_value_covered": 467,
+      "market_value_missing": 2,
+      "missing_stock_ids": [
+        "6491",
+        "6712"
+      ]
+    },
+    {
+      "signal_date": "2019-07-31",
+      "pre_market_cap_candidates": 558,
+      "market_value_covered": 554,
+      "market_value_missing": 4,
+      "missing_stock_ids": [
+        "6491",
+        "6691",
+        "6712",
+        "6732"
+      ]
+    },
+    {
+      "signal_date": "2019-08-30",
+      "pre_market_cap_candidates": 513,
+      "market_value_covered": 507,
+      "market_value_missing": 6,
+      "missing_stock_ids": [
+        "3138",
+        "4150",
+        "4572",
+        "4931",
+        "6712",
+        "6732"
+      ]
+    },
+    {
+      "signal_date": "2019-09-27",
+      "pre_market_cap_candidates": 525,
+      "market_value_covered": 520,
+      "market_value_missing": 5,
+      "missing_stock_ids": [
+        "4150",
+        "6638",
+        "6657",
+        "6712",
+        "6732"
+      ]
+    },
+    {
+      "signal_date": "2019-10-31",
+      "pre_market_cap_candidates": 510,
+      "market_value_covered": 506,
+      "market_value_missing": 4,
+      "missing_stock_ids": [
+        "6550",
+        "6657",
+        "6706",
+        "6732"
+      ]
+    },
+    {
+      "signal_date": "2019-11-29",
+      "pre_market_cap_candidates": 552,
+      "market_value_covered": 549,
+      "market_value_missing": 3,
+      "missing_stock_ids": [
+        "6592",
+        "6706",
+        "6732"
+      ]
+    },
+    {
+      "signal_date": "2019-12-31",
+      "pre_market_cap_candidates": 534,
+      "market_value_covered": 530,
+      "market_value_missing": 4,
+      "missing_stock_ids": [
+        "4150",
+        "6515",
+        "6550",
+        "6732"
+      ]
+    },
+    {
+      "signal_date": "2020-01-31",
+      "pre_market_cap_candidates": 567,
+      "market_value_covered": 563,
+      "market_value_missing": 4,
+      "missing_stock_ids": [
+        "4150",
+        "6515",
+        "6550",
+        "6732"
+      ]
+    },
+    {
+      "signal_date": "2020-02-27",
+      "pre_market_cap_candidates": 547,
+      "market_value_covered": 544,
+      "market_value_missing": 3,
+      "missing_stock_ids": [
+        "4150",
+        "6515",
+        "6732"
+      ]
+    },
+    {
+      "signal_date": "2020-03-31",
+      "pre_market_cap_candidates": 586,
+      "market_value_covered": 581,
+      "market_value_missing": 5,
+      "missing_stock_ids": [
+        "4150",
+        "4431",
+        "6515",
+        "6712",
+        "6732"
+      ]
+    },
+    {
+      "signal_date": "2020-04-30",
+      "pre_market_cap_candidates": 575,
+      "market_value_covered": 571,
+      "market_value_missing": 4,
+      "missing_stock_ids": [
+        "4150",
+        "4431",
+        "6515",
+        "6732"
+      ]
+    },
+    {
+      "signal_date": "2020-05-29",
+      "pre_market_cap_candidates": 660,
+      "market_value_covered": 660,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2020-06-30",
+      "pre_market_cap_candidates": 718,
+      "market_value_covered": 718,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2020-07-31",
+      "pre_market_cap_candidates": 759,
+      "market_value_covered": 755,
+      "market_value_missing": 4,
+      "missing_stock_ids": [
+        "4117",
+        "4768",
+        "6634",
+        "6743"
+      ]
+    },
+    {
+      "signal_date": "2020-08-31",
+      "pre_market_cap_candidates": 732,
+      "market_value_covered": 712,
+      "market_value_missing": 20,
+      "missing_stock_ids": [
+        "3357",
+        "4117",
+        "4150",
+        "4186",
+        "4431",
+        "4768",
+        "5222",
+        "6515",
+        "6550",
+        "6564",
+        "6572",
+        "6617",
+        "6621",
+        "6634",
+        "6645",
+        "6712",
+        "6737",
+        "6743",
+        "6756",
+        "8089"
+      ]
+    },
+    {
+      "signal_date": "2020-09-30",
+      "pre_market_cap_candidates": 706,
+      "market_value_covered": 689,
+      "market_value_missing": 17,
+      "missing_stock_ids": [
+        "2247",
+        "3138",
+        "4117",
+        "4431",
+        "4768",
+        "5222",
+        "6515",
+        "6572",
+        "6617",
+        "6634",
+        "6645",
+        "6703",
+        "6712",
+        "6737",
+        "6743",
+        "6756",
+        "6786"
+      ]
+    },
+    {
+      "signal_date": "2020-10-30",
+      "pre_market_cap_candidates": 699,
+      "market_value_covered": 687,
+      "market_value_missing": 12,
+      "missing_stock_ids": [
+        "2753",
+        "3138",
+        "4117",
+        "4431",
+        "6515",
+        "6550",
+        "6617",
+        "6645",
+        "6682",
+        "6712",
+        "6743",
+        "6755"
+      ]
+    },
+    {
+      "signal_date": "2020-11-30",
+      "pre_market_cap_candidates": 801,
+      "market_value_covered": 785,
+      "market_value_missing": 16,
+      "missing_stock_ids": [
+        "3138",
+        "3357",
+        "4117",
+        "4194",
+        "4431",
+        "4925",
+        "6515",
+        "6546",
+        "6572",
+        "6617",
+        "6691",
+        "6712",
+        "6743",
+        "6755",
+        "6756",
+        "6793"
+      ]
+    },
+    {
+      "signal_date": "2020-12-31",
+      "pre_market_cap_candidates": 845,
+      "market_value_covered": 832,
+      "market_value_missing": 13,
+      "missing_stock_ids": [
+        "3357",
+        "4117",
+        "4194",
+        "4431",
+        "4925",
+        "6515",
+        "6617",
+        "6634",
+        "6645",
+        "6691",
+        "6712",
+        "6786",
+        "6797"
+      ]
+    },
+    {
+      "signal_date": "2021-01-29",
+      "pre_market_cap_candidates": 819,
+      "market_value_covered": 805,
+      "market_value_missing": 14,
+      "missing_stock_ids": [
+        "3357",
+        "4117",
+        "4431",
+        "4768",
+        "4925",
+        "6555",
+        "6617",
+        "6634",
+        "6737",
+        "6770",
+        "6786",
+        "6788",
+        "6797",
+        "6799"
+      ]
+    },
+    {
+      "signal_date": "2021-02-26",
+      "pre_market_cap_candidates": 806,
+      "market_value_covered": 784,
+      "market_value_missing": 22,
+      "missing_stock_ids": [
+        "3357",
+        "4117",
+        "4431",
+        "4768",
+        "4925",
+        "5222",
+        "6546",
+        "6555",
+        "6617",
+        "6634",
+        "6693",
+        "6696",
+        "6737",
+        "6770",
+        "6784",
+        "6786",
+        "6788",
+        "6792",
+        "6797",
+        "6799",
+        "6805",
+        "6818"
+      ]
+    },
+    {
+      "signal_date": "2021-03-31",
+      "pre_market_cap_candidates": 929,
+      "market_value_covered": 904,
+      "market_value_missing": 25,
+      "missing_stock_ids": [
+        "2211",
+        "3357",
+        "4150",
+        "4738",
+        "4925",
+        "4980",
+        "5222",
+        "6550",
+        "6555",
+        "6564",
+        "6586",
+        "6617",
+        "6648",
+        "6696",
+        "6708",
+        "6737",
+        "6770",
+        "6786",
+        "6788",
+        "6792",
+        "6793",
+        "6797",
+        "6805",
+        "6812",
+        "6817"
+      ]
+    },
+    {
+      "signal_date": "2021-04-29",
+      "pre_market_cap_candidates": 1089,
+      "market_value_covered": 1057,
+      "market_value_missing": 32,
+      "missing_stock_ids": [
+        "4150",
+        "4770",
+        "4923",
+        "4925",
+        "4951",
+        "5222",
+        "6423",
+        "6550",
+        "6555",
+        "6564",
+        "6586",
+        "6617",
+        "6684",
+        "6696",
+        "6708",
+        "6709",
+        "6737",
+        "6755",
+        "6763",
+        "6770",
+        "6782",
+        "6786",
+        "6788",
+        "6790",
+        "6792",
+        "6793",
+        "6797",
+        "6799",
+        "6805",
+        "6812",
+        "6817",
+        "9957"
+      ]
+    },
+    {
+      "signal_date": "2021-05-31",
+      "pre_market_cap_candidates": 943,
+      "market_value_covered": 923,
+      "market_value_missing": 20,
+      "missing_stock_ids": [
+        "4117",
+        "4431",
+        "4770",
+        "4925",
+        "5222",
+        "6550",
+        "6564",
+        "6572",
+        "6617",
+        "6645",
+        "6696",
+        "6709",
+        "6763",
+        "6770",
+        "6786",
+        "6788",
+        "6789",
+        "6793",
+        "6797",
+        "6805"
+      ]
+    },
+    {
+      "signal_date": "2021-06-30",
+      "pre_market_cap_candidates": 827,
+      "market_value_covered": 806,
+      "market_value_missing": 21,
+      "missing_stock_ids": [
+        "2327",
+        "2753",
+        "4117",
+        "4925",
+        "5222",
+        "6550",
+        "6555",
+        "6564",
+        "6586",
+        "6617",
+        "6689",
+        "6696",
+        "6763",
+        "6770",
+        "6788",
+        "6789",
+        "6793",
+        "6797",
+        "6799",
+        "6805",
+        "9957"
+      ]
+    },
+    {
+      "signal_date": "2021-07-30",
+      "pre_market_cap_candidates": 908,
+      "market_value_covered": 882,
+      "market_value_missing": 26,
+      "missing_stock_ids": [
+        "4925",
+        "4951",
+        "5222",
+        "6546",
+        "6550",
+        "6555",
+        "6585",
+        "6586",
+        "6617",
+        "6682",
+        "6684",
+        "6689",
+        "6691",
+        "6695",
+        "6696",
+        "6709",
+        "6763",
+        "6770",
+        "6788",
+        "6789",
+        "6797",
+        "6799",
+        "6805",
+        "7566",
+        "8227",
+        "9957"
+      ]
+    },
+    {
+      "signal_date": "2021-08-31",
+      "pre_market_cap_candidates": 795,
+      "market_value_covered": 773,
+      "market_value_missing": 22,
+      "missing_stock_ids": [
+        "2753",
+        "4925",
+        "5222",
+        "6546",
+        "6550",
+        "6555",
+        "6586",
+        "6617",
+        "6689",
+        "6696",
+        "6761",
+        "6763",
+        "6770",
+        "6788",
+        "6789",
+        "6792",
+        "6797",
+        "6799",
+        "6805",
+        "7427",
+        "8227",
+        "9957"
+      ]
+    },
+    {
+      "signal_date": "2021-09-30",
+      "pre_market_cap_candidates": 742,
+      "market_value_covered": 722,
+      "market_value_missing": 20,
+      "missing_stock_ids": [
+        "2252",
+        "3048",
+        "4768",
+        "4925",
+        "5222",
+        "6550",
+        "6555",
+        "6586",
+        "6617",
+        "6695",
+        "6761",
+        "6763",
+        "6770",
+        "6789",
+        "6792",
+        "6799",
+        "6805",
+        "8227",
+        "8359",
+        "9957"
+      ]
+    },
+    {
+      "signal_date": "2021-10-29",
+      "pre_market_cap_candidates": 735,
+      "market_value_covered": 718,
+      "market_value_missing": 17,
+      "missing_stock_ids": [
+        "4925",
+        "6550",
+        "6555",
+        "6586",
+        "6617",
+        "6689",
+        "6695",
+        "6761",
+        "6763",
+        "6770",
+        "6789",
+        "6792",
+        "6797",
+        "6799",
+        "6805",
+        "8227",
+        "8359"
+      ]
+    },
+    {
+      "signal_date": "2021-11-30",
+      "pre_market_cap_candidates": 846,
+      "market_value_covered": 818,
+      "market_value_missing": 28,
+      "missing_stock_ids": [
+        "4768",
+        "4770",
+        "4771",
+        "4923",
+        "4925",
+        "4951",
+        "4980",
+        "6423",
+        "6550",
+        "6555",
+        "6586",
+        "6617",
+        "6689",
+        "6691",
+        "6693",
+        "6695",
+        "6696",
+        "6757",
+        "6763",
+        "6789",
+        "6792",
+        "6797",
+        "6799",
+        "6805",
+        "6810",
+        "6842",
+        "8119",
+        "8227"
+      ]
+    },
+    {
+      "signal_date": "2021-12-30",
+      "pre_market_cap_candidates": 844,
+      "market_value_covered": 812,
+      "market_value_missing": 32,
+      "missing_stock_ids": [
+        "4172",
+        "4194",
+        "4732",
+        "4768",
+        "4923",
+        "4925",
+        "4951",
+        "6423",
+        "6546",
+        "6550",
+        "6580",
+        "6586",
+        "6617",
+        "6620",
+        "6682",
+        "6689",
+        "6693",
+        "6695",
+        "6696",
+        "6742",
+        "6763",
+        "6782",
+        "6789",
+        "6793",
+        "6797",
+        "6799",
+        "6805",
+        "6810",
+        "6812",
+        "7566",
+        "8119",
+        "8227"
+      ]
+    },
+    {
+      "signal_date": "2022-01-26",
+      "pre_market_cap_candidates": 828,
+      "market_value_covered": 803,
+      "market_value_missing": 25,
+      "missing_stock_ids": [
+        "4117",
+        "4732",
+        "4925",
+        "6423",
+        "6546",
+        "6550",
+        "6580",
+        "6586",
+        "6617",
+        "6622",
+        "6682",
+        "6695",
+        "6696",
+        "6742",
+        "6763",
+        "6789",
+        "6793",
+        "6797",
+        "6799",
+        "6805",
+        "6812",
+        "6830",
+        "6865",
+        "6873",
+        "8227"
+      ]
+    },
+    {
+      "signal_date": "2022-02-25",
+      "pre_market_cap_candidates": 778,
+      "market_value_covered": 757,
+      "market_value_missing": 21,
+      "missing_stock_ids": [
+        "4925",
+        "4951",
+        "6423",
+        "6546",
+        "6550",
+        "6580",
+        "6586",
+        "6617",
+        "6620",
+        "6682",
+        "6696",
+        "6757",
+        "6763",
+        "6789",
+        "6797",
+        "6799",
+        "6805",
+        "6812",
+        "6869",
+        "8227",
+        "9957"
+      ]
+    },
+    {
+      "signal_date": "2022-03-31",
+      "pre_market_cap_candidates": 797,
+      "market_value_covered": 775,
+      "market_value_missing": 22,
+      "missing_stock_ids": [
+        "2645",
+        "4583",
+        "4749",
+        "4768",
+        "4925",
+        "6546",
+        "6550",
+        "6555",
+        "6580",
+        "6586",
+        "6617",
+        "6620",
+        "6676",
+        "6696",
+        "6753",
+        "6789",
+        "6797",
+        "6799",
+        "6805",
+        "6812",
+        "8227",
+        "9957"
+      ]
+    },
+    {
+      "signal_date": "2022-04-29",
+      "pre_market_cap_candidates": 790,
+      "market_value_covered": 767,
+      "market_value_missing": 23,
+      "missing_stock_ids": [
+        "2645",
+        "4117",
+        "4749",
+        "4925",
+        "6546",
+        "6550",
+        "6564",
+        "6586",
+        "6617",
+        "6645",
+        "6676",
+        "6682",
+        "6696",
+        "6734",
+        "6742",
+        "6753",
+        "6789",
+        "6793",
+        "6797",
+        "6799",
+        "6805",
+        "6850",
+        "9957"
+      ]
+    },
+    {
+      "signal_date": "2022-05-31",
+      "pre_market_cap_candidates": 718,
+      "market_value_covered": 708,
+      "market_value_missing": 10,
+      "missing_stock_ids": [
+        "4749",
+        "6423",
+        "6564",
+        "6586",
+        "6617",
+        "6696",
+        "6789",
+        "6797",
+        "6805",
+        "8227"
+      ]
+    },
+    {
+      "signal_date": "2022-06-30",
+      "pre_market_cap_candidates": 733,
+      "market_value_covered": 724,
+      "market_value_missing": 9,
+      "missing_stock_ids": [
+        "4749",
+        "4925",
+        "6526",
+        "6586",
+        "6617",
+        "6696",
+        "6742",
+        "6797",
+        "6805"
+      ]
+    },
+    {
+      "signal_date": "2022-07-29",
+      "pre_market_cap_candidates": 657,
+      "market_value_covered": 647,
+      "market_value_missing": 10,
+      "missing_stock_ids": [
+        "4749",
+        "4925",
+        "6526",
+        "6586",
+        "6617",
+        "6620",
+        "6696",
+        "6742",
+        "6782",
+        "6805"
+      ]
+    },
+    {
+      "signal_date": "2022-08-31",
+      "pre_market_cap_candidates": 769,
+      "market_value_covered": 756,
+      "market_value_missing": 13,
+      "missing_stock_ids": [
+        "4749",
+        "4771",
+        "6526",
+        "6586",
+        "6617",
+        "6620",
+        "6689",
+        "6696",
+        "6742",
+        "6753",
+        "6782",
+        "6901",
+        "6903"
+      ]
+    },
+    {
+      "signal_date": "2022-09-30",
+      "pre_market_cap_candidates": 717,
+      "market_value_covered": 717,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2022-10-31",
+      "pre_market_cap_candidates": 606,
+      "market_value_covered": 606,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2022-11-30",
+      "pre_market_cap_candidates": 718,
+      "market_value_covered": 718,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2022-12-30",
+      "pre_market_cap_candidates": 712,
+      "market_value_covered": 712,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2023-01-31",
+      "pre_market_cap_candidates": 663,
+      "market_value_covered": 663,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2023-02-24",
+      "pre_market_cap_candidates": 839,
+      "market_value_covered": 839,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2023-03-31",
+      "pre_market_cap_candidates": 905,
+      "market_value_covered": 904,
+      "market_value_missing": 1,
+      "missing_stock_ids": [
+        "3432"
+      ]
+    },
+    {
+      "signal_date": "2023-04-28",
+      "pre_market_cap_candidates": 925,
+      "market_value_covered": 925,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2023-05-31",
+      "pre_market_cap_candidates": 907,
+      "market_value_covered": 907,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2023-06-30",
+      "pre_market_cap_candidates": 991,
+      "market_value_covered": 991,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2023-07-31",
+      "pre_market_cap_candidates": 1002,
+      "market_value_covered": 1002,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2023-08-31",
+      "pre_market_cap_candidates": 853,
+      "market_value_covered": 853,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2023-09-28",
+      "pre_market_cap_candidates": 796,
+      "market_value_covered": 796,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2023-10-31",
+      "pre_market_cap_candidates": 790,
+      "market_value_covered": 790,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2023-11-30",
+      "pre_market_cap_candidates": 892,
+      "market_value_covered": 892,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2023-12-29",
+      "pre_market_cap_candidates": 936,
+      "market_value_covered": 936,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2024-01-31",
+      "pre_market_cap_candidates": 870,
+      "market_value_covered": 870,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2024-02-29",
+      "pre_market_cap_candidates": 997,
+      "market_value_covered": 997,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2024-03-29",
+      "pre_market_cap_candidates": 1081,
+      "market_value_covered": 1081,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2024-04-30",
+      "pre_market_cap_candidates": 1076,
+      "market_value_covered": 1076,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2024-05-31",
+      "pre_market_cap_candidates": 1100,
+      "market_value_covered": 1100,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2024-06-28",
+      "pre_market_cap_candidates": 1113,
+      "market_value_covered": 1113,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2024-07-31",
+      "pre_market_cap_candidates": 1196,
+      "market_value_covered": 1196,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2024-08-30",
+      "pre_market_cap_candidates": 1024,
+      "market_value_covered": 1024,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2024-09-30",
+      "pre_market_cap_candidates": 1002,
+      "market_value_covered": 1002,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    },
+    {
+      "signal_date": "2024-10-30",
+      "pre_market_cap_candidates": 1022,
+      "market_value_covered": 1021,
+      "market_value_missing": 1,
+      "missing_stock_ids": [
+        "3207"
+      ]
+    },
+    {
+      "signal_date": "2024-11-29",
+      "pre_market_cap_candidates": 972,
+      "market_value_covered": 970,
+      "market_value_missing": 2,
+      "missing_stock_ids": [
+        "4123",
+        "6535"
+      ]
+    },
+    {
+      "signal_date": "2024-12-31",
+      "pre_market_cap_candidates": 933,
+      "market_value_covered": 933,
+      "market_value_missing": 0,
+      "missing_stock_ids": []
+    }
+  ],
+  "missing_details": [
+    {
+      "signal_date": "2019-01-30",
+      "stock_id": "4564"
+    },
+    {
+      "signal_date": "2019-01-30",
+      "stock_id": "6669"
+    },
+    {
+      "signal_date": "2019-02-27",
+      "stock_id": "4564"
+    },
+    {
+      "signal_date": "2019-02-27",
+      "stock_id": "4572"
+    },
+    {
+      "signal_date": "2019-02-27",
+      "stock_id": "6669"
+    },
+    {
+      "signal_date": "2019-03-29",
+      "stock_id": "6407"
+    },
+    {
+      "signal_date": "2019-04-30",
+      "stock_id": "3138"
+    },
+    {
+      "signal_date": "2019-04-30",
+      "stock_id": "4572"
+    },
+    {
+      "signal_date": "2019-04-30",
+      "stock_id": "4580"
+    },
+    {
+      "signal_date": "2019-04-30",
+      "stock_id": "6491"
+    },
+    {
+      "signal_date": "2019-04-30",
+      "stock_id": "6679"
+    },
+    {
+      "signal_date": "2019-04-30",
+      "stock_id": "6706"
+    },
+    {
+      "signal_date": "2019-04-30",
+      "stock_id": "6712"
+    },
+    {
+      "signal_date": "2019-05-31",
+      "stock_id": "6491"
+    },
+    {
+      "signal_date": "2019-05-31",
+      "stock_id": "6691"
+    },
+    {
+      "signal_date": "2019-05-31",
+      "stock_id": "6712"
+    },
+    {
+      "signal_date": "2019-06-28",
+      "stock_id": "6491"
+    },
+    {
+      "signal_date": "2019-06-28",
+      "stock_id": "6712"
+    },
+    {
+      "signal_date": "2019-07-31",
+      "stock_id": "6491"
+    },
+    {
+      "signal_date": "2019-07-31",
+      "stock_id": "6691"
+    },
+    {
+      "signal_date": "2019-07-31",
+      "stock_id": "6712"
+    },
+    {
+      "signal_date": "2019-07-31",
+      "stock_id": "6732"
+    },
+    {
+      "signal_date": "2019-08-30",
+      "stock_id": "3138"
+    },
+    {
+      "signal_date": "2019-08-30",
+      "stock_id": "4150"
+    },
+    {
+      "signal_date": "2019-08-30",
+      "stock_id": "4572"
+    },
+    {
+      "signal_date": "2019-08-30",
+      "stock_id": "4931"
+    },
+    {
+      "signal_date": "2019-08-30",
+      "stock_id": "6712"
+    },
+    {
+      "signal_date": "2019-08-30",
+      "stock_id": "6732"
+    },
+    {
+      "signal_date": "2019-09-27",
+      "stock_id": "4150"
+    },
+    {
+      "signal_date": "2019-09-27",
+      "stock_id": "6638"
+    },
+    {
+      "signal_date": "2019-09-27",
+      "stock_id": "6657"
+    },
+    {
+      "signal_date": "2019-09-27",
+      "stock_id": "6712"
+    },
+    {
+      "signal_date": "2019-09-27",
+      "stock_id": "6732"
+    },
+    {
+      "signal_date": "2019-10-31",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2019-10-31",
+      "stock_id": "6657"
+    },
+    {
+      "signal_date": "2019-10-31",
+      "stock_id": "6706"
+    },
+    {
+      "signal_date": "2019-10-31",
+      "stock_id": "6732"
+    },
+    {
+      "signal_date": "2019-11-29",
+      "stock_id": "6592"
+    },
+    {
+      "signal_date": "2019-11-29",
+      "stock_id": "6706"
+    },
+    {
+      "signal_date": "2019-11-29",
+      "stock_id": "6732"
+    },
+    {
+      "signal_date": "2019-12-31",
+      "stock_id": "4150"
+    },
+    {
+      "signal_date": "2019-12-31",
+      "stock_id": "6515"
+    },
+    {
+      "signal_date": "2019-12-31",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2019-12-31",
+      "stock_id": "6732"
+    },
+    {
+      "signal_date": "2020-01-31",
+      "stock_id": "4150"
+    },
+    {
+      "signal_date": "2020-01-31",
+      "stock_id": "6515"
+    },
+    {
+      "signal_date": "2020-01-31",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2020-01-31",
+      "stock_id": "6732"
+    },
+    {
+      "signal_date": "2020-02-27",
+      "stock_id": "4150"
+    },
+    {
+      "signal_date": "2020-02-27",
+      "stock_id": "6515"
+    },
+    {
+      "signal_date": "2020-02-27",
+      "stock_id": "6732"
+    },
+    {
+      "signal_date": "2020-03-31",
+      "stock_id": "4150"
+    },
+    {
+      "signal_date": "2020-03-31",
+      "stock_id": "4431"
+    },
+    {
+      "signal_date": "2020-03-31",
+      "stock_id": "6515"
+    },
+    {
+      "signal_date": "2020-03-31",
+      "stock_id": "6712"
+    },
+    {
+      "signal_date": "2020-03-31",
+      "stock_id": "6732"
+    },
+    {
+      "signal_date": "2020-04-30",
+      "stock_id": "4150"
+    },
+    {
+      "signal_date": "2020-04-30",
+      "stock_id": "4431"
+    },
+    {
+      "signal_date": "2020-04-30",
+      "stock_id": "6515"
+    },
+    {
+      "signal_date": "2020-04-30",
+      "stock_id": "6732"
+    },
+    {
+      "signal_date": "2020-07-31",
+      "stock_id": "4117"
+    },
+    {
+      "signal_date": "2020-07-31",
+      "stock_id": "4768"
+    },
+    {
+      "signal_date": "2020-07-31",
+      "stock_id": "6634"
+    },
+    {
+      "signal_date": "2020-07-31",
+      "stock_id": "6743"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "3357"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "4117"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "4150"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "4186"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "4431"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "4768"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "5222"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "6515"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "6564"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "6572"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "6621"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "6634"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "6645"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "6712"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "6737"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "6743"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "6756"
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "8089"
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "2247"
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "3138"
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "4117"
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "4431"
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "4768"
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "5222"
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "6515"
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "6572"
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "6634"
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "6645"
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "6703"
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "6712"
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "6737"
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "6743"
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "6756"
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "6786"
+    },
+    {
+      "signal_date": "2020-10-30",
+      "stock_id": "2753"
+    },
+    {
+      "signal_date": "2020-10-30",
+      "stock_id": "3138"
+    },
+    {
+      "signal_date": "2020-10-30",
+      "stock_id": "4117"
+    },
+    {
+      "signal_date": "2020-10-30",
+      "stock_id": "4431"
+    },
+    {
+      "signal_date": "2020-10-30",
+      "stock_id": "6515"
+    },
+    {
+      "signal_date": "2020-10-30",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2020-10-30",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2020-10-30",
+      "stock_id": "6645"
+    },
+    {
+      "signal_date": "2020-10-30",
+      "stock_id": "6682"
+    },
+    {
+      "signal_date": "2020-10-30",
+      "stock_id": "6712"
+    },
+    {
+      "signal_date": "2020-10-30",
+      "stock_id": "6743"
+    },
+    {
+      "signal_date": "2020-10-30",
+      "stock_id": "6755"
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "3138"
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "3357"
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "4117"
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "4194"
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "4431"
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "6515"
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "6546"
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "6572"
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "6691"
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "6712"
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "6743"
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "6755"
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "6756"
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "6793"
+    },
+    {
+      "signal_date": "2020-12-31",
+      "stock_id": "3357"
+    },
+    {
+      "signal_date": "2020-12-31",
+      "stock_id": "4117"
+    },
+    {
+      "signal_date": "2020-12-31",
+      "stock_id": "4194"
+    },
+    {
+      "signal_date": "2020-12-31",
+      "stock_id": "4431"
+    },
+    {
+      "signal_date": "2020-12-31",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2020-12-31",
+      "stock_id": "6515"
+    },
+    {
+      "signal_date": "2020-12-31",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2020-12-31",
+      "stock_id": "6634"
+    },
+    {
+      "signal_date": "2020-12-31",
+      "stock_id": "6645"
+    },
+    {
+      "signal_date": "2020-12-31",
+      "stock_id": "6691"
+    },
+    {
+      "signal_date": "2020-12-31",
+      "stock_id": "6712"
+    },
+    {
+      "signal_date": "2020-12-31",
+      "stock_id": "6786"
+    },
+    {
+      "signal_date": "2020-12-31",
+      "stock_id": "6797"
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "3357"
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "4117"
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "4431"
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "4768"
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "6555"
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "6634"
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "6737"
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "6770"
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "6786"
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "6788"
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "6797"
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "6799"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "3357"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "4117"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "4431"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "4768"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "5222"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6546"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6555"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6634"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6693"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6696"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6737"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6770"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6784"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6786"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6788"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6792"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6797"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6799"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6805"
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6818"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "2211"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "3357"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "4150"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "4738"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "4980"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "5222"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6555"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6564"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6586"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6648"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6696"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6708"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6737"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6770"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6786"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6788"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6792"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6793"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6797"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6805"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6812"
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6817"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "4150"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "4770"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "4923"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "4951"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "5222"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6423"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6555"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6564"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6586"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6684"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6696"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6708"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6709"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6737"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6755"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6763"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6770"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6782"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6786"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6788"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6790"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6792"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6793"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6797"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6799"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6805"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6812"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6817"
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "9957"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "4117"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "4431"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "4770"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "5222"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6564"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6572"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6645"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6696"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6709"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6763"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6770"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6786"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6788"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6789"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6793"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6797"
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6805"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "2327"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "2753"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "4117"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "5222"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "6555"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "6564"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "6586"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "6689"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "6696"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "6763"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "6770"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "6788"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "6789"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "6793"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "6797"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "6799"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "6805"
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "9957"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "4951"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "5222"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6546"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6555"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6585"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6586"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6682"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6684"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6689"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6691"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6695"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6696"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6709"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6763"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6770"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6788"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6789"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6797"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6799"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6805"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "7566"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "8227"
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "9957"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "2753"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "5222"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6546"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6555"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6586"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6689"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6696"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6761"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6763"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6770"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6788"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6789"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6792"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6797"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6799"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6805"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "7427"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "8227"
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "9957"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "2252"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "3048"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "4768"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "5222"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "6555"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "6586"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "6695"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "6761"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "6763"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "6770"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "6789"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "6792"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "6799"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "6805"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "8227"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "8359"
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "9957"
+    },
+    {
+      "signal_date": "2021-10-29",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2021-10-29",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2021-10-29",
+      "stock_id": "6555"
+    },
+    {
+      "signal_date": "2021-10-29",
+      "stock_id": "6586"
+    },
+    {
+      "signal_date": "2021-10-29",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2021-10-29",
+      "stock_id": "6689"
+    },
+    {
+      "signal_date": "2021-10-29",
+      "stock_id": "6695"
+    },
+    {
+      "signal_date": "2021-10-29",
+      "stock_id": "6761"
+    },
+    {
+      "signal_date": "2021-10-29",
+      "stock_id": "6763"
+    },
+    {
+      "signal_date": "2021-10-29",
+      "stock_id": "6770"
+    },
+    {
+      "signal_date": "2021-10-29",
+      "stock_id": "6789"
+    },
+    {
+      "signal_date": "2021-10-29",
+      "stock_id": "6792"
+    },
+    {
+      "signal_date": "2021-10-29",
+      "stock_id": "6797"
+    },
+    {
+      "signal_date": "2021-10-29",
+      "stock_id": "6799"
+    },
+    {
+      "signal_date": "2021-10-29",
+      "stock_id": "6805"
+    },
+    {
+      "signal_date": "2021-10-29",
+      "stock_id": "8227"
+    },
+    {
+      "signal_date": "2021-10-29",
+      "stock_id": "8359"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "4768"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "4770"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "4771"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "4923"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "4951"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "4980"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6423"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6555"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6586"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6689"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6691"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6693"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6695"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6696"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6757"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6763"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6789"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6792"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6797"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6799"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6805"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6810"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6842"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "8119"
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "8227"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "4172"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "4194"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "4732"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "4768"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "4923"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "4951"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6423"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6546"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6580"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6586"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6620"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6682"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6689"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6693"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6695"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6696"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6742"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6763"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6782"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6789"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6793"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6797"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6799"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6805"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6810"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6812"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "7566"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "8119"
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "8227"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "4117"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "4732"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6423"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6546"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6580"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6586"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6622"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6682"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6695"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6696"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6742"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6763"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6789"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6793"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6797"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6799"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6805"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6812"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6830"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6865"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6873"
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "8227"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "4951"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6423"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6546"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6580"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6586"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6620"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6682"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6696"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6757"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6763"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6789"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6797"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6799"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6805"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6812"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6869"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "8227"
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "9957"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "2645"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "4583"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "4749"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "4768"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6546"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6555"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6580"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6586"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6620"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6676"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6696"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6753"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6789"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6797"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6799"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6805"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6812"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "8227"
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "9957"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "2645"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "4117"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "4749"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6546"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6550"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6564"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6586"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6645"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6676"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6682"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6696"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6734"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6742"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6753"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6789"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6793"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6797"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6799"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6805"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6850"
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "9957"
+    },
+    {
+      "signal_date": "2022-05-31",
+      "stock_id": "4749"
+    },
+    {
+      "signal_date": "2022-05-31",
+      "stock_id": "6423"
+    },
+    {
+      "signal_date": "2022-05-31",
+      "stock_id": "6564"
+    },
+    {
+      "signal_date": "2022-05-31",
+      "stock_id": "6586"
+    },
+    {
+      "signal_date": "2022-05-31",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2022-05-31",
+      "stock_id": "6696"
+    },
+    {
+      "signal_date": "2022-05-31",
+      "stock_id": "6789"
+    },
+    {
+      "signal_date": "2022-05-31",
+      "stock_id": "6797"
+    },
+    {
+      "signal_date": "2022-05-31",
+      "stock_id": "6805"
+    },
+    {
+      "signal_date": "2022-05-31",
+      "stock_id": "8227"
+    },
+    {
+      "signal_date": "2022-06-30",
+      "stock_id": "4749"
+    },
+    {
+      "signal_date": "2022-06-30",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2022-06-30",
+      "stock_id": "6526"
+    },
+    {
+      "signal_date": "2022-06-30",
+      "stock_id": "6586"
+    },
+    {
+      "signal_date": "2022-06-30",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2022-06-30",
+      "stock_id": "6696"
+    },
+    {
+      "signal_date": "2022-06-30",
+      "stock_id": "6742"
+    },
+    {
+      "signal_date": "2022-06-30",
+      "stock_id": "6797"
+    },
+    {
+      "signal_date": "2022-06-30",
+      "stock_id": "6805"
+    },
+    {
+      "signal_date": "2022-07-29",
+      "stock_id": "4749"
+    },
+    {
+      "signal_date": "2022-07-29",
+      "stock_id": "4925"
+    },
+    {
+      "signal_date": "2022-07-29",
+      "stock_id": "6526"
+    },
+    {
+      "signal_date": "2022-07-29",
+      "stock_id": "6586"
+    },
+    {
+      "signal_date": "2022-07-29",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2022-07-29",
+      "stock_id": "6620"
+    },
+    {
+      "signal_date": "2022-07-29",
+      "stock_id": "6696"
+    },
+    {
+      "signal_date": "2022-07-29",
+      "stock_id": "6742"
+    },
+    {
+      "signal_date": "2022-07-29",
+      "stock_id": "6782"
+    },
+    {
+      "signal_date": "2022-07-29",
+      "stock_id": "6805"
+    },
+    {
+      "signal_date": "2022-08-31",
+      "stock_id": "4749"
+    },
+    {
+      "signal_date": "2022-08-31",
+      "stock_id": "4771"
+    },
+    {
+      "signal_date": "2022-08-31",
+      "stock_id": "6526"
+    },
+    {
+      "signal_date": "2022-08-31",
+      "stock_id": "6586"
+    },
+    {
+      "signal_date": "2022-08-31",
+      "stock_id": "6617"
+    },
+    {
+      "signal_date": "2022-08-31",
+      "stock_id": "6620"
+    },
+    {
+      "signal_date": "2022-08-31",
+      "stock_id": "6689"
+    },
+    {
+      "signal_date": "2022-08-31",
+      "stock_id": "6696"
+    },
+    {
+      "signal_date": "2022-08-31",
+      "stock_id": "6742"
+    },
+    {
+      "signal_date": "2022-08-31",
+      "stock_id": "6753"
+    },
+    {
+      "signal_date": "2022-08-31",
+      "stock_id": "6782"
+    },
+    {
+      "signal_date": "2022-08-31",
+      "stock_id": "6901"
+    },
+    {
+      "signal_date": "2022-08-31",
+      "stock_id": "6903"
+    },
+    {
+      "signal_date": "2023-03-31",
+      "stock_id": "3432"
+    },
+    {
+      "signal_date": "2024-10-30",
+      "stock_id": "3207"
+    },
+    {
+      "signal_date": "2024-11-29",
+      "stock_id": "4123"
+    },
+    {
+      "signal_date": "2024-11-29",
+      "stock_id": "6535"
+    }
+  ],
+  "near_4_to_6_billion_missing_details": [
+    {
+      "signal_date": "2019-02-27",
+      "stock_id": "4572",
+      "shares_json_estimated_market_cap": 5594230409.10051
+    },
+    {
+      "signal_date": "2019-04-30",
+      "stock_id": "4572",
+      "shares_json_estimated_market_cap": 5822092502.640625
+    },
+    {
+      "signal_date": "2019-04-30",
+      "stock_id": "4580",
+      "shares_json_estimated_market_cap": 4903701190.8541565
+    },
+    {
+      "signal_date": "2019-04-30",
+      "stock_id": "6679",
+      "shares_json_estimated_market_cap": 4965846878.746033
+    },
+    {
+      "signal_date": "2019-04-30",
+      "stock_id": "6706",
+      "shares_json_estimated_market_cap": 5154606379.563736
+    },
+    {
+      "signal_date": "2019-08-30",
+      "stock_id": "4150",
+      "shares_json_estimated_market_cap": 4465223857.73468
+    },
+    {
+      "signal_date": "2019-08-30",
+      "stock_id": "4572",
+      "shares_json_estimated_market_cap": 5966707121.672211
+    },
+    {
+      "signal_date": "2019-09-27",
+      "stock_id": "4150",
+      "shares_json_estimated_market_cap": 5148825213.508606
+    },
+    {
+      "signal_date": "2019-09-27",
+      "stock_id": "6638",
+      "shares_json_estimated_market_cap": 5879399871.826172
+    },
+    {
+      "signal_date": "2020-03-31",
+      "stock_id": "4150",
+      "shares_json_estimated_market_cap": 5497897947.525024
+    },
+    {
+      "signal_date": "2020-04-30",
+      "stock_id": "4150",
+      "shares_json_estimated_market_cap": 5963328633.94165
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "5222",
+      "shares_json_estimated_market_cap": 5241829083.288895
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "6564",
+      "shares_json_estimated_market_cap": 4580151279.815674
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "6572",
+      "shares_json_estimated_market_cap": 5182450000.0
+    },
+    {
+      "signal_date": "2020-08-31",
+      "stock_id": "6634",
+      "shares_json_estimated_market_cap": 5457032380.104752
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "3138",
+      "shares_json_estimated_market_cap": 5461925244.489944
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "4117",
+      "shares_json_estimated_market_cap": 4870489816.040039
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "4768",
+      "shares_json_estimated_market_cap": 5870264699.887871
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "5222",
+      "shares_json_estimated_market_cap": 4728798884.030556
+    },
+    {
+      "signal_date": "2020-09-30",
+      "stock_id": "6634",
+      "shares_json_estimated_market_cap": 5283903597.809906
+    },
+    {
+      "signal_date": "2020-10-30",
+      "stock_id": "3138",
+      "shares_json_estimated_market_cap": 5167409893.117813
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "3138",
+      "shares_json_estimated_market_cap": 4658700956.020828
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "4194",
+      "shares_json_estimated_market_cap": 4438188018.878174
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "4925",
+      "shares_json_estimated_market_cap": 5234098033.1840515
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "6546",
+      "shares_json_estimated_market_cap": 4645936000.0
+    },
+    {
+      "signal_date": "2020-11-30",
+      "stock_id": "6793",
+      "shares_json_estimated_market_cap": 5767782467.651367
+    },
+    {
+      "signal_date": "2020-12-31",
+      "stock_id": "4925",
+      "shares_json_estimated_market_cap": 4879810050.447464
+    },
+    {
+      "signal_date": "2020-12-31",
+      "stock_id": "6797",
+      "shares_json_estimated_market_cap": 5211108887.023926
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "4768",
+      "shares_json_estimated_market_cap": 5246662061.04071
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "4925",
+      "shares_json_estimated_market_cap": 5334368002.706909
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "6786",
+      "shares_json_estimated_market_cap": 4039804083.564148
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "6797",
+      "shares_json_estimated_market_cap": 5529737197.814941
+    },
+    {
+      "signal_date": "2021-01-29",
+      "stock_id": "6799",
+      "shares_json_estimated_market_cap": 5835013500.0
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "4768",
+      "shares_json_estimated_market_cap": 4867841592.071548
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "5222",
+      "shares_json_estimated_market_cap": 5542004891.765907
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6546",
+      "shares_json_estimated_market_cap": 5668710604.003906
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6786",
+      "shares_json_estimated_market_cap": 4383935819.63623
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6797",
+      "shares_json_estimated_market_cap": 5262500752.624512
+    },
+    {
+      "signal_date": "2021-02-26",
+      "stock_id": "6799",
+      "shares_json_estimated_market_cap": 5791630500.0
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6564",
+      "shares_json_estimated_market_cap": 4356904992.012024
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6648",
+      "shares_json_estimated_market_cap": 4186806182.861328
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6788",
+      "shares_json_estimated_market_cap": 5055528631.5
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6792",
+      "shares_json_estimated_market_cap": 5812540300.0
+    },
+    {
+      "signal_date": "2021-03-31",
+      "stock_id": "6812",
+      "shares_json_estimated_market_cap": 5245534356.338501
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6564",
+      "shares_json_estimated_market_cap": 4839405406.204224
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6684",
+      "shares_json_estimated_market_cap": 4293115729.3993454
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6737",
+      "shares_json_estimated_market_cap": 5869513510.0
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6792",
+      "shares_json_estimated_market_cap": 5671914325.0
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6799",
+      "shares_json_estimated_market_cap": 5878396500.0
+    },
+    {
+      "signal_date": "2021-04-29",
+      "stock_id": "6812",
+      "shares_json_estimated_market_cap": 4632808082.423401
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "4117",
+      "shares_json_estimated_market_cap": 4629796908.02002
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6564",
+      "shares_json_estimated_market_cap": 4990636842.346191
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6709",
+      "shares_json_estimated_market_cap": 4166725491.9433594
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6786",
+      "shares_json_estimated_market_cap": 4817840540.6073
+    },
+    {
+      "signal_date": "2021-05-31",
+      "stock_id": "6788",
+      "shares_json_estimated_market_cap": 5074898473.0
+    },
+    {
+      "signal_date": "2021-06-30",
+      "stock_id": "6797",
+      "shares_json_estimated_market_cap": 5867893915.161133
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6585",
+      "shares_json_estimated_market_cap": 4926724212.234238
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6695",
+      "shares_json_estimated_market_cap": 5561296000.0
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6797",
+      "shares_json_estimated_market_cap": 4409400000.0
+    },
+    {
+      "signal_date": "2021-07-30",
+      "stock_id": "6799",
+      "shares_json_estimated_market_cap": 5639790000.0
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6761",
+      "shares_json_estimated_market_cap": 4881348728.408813
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6797",
+      "shares_json_estimated_market_cap": 4477236957.580566
+    },
+    {
+      "signal_date": "2021-08-31",
+      "stock_id": "6799",
+      "shares_json_estimated_market_cap": 5726556000.0
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "4768",
+      "shares_json_estimated_market_cap": 4733360535.198738
+    },
+    {
+      "signal_date": "2021-09-30",
+      "stock_id": "6761",
+      "shares_json_estimated_market_cap": 5153423927.91748
+    },
+    {
+      "signal_date": "2021-10-29",
+      "stock_id": "6761",
+      "shares_json_estimated_market_cap": 4673291379.776001
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "4768",
+      "shares_json_estimated_market_cap": 5274316035.442566
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "6693",
+      "shares_json_estimated_market_cap": 5878503000.0
+    },
+    {
+      "signal_date": "2021-11-30",
+      "stock_id": "8227",
+      "shares_json_estimated_market_cap": 4072929000.0
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "4194",
+      "shares_json_estimated_market_cap": 4215866954.022217
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "4768",
+      "shares_json_estimated_market_cap": 5699352473.652786
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6423",
+      "shares_json_estimated_market_cap": 4020373897.4609375
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6580",
+      "shares_json_estimated_market_cap": 5880490926.208496
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6682",
+      "shares_json_estimated_market_cap": 4008185245.56221
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "6812",
+      "shares_json_estimated_market_cap": 5491417510.449219
+    },
+    {
+      "signal_date": "2021-12-30",
+      "stock_id": "8227",
+      "shares_json_estimated_market_cap": 4112472000.0
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6682",
+      "shares_json_estimated_market_cap": 4752166948.940132
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6742",
+      "shares_json_estimated_market_cap": 5451866575.820343
+    },
+    {
+      "signal_date": "2022-01-26",
+      "stock_id": "6812",
+      "shares_json_estimated_market_cap": 5491417510.449219
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6580",
+      "shares_json_estimated_market_cap": 4404862149.047852
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6682",
+      "shares_json_estimated_market_cap": 5206816470.780853
+    },
+    {
+      "signal_date": "2022-02-25",
+      "stock_id": "6812",
+      "shares_json_estimated_market_cap": 5191340132.470703
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "4768",
+      "shares_json_estimated_market_cap": 4771999977.383926
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6580",
+      "shares_json_estimated_market_cap": 4267210367.2790527
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6676",
+      "shares_json_estimated_market_cap": 4504569861.551285
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6753",
+      "shares_json_estimated_market_cap": 5733986168.4036255
+    },
+    {
+      "signal_date": "2022-03-31",
+      "stock_id": "6812",
+      "shares_json_estimated_market_cap": 4471154145.301819
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6564",
+      "shares_json_estimated_market_cap": 4392960710.067749
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6676",
+      "shares_json_estimated_market_cap": 4504569861.551285
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6682",
+      "shares_json_estimated_market_cap": 4963254040.4325485
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6742",
+      "shares_json_estimated_market_cap": 5670455666.098206
+    },
+    {
+      "signal_date": "2022-04-29",
+      "stock_id": "6793",
+      "shares_json_estimated_market_cap": 5438999871.826172
+    }
+  ],
+  "passed": false
+}

@@ -94,6 +94,10 @@ def test_build_labels_uses_adjusted_prices_and_rejects_missing_adj(settings) -> 
     prices.loc[a_rows[as_of_idx + settings.label.horizon_trading_days], "close_adj"] = 120.0
     labels = build_labels(prices, ["A", "B"], AS_OF, settings)
     assert labels["A"] == 1 and labels["B"] == 0
+    b_rows = prices.index[b]
+    prices.loc[b_rows[as_of_idx + settings.label.horizon_trading_days + 1], "close_adj"] = 10_000.0
+    unchanged = build_labels(prices, ["A", "B"], AS_OF, settings)
+    pd.testing.assert_series_equal(unchanged, labels)
 
     prices.loc[a_rows[as_of_idx], "close_adj"] = pd.NA
     assert build_labels(prices, ["A", "B"], AS_OF, settings).empty

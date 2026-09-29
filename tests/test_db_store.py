@@ -23,6 +23,7 @@ from runtime.db_store import (
     default_shares_path,
     load_shares_cache,
 )
+from tests.migration_utils import apply_pit_v3_feature_migration
 from settings import Settings
 
 MIGRATION_PATH = (
@@ -65,6 +66,7 @@ def store(settings: Settings, temp_db_path: Path) -> Iterator[DbStore]:
     try:
         migration.upgrade(conn)
         adj_migration.upgrade(conn)
+        apply_pit_v3_feature_migration(conn)
     finally:
         conn.close()
     db_settings = dataclasses.replace(
@@ -608,7 +610,11 @@ def test_replay_liquidates_full_sell_to_flat(store: DbStore, sample_prices: pd.D
     assert store.save_orders(buy) == 1
     assert store.save_orders(sell) == 1
     result = store.replay_backtest("r")
-    assert result.nav.iloc[-1] == pytest.approx(INITIAL_CAPITAL - 121.37125 - 271.25 - 50.0)
+    # Executed prices already include slippage; the NAV subtracts the price
+    # move plus fees/tax, without charging the slippage fields twice.
+    assert result.nav.iloc[-1] == pytest.approx(
+        INITIAL_CAPITAL - 71.32125 - 71.25 - 150.0 - 50.0
+    )
     tail = result.nav.loc[result.nav.index.astype(str) >= "2020-02-05"]
     assert (tail == tail.iloc[0]).all()
 

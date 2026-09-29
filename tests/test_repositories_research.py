@@ -31,6 +31,13 @@ MIGRATION_PATH = (
     / "versions"
     / "001_initial_schema.py"
 )
+PIT_V3_MIGRATION_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "database"
+    / "migrations"
+    / "versions"
+    / "006_pit_v3_features.py"
+)
 
 
 def _load_migration():
@@ -42,6 +49,18 @@ def _load_migration():
 
 
 migration = _load_migration()
+
+
+def _apply_pit_v3_feature_migration(path: Path) -> None:
+    spec = importlib.util.spec_from_file_location("pit_v3_features", PIT_V3_MIGRATION_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    conn = sqlite3.connect(str(path))
+    try:
+        module.upgrade(conn)
+    finally:
+        conn.close()
 
 
 def _engine_for(settings: Settings, path: Path):
@@ -184,6 +203,38 @@ def test_save_features_missing_flag_default(settings: Settings, temp_db_path: Pa
                 select(Feature.missing_flag).where(Feature.stock_id == "2317")
             ).scalar_one()
         assert flag == 0
+    finally:
+        engine.dispose()
+
+
+def test_save_features_accepts_pit_v3_renamed_issued_share_factors(
+    settings: Settings, temp_db_path: Path
+) -> None:
+    engine = _seeded_engine(settings, temp_db_path)
+    try:
+        _apply_pit_v3_feature_migration(temp_db_path)
+        rows = pd.DataFrame(
+            [
+                {
+                    "rebalance_date": "2020-01-31",
+                    "stock_id": "2330",
+                    "feature_version": "factor_adj_pit_v3",
+                    "foreign_net_buy_to_issued_shares": 0.03,
+                    "trust_net_buy_to_issued_shares": -0.01,
+                    "missing_flag": 0,
+                }
+            ]
+        )
+        with session_scope(engine) as session:
+            assert save_features(session, rows) == 1
+        with session_scope(engine) as session:
+            factors = session.execute(
+                select(
+                    Feature.foreign_net_buy_to_issued_shares,
+                    Feature.trust_net_buy_to_issued_shares,
+                ).where(Feature.stock_id == "2330")
+            ).one()
+        assert factors == (0.03, -0.01)
     finally:
         engine.dispose()
 

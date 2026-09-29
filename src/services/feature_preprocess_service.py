@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from contracts import FeatureSet
-from services.feature_service import FACTOR_COLUMNS
+from services.feature_service import FACTOR_COLUMNS, FACTOR_COLUMNS_PIT_V3
 from settings import Settings
 
 
@@ -30,17 +30,22 @@ def preprocess_features(
         raise ValueError(f"invalid run_id: {run_id!r}")
     if not isinstance(raw, pd.DataFrame) or raw.empty:
         raise ValueError("invalid raw: must be a non-empty DataFrame")
-    missing = [c for c in ("stock_id", "missing_flag", *FACTOR_COLUMNS) if c not in raw.columns]
+    factor_columns = (
+        FACTOR_COLUMNS_PIT_V3
+        if settings.features.feature_version == "factor_adj_pit_v3"
+        else FACTOR_COLUMNS
+    )
+    missing = [c for c in ("stock_id", "missing_flag", *factor_columns) if c not in raw.columns]
     if missing:
         raise ValueError(f"invalid raw: missing columns {missing}")
 
     features = settings.features
-    work = raw[["stock_id", "missing_flag", *FACTOR_COLUMNS]].copy()
-    for column in FACTOR_COLUMNS:
+    work = raw[["stock_id", "missing_flag", *factor_columns]].copy()
+    for column in factor_columns:
         work[column] = pd.to_numeric(work[column], errors="coerce")
 
-    coverage = {column: float(work[column].notna().mean()) for column in FACTOR_COLUMNS}
-    usable = [c for c in FACTOR_COLUMNS if coverage[c] > 0]
+    coverage = {column: float(work[column].notna().mean()) for column in factor_columns}
+    usable = [c for c in factor_columns if coverage[c] > 0]
     if not usable:
         raise ValueError("invalid raw: every factor column is all-NaN")
 
