@@ -56,6 +56,38 @@ from settings import load_settings  # noqa: E402
 _FORWARD_DAYS = 20
 
 
+def _prices_through_oos_horizon(
+    prices: pd.DataFrame, final_signal_date: str
+) -> tuple[pd.DataFrame, str]:
+    """Keep prices through the complete month after the final OOS signal.
+
+    A month-end signal executes at the next month's open.  The final OOS
+    holding period therefore ends at the end of that execution month, not on
+    the execution session itself.  Seeing a later-month price is the release
+    gate that proves the valuation month is complete in the local database.
+    """
+    signal_period = pd.Period(pd.Timestamp(final_signal_date), freq="M")
+    valuation_period = signal_period + 1
+    valuation_month_start = valuation_period.start_time.strftime("%Y-%m-%d")
+    calendar_month_end = valuation_period.end_time.strftime("%Y-%m-%d")
+    trade_dates = prices["trade_date"].astype(str)
+    if not (trade_dates > calendar_month_end).any():
+        raise ValueError(
+            f"price history does not prove the full valuation month through "
+            f"{calendar_month_end}; load a later trading day first"
+        )
+    window = prices.loc[trade_dates <= calendar_month_end]
+    valuation_month_dates = trade_dates.loc[
+        (trade_dates >= valuation_month_start) & (trade_dates <= calendar_month_end)
+    ]
+    if valuation_month_dates.empty:
+        raise ValueError(
+            f"price history has no trading day in final valuation month "
+            f"{valuation_period}"
+        )
+    return window, str(valuation_month_dates.max())
+
+
 def _finite(value: object) -> float | None:
     try:
         number = float(value)  # type: ignore[arg-type]
@@ -205,19 +237,41 @@ def main(argv: list[str] | None = None) -> int:
     prices = store.load_prices()
     print(f"prices: {len(prices)} bars", flush=True)
     with session_scope(engine) as session:
+        final_signal_date = session.execute(
+            sqlalchemy.select(sqlalchemy.func.max(Prediction.prediction_date)).where(
+                Prediction.run_id == run_id
+            )
+        ).scalar()
+        if final_signal_date is None:
+            print(f"cannot materialize {run_id}: no predictions", file=sys.stderr)
+            return 1
+        final_signal_date = str(final_signal_date)
         last_execution_date = session.execute(
             sqlalchemy.select(sqlalchemy.func.max(Order.execution_date)).where(
-                Order.run_id == run_id
+                Order.run_id == run_id,
+                Order.signal_date <= final_signal_date,
             )
         ).scalar()
     if last_execution_date is None:
         print(f"cannot materialize {run_id}: no orders", file=sys.stderr)
         return 1
     last_execution_date = str(last_execution_date)
-    backtest_prices = prices.loc[prices["trade_date"] <= last_execution_date]
-    print(f"backtest price window ends {last_execution_date}", flush=True)
+    try:
+        backtest_prices, valuation_end_date = _prices_through_oos_horizon(
+            prices, final_signal_date
+        )
+    except ValueError as exc:
+        print(f"cannot materialize {run_id}: {exc}", file=sys.stderr)
+        return 1
+    print(
+        f"backtest price window ends {valuation_end_date} "
+        f"(final execution {last_execution_date})",
+        flush=True,
+    )
     print("replaying backtest...", flush=True)
-    result = store.replay_backtest(run_id, backtest_prices)
+    result = store.replay_backtest(
+        run_id, backtest_prices, signal_end_date=final_signal_date
+    )
     print("backtest done", flush=True)
     # Dashboard metrics describe the active window (first execution onward):
     # the pre-trade flat-cash stretch would corrupt annualization and rates.
@@ -226,20 +280,6 @@ def main(argv: list[str] | None = None) -> int:
     if not result.orders.empty:
         first_exec = str(result.orders["execution_date"].min())
         active = result.nav.loc[result.nav.index.astype(str) >= first_exec]
-        with session_scope(engine) as session:
-            qty_rows = session.execute(
-                sqlalchemy.select(Order.stock_id, Order.side, Order.quantity)
-                .where(Order.run_id == run_id)
-            ).all()
-        held = {}
-        for sid, side, qty in qty_rows:
-            held[str(sid)] = held.get(str(sid), 0) + (
-                int(qty) if side == "BUY" else -int(qty)
-            )
-        if all(q == 0 for q in held.values()):
-            last_exec = str(result.orders["execution_date"].max())
-            active = active.loc[active.index.astype(str) <= last_exec]
-            print(f"closed ledger: window ends {last_exec}", flush=True)
         result = _dc.replace(result, nav=active, start_date=str(active.index[0]))
         print(f"active window from {first_exec}: {len(active)} days", flush=True)
 
@@ -294,7 +334,10 @@ def main(argv: list[str] | None = None) -> int:
     nav = result.nav
     with session_scope(engine) as session:
         turnover_rows = session.execute(
-            sqlalchemy.select(Order.quantity, Order.executed_price).where(Order.run_id == run_id)
+            sqlalchemy.select(Order.quantity, Order.executed_price).where(
+                Order.run_id == run_id,
+                Order.signal_date <= final_signal_date,
+            )
         ).all()
     traded = sum(float(q) * float(x) for q, x in turnover_rows)
     avg_nav = float(nav.mean())
@@ -332,6 +375,8 @@ def main(argv: list[str] | None = None) -> int:
             "icir_weeks": len(weeklies),
             "rank_ic_month": _finite(month_ic),
             "rank_ic_mean_monthly": _finite(run_rank_ic),
+            "final_signal_date": final_signal_date,
+            "valuation_end_date": valuation_end_date,
         },
     }
 
@@ -379,7 +424,14 @@ def main(argv: list[str] | None = None) -> int:
 
     # -- sensitivity ----------------------------------------------------------
     print("running cost sensitivity...", flush=True)
-    sensitivity_payload = _sensitivity(store, engine, run_id, backtest_prices, settings)
+    sensitivity_payload = _sensitivity(
+        store,
+        engine,
+        run_id,
+        backtest_prices,
+        settings,
+        signal_end_date=final_signal_date,
+    )
 
     with session_scope(engine) as session:
         artifacts_repo.save_artifact(session, run_id, "metrics", metrics_payload)
@@ -452,7 +504,15 @@ def _proxy_explain(features, labels, settings, summary, run_id: str, as_of_str: 
     }
 
 
-def _sensitivity(store, engine, run_id: str, prices: pd.DataFrame, settings) -> list[dict]:
+def _sensitivity(
+    store,
+    engine,
+    run_id: str,
+    prices: pd.DataFrame,
+    settings,
+    *,
+    signal_end_date: str,
+) -> list[dict]:
     """Cost-off baseline plus one row per slippage scenario (active window)."""
     with session_scope(engine) as session:
         order_rows = session.execute(
@@ -470,11 +530,17 @@ def _sensitivity(store, engine, run_id: str, prices: pd.DataFrame, settings) -> 
                 Order.slippage_cost,
                 Order.total_cost,
             )
-            .where(Order.run_id == run_id)
+            .where(
+                Order.run_id == run_id,
+                Order.signal_date <= signal_end_date,
+            )
             .order_by(Order.execution_date, Order.order_id)
         ).all()
         weight_rows = session.execute(
-            sqlalchemy.select(Signal.stock_id, Signal.target_weight).where(Signal.run_id == run_id)
+            sqlalchemy.select(Signal.stock_id, Signal.target_weight).where(
+                Signal.run_id == run_id,
+                Signal.signal_date <= signal_end_date,
+            )
         ).all()
     weights = {s: float(w) for s, w in weight_rows}
     orders = pd.DataFrame(

@@ -23,8 +23,8 @@ from runtime.db_store import (
     default_shares_path,
     load_shares_cache,
 )
-from tests.migration_utils import apply_pit_v3_feature_migration
 from settings import Settings
+from tests.migration_utils import apply_pit_v3_feature_migration
 
 MIGRATION_PATH = (
     Path(__file__).resolve().parents[1]
@@ -622,6 +622,86 @@ def test_load_performance_replays_orders(store: DbStore, sample_prices: pd.DataF
     assert list(performance.columns) == ["date", "nav"]
     assert not performance.empty
     assert performance["nav"].iloc[0] == pytest.approx(INITIAL_CAPITAL)
+
+
+def test_load_performance_prefers_bounded_materialized_curve(
+    store: DbStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        store,
+        "_artifact",
+        lambda _run_id, _kind: {
+            "equity_curve": [
+                {"date": "2024-01-02", "nav": 100.0},
+                {"date": "2024-01-31", "nav": 110.0},
+            ]
+        },
+    )
+
+    def _unexpected_replay(*_args, **_kwargs):
+        raise AssertionError("materialized performance must not replay beyond its OOS horizon")
+
+    monkeypatch.setattr(store, "replay_backtest", _unexpected_replay)
+
+    performance = store.load_performance("oos")
+
+    assert performance.to_dict("records") == [
+        {"date": "2024-01-02", "nav": 100.0},
+        {"date": "2024-01-31", "nav": 110.0},
+    ]
+
+
+def test_replay_backtest_excludes_orders_after_oos_signal_end(
+    store: DbStore, sample_prices: pd.DataFrame
+) -> None:
+    _seed_market(store, sample_prices)
+    store.start_run({"run_id": "oos", "job": "test", "data_end_date": "2020-01-31"})
+    opens = sample_prices.set_index(["trade_date", "stock_id"])["open"]
+    with store._scope() as session:  # noqa: SLF001 - test-only ledger setup.
+        from models.research import Order
+
+        session.add_all(
+            [
+                Order(
+                    order_id="buy",
+                    run_id="oos",
+                    signal_date="2020-01-31",
+                    execution_date="2020-02-03",
+                    stock_id="2330",
+                    side="BUY",
+                    quantity=100,
+                    open_price=float(opens.loc[("2020-02-03", "2330")]),
+                    executed_price=float(opens.loc[("2020-02-03", "2330")]),
+                    notional=50_000.0,
+                    broker_fee=0.0,
+                    transaction_tax=0.0,
+                    slippage_cost=0.0,
+                    total_cost=0.0,
+                ),
+                Order(
+                    order_id="terminal-liquidation",
+                    run_id="oos",
+                    signal_date="2020-02-03",
+                    execution_date="2020-02-04",
+                    stock_id="2330",
+                    side="SELL",
+                    quantity=100,
+                    open_price=float(opens.loc[("2020-02-04", "2330")]),
+                    executed_price=float(opens.loc[("2020-02-04", "2330")]),
+                    notional=50_000.0,
+                    broker_fee=0.0,
+                    transaction_tax=0.0,
+                    slippage_cost=0.0,
+                    total_cost=0.0,
+                ),
+            ]
+        )
+
+    full = store.replay_backtest("oos")
+    bounded = store.replay_backtest("oos", signal_end_date="2020-01-31")
+
+    assert full.orders["side"].tolist() == ["BUY", "SELL"]
+    assert bounded.orders["side"].tolist() == ["BUY"]
 
 
 def test_guards_without_run_or_asof(store: DbStore) -> None:

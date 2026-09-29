@@ -958,35 +958,54 @@ class DbStore:
         return pd.DataFrame({"scenario": pd.Series(dtype=str)})
 
     def load_performance(self, run_id: str) -> pd.DataFrame:
-        """Replay the run's own orders into a (date, nav) frame."""
+        """Load the bounded materialized curve, or replay as a fallback."""
+        payload = self._artifact(run_id, "metrics")
+        if isinstance(payload, dict) and isinstance(payload.get("equity_curve"), list):
+            curve = pd.DataFrame(payload["equity_curve"])
+            if not curve.empty and {"date", "nav"}.issubset(curve.columns):
+                return curve.loc[:, ["date", "nav"]].reset_index(drop=True)
         nav = self.replay_backtest(run_id).nav
         return pd.DataFrame({"date": list(nav.index.astype(str)), "nav": list(nav.to_numpy())})
 
-    def replay_backtest(self, run_id: str, prices: pd.DataFrame | None = None):
+    def replay_backtest(
+        self,
+        run_id: str,
+        prices: pd.DataFrame | None = None,
+        *,
+        signal_end_date: str | None = None,
+    ):
         """Replay the run's orders into a BacktestResult (shared by readers)."""
         self.load_run_summary(run_id)  # unknown run raises here.
+        if signal_end_date is not None:
+            parsed = date.fromisoformat(signal_end_date)
+            if parsed.isoformat() != signal_end_date:
+                raise ValueError(f"invalid signal_end_date: {signal_end_date!r}")
         with self._scope() as session:
+            order_query = select(
+                Order.order_id,
+                Order.run_id,
+                Order.signal_date,
+                Order.execution_date,
+                Order.stock_id,
+                Order.side,
+                Order.quantity,
+                Order.executed_price,
+                Order.broker_fee,
+                Order.transaction_tax,
+                Order.slippage_cost,
+                Order.total_cost,
+            ).where(Order.run_id == run_id)
+            if signal_end_date is not None:
+                order_query = order_query.where(Order.signal_date <= signal_end_date)
             order_rows = session.execute(
-                select(
-                    Order.order_id,
-                    Order.run_id,
-                    Order.signal_date,
-                    Order.execution_date,
-                    Order.stock_id,
-                    Order.side,
-                    Order.quantity,
-                    Order.executed_price,
-                    Order.broker_fee,
-                    Order.transaction_tax,
-                    Order.slippage_cost,
-                    Order.total_cost,
-                )
-                .where(Order.run_id == run_id)
-                .order_by(Order.execution_date, Order.order_id)
+                order_query.order_by(Order.execution_date, Order.order_id)
             ).all()
-            weight_rows = session.execute(
-                select(Signal.stock_id, Signal.target_weight).where(Signal.run_id == run_id)
-            ).all()
+            weight_query = select(Signal.stock_id, Signal.target_weight).where(
+                Signal.run_id == run_id
+            )
+            if signal_end_date is not None:
+                weight_query = weight_query.where(Signal.signal_date <= signal_end_date)
+            weight_rows = session.execute(weight_query).all()
         weights = {s: float(w) for s, w in weight_rows}
         orders = pd.DataFrame(
             [
