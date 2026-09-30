@@ -33,7 +33,10 @@ from runtime.panel_data import (  # noqa: E402
     source_fingerprint,
 )
 from services.feature_preprocess_service import preprocess_features  # noqa: E402
-from services.feature_service import calculate_raw_features  # noqa: E402
+from services.feature_service import (  # noqa: E402
+    calculate_raw_features,
+    is_pit_v3_feature_version,
+)
 from services.label_service import build_labels  # noqa: E402
 from services.pit_service import build_pit_snapshot  # noqa: E402
 from settings import load_settings  # noqa: E402
@@ -155,7 +158,11 @@ def _build_month(data: PreparedPanelData, signal_day: str, run_id: str, settings
         inputs["financials"],
         inputs["institutional"],
         inputs["prices"],
-        market_values=(inputs["market_values"] if settings.features.feature_version == "factor_adj_pit_v3" else None),
+        market_values=(
+            inputs["market_values"]
+            if is_pit_v3_feature_version(settings.features.feature_version)
+            else None
+        ),
     )
     raw = calculate_raw_features(
         snapshot,
@@ -174,6 +181,11 @@ def _build_month(data: PreparedPanelData, signal_day: str, run_id: str, settings
         "universe": list(universe.included_ids),
         "feature_columns": list(features.feature_columns),
         "feature_version": features.feature_version,
+        "feature_coverage": {
+            column: rate
+            for column, rate in features.coverage.items()
+            if not column.endswith("__missing")
+        },
         "frame": features.frame,
         "labels": labels,
     }

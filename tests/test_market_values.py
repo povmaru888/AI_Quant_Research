@@ -199,7 +199,7 @@ def test_market_value_daily_upsert_replaces_corrected_snapshot_atomically(tmp_pa
         engine.dispose()
 
 
-def test_partial_market_value_upsert_keeps_rows_but_never_claims_success(tmp_path: Path) -> None:
+def test_partial_market_value_upsert_exposes_rows_only_when_requested(tmp_path: Path) -> None:
     db_path = tmp_path / "partial-market.db"
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA foreign_keys = ON")
@@ -224,13 +224,21 @@ def test_partial_market_value_upsert_keeps_rows_but_never_claims_success(tmp_pat
             session.commit()
             marker = session.get(MarketValueSyncDay, day.isoformat())
             assert marker is not None
-            assert marker.status == "failed"
+            assert marker.status == "partial"
             assert marker.row_count == 1
             row = session.get(MarketValue, (day.isoformat(), "2330"))
             assert row is not None
             assert row.market_value == 100.0
             assert row.source == "verified previous-day reconstruction"
             assert load_market_value_snapshot(session, day).empty
+            partial_snapshot = load_market_value_snapshot(session, day, include_partial=True)
+            assert partial_snapshot.to_dict("records") == [
+                {
+                    "stock_id": "2330",
+                    "trade_date": day.isoformat(),
+                    "market_value": 100.0,
+                }
+            ]
     finally:
         engine.dispose()
 

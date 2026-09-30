@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from types import SimpleNamespace
+
 import pandas as pd
 import pytest
 
 from services.backtest_service import run_backtest
+from tools import materialize_run
 from tools.materialize_run import (
     _close_panel,
     _forward_returns,
@@ -100,3 +104,39 @@ def test_backtest_values_last_entry_through_month_end(settings) -> None:
 
     assert result.end_date == "2024-01-31"
     assert result.nav.iloc[-1] == pytest.approx(1_020.0)
+
+
+def test_save_features_omits_stable_missing_indicators_from_dashboard_table(
+    monkeypatch,
+) -> None:
+    captured = {}
+
+    @contextmanager
+    def fake_session_scope(_engine):
+        yield object()
+
+    def fake_save_features(_session, frame):
+        captured["frame"] = frame.copy()
+        return len(frame)
+
+    monkeypatch.setattr(materialize_run, "session_scope", fake_session_scope)
+    monkeypatch.setattr(materialize_run.research_repo, "save_features", fake_save_features)
+    features = SimpleNamespace(
+        frame=pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "momentum_20d": [0.1],
+                "momentum_20d__missing": [0.0],
+                "missing_flag": [0],
+            }
+        )
+    )
+
+    written = materialize_run._save_features(
+        object(), features, "2020-12-31", "factor_adj_pit_v3_stable"
+    )
+
+    assert written == 1
+    assert "momentum_20d__missing" not in captured["frame"].columns
+    assert captured["frame"].loc[0, "momentum_20d"] == pytest.approx(0.1)
+    assert captured["frame"].loc[0, "missing_flag"] == 0

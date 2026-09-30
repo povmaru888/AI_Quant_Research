@@ -24,7 +24,7 @@ from contracts import BacktestResult, PortfolioTarget
 from services.backtest_service import run_backtest
 from services.execution_service import create_orders
 from services.feature_preprocess_service import preprocess_features
-from services.feature_service import calculate_raw_features
+from services.feature_service import calculate_raw_features, is_pit_v3_feature_version
 from services.label_service import build_labels
 from services.optimization_service import optimize_xgb
 from services.pit_service import build_pit_snapshot
@@ -113,7 +113,7 @@ def _execute(
     market_value_loader = getattr(store, "load_market_value_snapshot", None)
     market_values = (
         market_value_loader()
-        if settings.features.feature_version == "factor_adj_pit_v3"
+        if is_pit_v3_feature_version(settings.features.feature_version)
         and callable(market_value_loader)
         else None
     )

@@ -28,6 +28,15 @@ PRICE_COLUMNS: tuple[str, ...] = (
     "source",
 )
 
+ADJUSTED_PRICE_COLUMNS: tuple[str, ...] = (
+    "stock_id",
+    "trade_date",
+    "open_adj",
+    "high_adj",
+    "low_adj",
+    "close_adj",
+)
+
 _SUFFIXES = {"TWSE": ".TW", "TPEX": ".TWO"}
 
 
@@ -122,6 +131,37 @@ def _standardize(raw: pd.DataFrame, stock_id: str) -> pd.DataFrame:
     return frame[[*PRICE_COLUMNS]]
 
 
+def _standardize_adjusted(raw: pd.DataFrame, stock_id: str) -> pd.DataFrame:
+    """Map Yahoo's adjusted-close factor onto OHLC adjusted to the same basis."""
+    if raw is None or not isinstance(raw, pd.DataFrame) or raw.empty:
+        return pd.DataFrame()
+    if isinstance(raw.columns, pd.MultiIndex):
+        raw = raw.copy()
+        raw.columns = raw.columns.get_level_values(0)
+    columns = {str(column).strip().lower(): column for column in raw.columns}
+    required = {"open", "high", "low", "close", "adj close"}
+    if not required.issubset(columns):
+        return pd.DataFrame()
+    close = pd.to_numeric(raw[columns["close"]], errors="coerce")
+    adjusted_close = pd.to_numeric(raw[columns["adj close"]], errors="coerce")
+    factor = adjusted_close / close.where(close > 0)
+    frame = pd.DataFrame(
+        {
+            "stock_id": stock_id,
+            "trade_date": pd.to_datetime(raw.index).strftime("%Y-%m-%d"),
+            "open_adj": pd.to_numeric(raw[columns["open"]], errors="coerce") * factor,
+            "high_adj": pd.to_numeric(raw[columns["high"]], errors="coerce") * factor,
+            "low_adj": pd.to_numeric(raw[columns["low"]], errors="coerce") * factor,
+            "close_adj": adjusted_close,
+        }
+    ).dropna(subset=["trade_date", *ADJUSTED_PRICE_COLUMNS[2:]])
+    frame = frame.loc[
+        (frame[list(ADJUSTED_PRICE_COLUMNS[2:])] > 0).all(axis=1)
+        & (frame["high_adj"] >= frame["low_adj"])
+    ]
+    return frame[[*ADJUSTED_PRICE_COLUMNS]].reset_index(drop=True)
+
+
 def _fetch_one(
     stock_id: str,
     start: str,
@@ -200,3 +240,65 @@ def fetch_bulk_prices(
     merged = pd.concat(frames, ignore_index=True).sort_values(["stock_id", "trade_date"])
     merged.attrs["failed"] = sorted(set(failed))
     return merged.reset_index(drop=True)
+
+
+def fetch_bulk_prices_with_adjustments(
+    symbols: Sequence[str],
+    start: str,
+    end: str,
+    market_map: Mapping[str, str] | None = None,
+    downloader: Callable[..., pd.DataFrame] = yf.download,
+    batch: int = 150,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Fetch raw bars and Yahoo adjusted OHLC in one batched download.
+
+    The adjusted values are normalized to Yahoo's current basis. Callers
+    combining them with another vendor's history must calibrate each stock
+    against overlapping adjusted closes before storing them.
+    """
+    _require_range(start, end)
+    if batch < 1:
+        raise ValueError(f"invalid batch: {batch!r}")
+    codes = list(dict.fromkeys(s for s in symbols if isinstance(s, str) and s.strip()))
+    mapping = dict(market_map) if market_map else {}
+    tickers = {stock_id: to_yahoo_symbol(stock_id, mapping.get(stock_id, "TWSE")) for stock_id in codes}
+    raw_frames: list[pd.DataFrame] = []
+    adjusted_frames: list[pd.DataFrame] = []
+    failed: list[str] = []
+    unique_tickers = list(dict.fromkeys(tickers.values()))
+    for offset in range(0, len(unique_tickers), batch):
+        chunk = unique_tickers[offset : offset + batch]
+        try:
+            raw = downloader(chunk, start=start, end=end, auto_adjust=False, progress=False)
+        except Exception:  # noqa: BLE001 - batch-level isolation.
+            failed.extend(stock_id for stock_id, ticker in tickers.items() if ticker in chunk)
+            continue
+        if raw is None or not isinstance(raw, pd.DataFrame) or raw.empty:
+            failed.extend(stock_id for stock_id, ticker in tickers.items() if ticker in chunk)
+            continue
+        for stock_id, ticker in tickers.items():
+            if ticker not in chunk:
+                continue
+            sub = raw if len(chunk) == 1 and not isinstance(raw.columns, pd.MultiIndex) else _slice_ticker(raw, ticker)
+            raw_frame = _standardize(sub, stock_id)
+            adjusted_frame = _standardize_adjusted(sub, stock_id)
+            if raw_frame.empty or adjusted_frame.empty:
+                failed.append(stock_id)
+                continue
+            raw_frames.append(raw_frame)
+            adjusted_frames.append(adjusted_frame)
+    raw_result = (
+        pd.concat(raw_frames, ignore_index=True).sort_values(["stock_id", "trade_date"]).reset_index(drop=True)
+        if raw_frames
+        else pd.DataFrame(columns=list(PRICE_COLUMNS))
+    )
+    adjusted_result = (
+        pd.concat(adjusted_frames, ignore_index=True)
+        .sort_values(["stock_id", "trade_date"])
+        .reset_index(drop=True)
+        if adjusted_frames
+        else pd.DataFrame(columns=list(ADJUSTED_PRICE_COLUMNS))
+    )
+    raw_result.attrs["failed"] = sorted(set(failed))
+    adjusted_result.attrs["failed"] = sorted(set(failed))
+    return raw_result, adjusted_result

@@ -39,7 +39,7 @@ from runtime.db_store import (  # noqa: E402  # noqa: E402
 from runtime.dotenv import load_dotenv  # noqa: E402
 from services.execution_service import create_orders  # noqa: E402
 from services.feature_preprocess_service import preprocess_features  # noqa: E402
-from services.feature_service import calculate_raw_features  # noqa: E402
+from services.feature_service import calculate_raw_features, is_pit_v3_feature_version  # noqa: E402
 from services.pit_service import build_pit_snapshot  # noqa: E402
 from services.portfolio_service import build_target_holdings  # noqa: E402
 from services.risk_service import apply_risk_controls  # noqa: E402
@@ -165,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
                 prices,
                 market_values=(
                     monthly.load_market_value_snapshot()
-                    if settings.features.feature_version == "factor_adj_pit_v3"
+                    if is_pit_v3_feature_version(settings.features.feature_version)
                     else None
                 ),
             )

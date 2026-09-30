@@ -16,6 +16,7 @@ import pytest
 
 from contracts import PortfolioTarget
 from database import create_engine_from_settings
+from repositories.market_values import upsert_partial_market_value_day
 from runtime.db_store import (
     INITIAL_CAPITAL,
     DbStore,
@@ -760,6 +761,47 @@ def test_market_cap_missing_without_cache(
         assert caps.isna().all()
     finally:
         engine.dispose()
+
+
+def test_stable_db_store_reads_partial_pit_market_values(
+    store: DbStore, sample_prices: pd.DataFrame
+) -> None:
+    _seed_market(store, sample_prices)
+    stable_settings = dataclasses.replace(
+        store._settings,
+        features=dataclasses.replace(
+            store._settings.features, feature_version="factor_adj_pit_v3_stable"
+        ),
+    )
+    regular_pit_settings = dataclasses.replace(
+        stable_settings,
+        features=dataclasses.replace(
+            stable_settings.features, feature_version="factor_adj_pit_v3"
+        ),
+    )
+    stable_store = DbStore(store._engine, stable_settings)
+    regular_pit_store = DbStore(store._engine, regular_pit_settings)
+    with stable_store._scope() as session:
+        upsert_partial_market_value_day(
+            session,
+            date.fromisoformat(AS_OF),
+            pd.DataFrame(
+                {"trade_date": [AS_OF], "stock_id": ["2330"], "market_value": [1234.0]}
+            ),
+            source="test:verified-partial",
+        )
+
+    stable_store.start_run({"run_id": "stable-partial", "job": "test", "data_end_date": AS_OF})
+    regular_pit_store.start_run(
+        {"run_id": "regular-pit-partial", "job": "test", "data_end_date": AS_OF}
+    )
+    stable_caps = stable_store.load_stocks().set_index("stock_id")["market_cap"]
+    regular_pit_caps = regular_pit_store.load_stocks().set_index("stock_id")["market_cap"]
+
+    assert stable_caps.loc["2330"] == pytest.approx(1234.0)
+    assert pd.isna(regular_pit_caps.loc["2330"])
+    assert stable_store.load_market_value_snapshot()["market_value"].tolist() == [1234.0]
+    assert regular_pit_store.load_market_value_snapshot().empty
 
 
 def test_load_shares_cache_roundtrip(tmp_path: Path) -> None:

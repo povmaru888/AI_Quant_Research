@@ -17,6 +17,7 @@ def apply_pit_v3_feature_migration(conn: sqlite3.Connection) -> None:
         "005_market_value_revision.py",
         "006_pit_v3_features.py",
         "007_non_trading_checkpoints.py",
+        "008_partial_market_value_checkpoints.py",
     )
     for version in versions:
         path = _MIGRATIONS_DIR / version

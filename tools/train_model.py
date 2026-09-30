@@ -30,8 +30,10 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from runtime.dotenv import load_dotenv  # noqa: E402
+from services.feature_selection_service import select_stable_training_features  # noqa: E402
 from services.optimization_service import optimize_xgb  # noqa: E402
-from services.xgb_service import predict_xgb, rank_ic  # noqa: E402
+from services.feature_service import uses_stable_feature_schema  # noqa: E402
+from services.xgb_service import predict_xgb, rank_ic, train_xgb  # noqa: E402
 from settings import load_settings  # noqa: E402
 
 
@@ -76,6 +78,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--valid-start", default="2023-01")
     parser.add_argument("--valid-end", default="2023-12")
     parser.add_argument("--trials", type=int, default=None)
+    parser.add_argument(
+        "--params-from",
+        default=None,
+        help="Reuse best_params from a prior report.json (skips Optuna).",
+    )
     parser.add_argument("--out", default="models/model_b1")
     parser.add_argument("--model-version", default="xgb_b1")
     args = parser.parse_args(argv)
@@ -94,12 +101,16 @@ def main(argv: list[str] | None = None) -> int:
     train_panels = _load_panels(panels, train_months, settings.features.feature_version)
     valid_panels = _load_panels(panels, valid_months, settings.features.feature_version)
 
-    common = set(train_panels[train_months[0]]["feature_columns"])
-    for months in (train_months, valid_months):
-        for month in months:
-            panels_dict = train_panels if month in train_panels else valid_panels
-            common &= set(panels_dict[month]["feature_columns"])
-    columns = sorted(common)
+    feature_selection = None
+    if uses_stable_feature_schema(settings.features.feature_version):
+        columns, feature_selection = select_stable_training_features(train_panels, train_months)
+    else:
+        common = set(train_panels[train_months[0]]["feature_columns"])
+        for months in (train_months, valid_months):
+            for month in months:
+                panels_dict = train_panels if month in train_panels else valid_panels
+                common &= set(panels_dict[month]["feature_columns"])
+        columns = sorted(common)
     print(f"common features: {len(columns)}")
 
     def assemble(month_list: list[str], source: dict[str, dict]):
@@ -126,18 +137,41 @@ def main(argv: list[str] | None = None) -> int:
     valid_x = valid_frame[columns]
 
     run_id = f"train-{args.train_start}-{args.train_end}"
-    artifact, booster, trials = optimize_xgb(
-        train_x,
-        train_y,
-        valid_x,
-        valid_y,
-        settings,
-        args.model_version,
-        settings.features.feature_version,
-        f"manual-{run_id}",
-        run_id,
-        n_trials=args.trials,
-    )
+    if args.params_from:
+        params_path = Path(args.params_from)
+        if params_path.is_dir():
+            params_path = params_path / "report.json"
+        with params_path.open(encoding="utf-8") as handle:
+            params_report = json.load(handle)
+        params = params_report.get("best_params")
+        if not isinstance(params, dict) or not params:
+            raise ValueError(f"no best_params in {params_path}")
+        artifact, booster = train_xgb(
+            train_x,
+            train_y,
+            valid_x,
+            valid_y,
+            params,
+            args.model_version,
+            settings.features.feature_version,
+            f"fixed-{params_path.parent.name}",
+            run_id,
+        )
+        trials = pd.DataFrame()
+        print(f"reused fixed parameters from {params_path}")
+    else:
+        artifact, booster, trials = optimize_xgb(
+            train_x,
+            train_y,
+            valid_x,
+            valid_y,
+            settings,
+            args.model_version,
+            settings.features.feature_version,
+            f"manual-{run_id}",
+            run_id,
+            n_trials=args.trials,
+        )
     print(f"best params: {artifact.best_params}")
     month_ics, month_spreads = [], []
     for month in valid_months:
@@ -168,6 +202,7 @@ def main(argv: list[str] | None = None) -> int:
         "purge_month": args.purge_month,
         "valid_months": [valid_months[0], valid_months[-1], len(valid_months)],
         "common_features": columns,
+        "feature_selection": feature_selection,
         "train_rows": len(train_frame),
         "valid_rows": len(valid_frame),
         "best_params": artifact.best_params,
@@ -178,6 +213,7 @@ def main(argv: list[str] | None = None) -> int:
             for month, v in zip(valid_months, month_ics, strict=True)
         },
         "trials": len(trials),
+        "parameters_from": args.params_from,
     }
     print(f"validation rank IC: {ic:.4f}, top-decile spread: {spread:.4f}")
 

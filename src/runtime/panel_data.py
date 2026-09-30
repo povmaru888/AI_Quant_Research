@@ -16,11 +16,15 @@ import pandas as pd
 
 from contracts import UniverseSnapshot
 from runtime.db_store import default_shares_path
+from services.feature_service import (
+    is_pit_v3_feature_version,
+    uses_stable_feature_schema,
+)
 from services.universe_service import build_universe
 from settings import Settings
 
 PANEL_FORMAT_VERSION = 2
-PANEL_BUILDER_VERSION = "batch-index-v1"
+PANEL_BUILDER_VERSION = "batch-index-v2"
 _TAIEX_ID = "TAIEX"
 _PRICE_COLUMNS = (
     "stock_id",
@@ -118,6 +122,11 @@ def canonical_panel_hash(panel: dict) -> str:
     digest = hashlib.sha256()
     for key in ("signal_date", "universe", "feature_columns", "feature_version"):
         digest.update(json.dumps(panel.get(key), ensure_ascii=False, sort_keys=True, default=str).encode())
+        digest.update(b"\0")
+    if "feature_coverage" in panel:
+        digest.update(
+            json.dumps(panel["feature_coverage"], ensure_ascii=False, sort_keys=True).encode()
+        )
         digest.update(b"\0")
     for name in ("frame", "labels"):
         frame = panel[name]
@@ -311,14 +320,19 @@ class PreparedPanelData:
         self.rows_loaded["prices"] = total
 
     def _load_market_values(self, months: list[str]) -> None:
-        if self.settings.features.feature_version != "factor_adj_pit_v3" or not months:
+        if not is_pit_v3_feature_version(self.settings.features.feature_version) or not months:
             return
         signals = [month_end for month_end in months]
         placeholders = ",".join("?" for _ in signals)
+        usable_statuses = (
+            "'succeeded', 'partial'"
+            if uses_stable_feature_schema(self.settings.features.feature_version)
+            else "'succeeded'"
+        )
         rows = self.conn.execute(
             "SELECT mv.trade_date, mv.stock_id, mv.market_value FROM market_values AS mv "
             "JOIN market_value_sync_days AS sync ON sync.trade_date = mv.trade_date "
-            f"WHERE sync.status = 'succeeded' AND mv.trade_date IN ({placeholders}) "
+            f"WHERE sync.status IN ({usable_statuses}) AND mv.trade_date IN ({placeholders}) "
             "ORDER BY mv.trade_date, mv.stock_id",
             signals,
         ).fetchall()
@@ -332,7 +346,7 @@ class PreparedPanelData:
         self.rows_loaded["market_values"] = len(rows)
 
     def _market_cap(self, stock_id: str, as_of: str) -> float | None:
-        if self.settings.features.feature_version == "factor_adj_pit_v3":
+        if is_pit_v3_feature_version(self.settings.features.feature_version):
             value = self.market_values_by_day.get(as_of, {}).get(stock_id)
             if value is None:
                 return None

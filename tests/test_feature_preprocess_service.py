@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 
 import numpy as np
@@ -10,7 +11,7 @@ import pytest
 
 from contracts import FeatureSet
 from services.feature_preprocess_service import preprocess_features
-from services.feature_service import FACTOR_COLUMNS
+from services.feature_service import FACTOR_COLUMNS, FACTOR_COLUMNS_PIT_V3
 
 AS_OF = date(2019, 12, 31)
 
@@ -74,3 +75,47 @@ def test_preprocess_rejects_bad_inputs(settings) -> None:
     raw[list(FACTOR_COLUMNS)] = np.nan
     with pytest.raises(ValueError, match="all-NaN"):
         preprocess_features(raw, settings, "r", AS_OF)
+
+
+def test_stable_schema_keeps_factors_and_missing_indicators(settings) -> None:
+    stable_settings = replace(
+        settings,
+        features=replace(settings.features, feature_version="factor_adj_pit_v3_stable"),
+    )
+    raw = _raw().rename(
+        columns={
+            "foreign_net_buy_float": "foreign_net_buy_to_issued_shares",
+            "trust_net_buy_float": "trust_net_buy_to_issued_shares",
+        }
+    )
+    raw.loc[0, "momentum_20d"] = np.nan
+    raw["dividend_yield"] = np.nan
+
+    result = preprocess_features(raw, stable_settings, "run-stable", AS_OF)
+
+    assert len(result.feature_columns) == 2 * len(FACTOR_COLUMNS_PIT_V3)
+    assert set(FACTOR_COLUMNS_PIT_V3).issubset(result.frame.columns)
+    assert result.frame["momentum_20d__missing"].iloc[0] == 1.0
+    assert result.frame["momentum_20d__missing"].iloc[1] == 0.0
+    assert result.frame["dividend_yield__missing"].eq(1.0).all()
+    assert result.frame[list(result.feature_columns)].isna().sum().sum() == 0
+    assert result.coverage["momentum_20d"] == pytest.approx(79 / 80)
+
+
+def test_stable_schema_does_not_correlate_deduplicate(settings) -> None:
+    stable_settings = replace(
+        settings,
+        features=replace(settings.features, feature_version="factor_adj_pit_v3_stable"),
+    )
+    raw = _raw().rename(
+        columns={
+            "foreign_net_buy_float": "foreign_net_buy_to_issued_shares",
+            "trust_net_buy_float": "trust_net_buy_to_issued_shares",
+        }
+    )
+    raw["price_ma20_gap"] = raw["momentum_20d"]
+
+    result = preprocess_features(raw, stable_settings, "run-stable", AS_OF)
+
+    assert "momentum_20d" in result.feature_columns
+    assert "price_ma20_gap" in result.feature_columns

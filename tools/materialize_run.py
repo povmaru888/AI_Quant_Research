@@ -42,7 +42,7 @@ from runtime.db_store import build_store, get_engine  # noqa: E402
 from runtime.dotenv import load_dotenv  # noqa: E402
 from services.backtest_service import run_backtest  # noqa: E402
 from services.feature_preprocess_service import preprocess_features  # noqa: E402
-from services.feature_service import calculate_raw_features  # noqa: E402
+from services.feature_service import calculate_raw_features, is_pit_v3_feature_version  # noqa: E402
 from services.label_service import build_labels  # noqa: E402
 from services.metrics_service import (
     calculate_metrics,  # noqa: E402
@@ -392,7 +392,7 @@ def main(argv: list[str] | None = None) -> int:
         prices,
         market_values=(
             store.load_market_value_snapshot()
-            if settings.features.feature_version == "factor_adj_pit_v3"
+            if is_pit_v3_feature_version(settings.features.feature_version)
             else None
         ),
     )
@@ -448,7 +448,11 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _save_features(engine, features, as_of_str: str, feature_version: str) -> int:
-    frame = features.frame.copy()
+    # Missingness indicators are model inputs in the stable schema, but the
+    # dashboard Feature table stores the base factors and aggregate flag only.
+    frame = features.frame.drop(
+        columns=[column for column in features.frame if column.endswith("__missing")]
+    ).copy()
     frame["rebalance_date"] = as_of_str
     frame["feature_version"] = feature_version
     with session_scope(engine) as session:

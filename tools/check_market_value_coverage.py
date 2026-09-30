@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from runtime.dotenv import load_dotenv  # noqa: E402
 from runtime.panel_data import PreparedPanelData  # noqa: E402
+from services.feature_service import is_pit_v3_feature_version  # noqa: E402
 from services.universe_service import build_universe  # noqa: E402
 from settings import load_settings  # noqa: E402
 
@@ -105,8 +106,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     load_dotenv()
     settings = load_settings(args.config)
-    if settings.features.feature_version != "factor_adj_pit_v3":
-        raise ValueError("coverage check requires feature_version=factor_adj_pit_v3")
+    if not is_pit_v3_feature_version(settings.features.feature_version):
+        raise ValueError("coverage check requires a factor_adj_pit_v3 feature version")
     data = PreparedPanelData(settings, args.start, args.end, f"coverage-{args.start}-{args.end}")
     try:
         nonformal_exclusions = _load_nonformal_exclusions(Path(args.nonformal_exclusions))

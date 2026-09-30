@@ -6,8 +6,10 @@ import pandas as pd
 import pytest
 
 from integrations.yfinance_prices import (
+    ADJUSTED_PRICE_COLUMNS,
     PRICE_COLUMNS,
     fetch_bulk_prices,
+    fetch_bulk_prices_with_adjustments,
     fetch_fallback_prices,
     to_yahoo_symbol,
 )
@@ -139,3 +141,23 @@ def test_fetch_bulk_prices_partial_failure() -> None:
     assert sorted(frame.attrs["failed"]) == ["0000", "9999"]
     with pytest.raises(ValueError, match="invalid batch"):
         fetch_bulk_prices(["2330"], "2020-01-01", "2020-01-04", downloader=downloader, batch=0)
+
+
+def test_bulk_adjusted_prices_apply_yahoo_adjustment_factor() -> None:
+    bars = _bars(["2020-01-02"], close=100.0)
+    bars["Adj Close"] = [80.0]
+
+    raw, adjusted = fetch_bulk_prices_with_adjustments(
+        ["2330"],
+        "2020-01-01",
+        "2020-01-04",
+        downloader=lambda tickers, **kwargs: bars,
+    )
+
+    assert list(raw.columns) == list(PRICE_COLUMNS)
+    assert list(adjusted.columns) == list(ADJUSTED_PRICE_COLUMNS)
+    assert adjusted.loc[0, "open_adj"] == pytest.approx(80.0)
+    assert adjusted.loc[0, "high_adj"] == pytest.approx(80.8)
+    assert adjusted.loc[0, "low_adj"] == pytest.approx(79.2)
+    assert adjusted.loc[0, "close_adj"] == pytest.approx(80.0)
+    assert raw.attrs["failed"] == []

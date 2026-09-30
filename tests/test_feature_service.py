@@ -251,3 +251,12 @@ def test_pit_v3_uses_market_value_and_issued_shares() -> None:
     assert row["trust_net_buy_to_issued_shares"] == pytest.approx(20 * 500.0 / 5.0)
     assert "foreign_net_buy_float" not in out.columns
     assert "trust_net_buy_float" not in out.columns
+
+
+def test_pit_v3_chip_factor_names_are_stable_without_institutional_history() -> None:
+    snapshot = _snapshot(market_value=4500.0, issued_shares=5.0).drop(columns="float_shares")
+    out = calculate_raw_features(snapshot, _full_prices(), AS_OF, _financials(), pd.DataFrame())
+
+    assert list(out.columns) == ["stock_id", *FACTOR_COLUMNS_PIT_V3, "missing_flag"]
+    assert pd.isna(out.loc[0, "foreign_net_buy_to_issued_shares"])
+    assert pd.isna(out.loc[0, "trust_net_buy_to_issued_shares"])

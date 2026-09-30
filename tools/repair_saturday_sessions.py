@@ -192,6 +192,7 @@ def _fetch_market_values(
         result = _retry(f"{day} TaiwanStockMarketValue", lambda: fetch_market_value_day(day, token))
         result = _only_known(result, known)
         if not result.empty:
+            result["source"] = "FinMind:TaiwanStockMarketValue"
             result.attrs["market_value_source"] = "FinMind:TaiwanStockMarketValue"
             parts.append(result)
     except Exception as direct_error:  # noqa: BLE001 - apply the approved same-day fallback.
@@ -201,6 +202,7 @@ def _fetch_market_values(
 
     # TPEx provides a historical daily list with exact values and issued shares.
     tpex = _fetch_tpex_market_values(day, known)
+    tpex["source"] = "TPEx official daily market-value list"
     parts.append(tpex)
 
     rows = _retry(
@@ -253,6 +255,9 @@ def _fetch_market_values(
         ["trade_date", "stock_id", "market_value"]
     ]
     if not derived.empty:
+        derived["source"] = (
+            "FinMind:TaiwanStockShareholding NumberOfSharesIssued x same-day nominal close"
+        )
         derived.attrs["market_value_source"] = (
             "FinMind:TaiwanStockShareholding NumberOfSharesIssued x same-day nominal close"
         )
@@ -360,6 +365,9 @@ def _fetch_market_values(
             )[["trade_date", "stock_id", "market_value"]]
             if not inferred.empty:
                 previous_fallback_count = len(inferred)
+                inferred["source"] = (
+                    f"previous-day market value / nominal close x same-day close ({previous_day})"
+                )
                 inferred.attrs["market_value_source"] = (
                     f"previous-day market value / nominal close x same-day close ({previous_day})"
                 )
@@ -555,7 +563,7 @@ def _apply_day(engine, day: str, feeds: dict[str, pd.DataFrame]) -> dict[str, in
                 mv,
                 source=mv.attrs.get("market_value_source", "partial verified market values"),
             )
-            mv_status = "failed (partial rows retained; not eligible for PIT panels)"
+            mv_status = "partial (verified rows retained for stable PIT panels)"
     return {
         "prices_changed": price_count,
         "price_adj_changed": adj_count,

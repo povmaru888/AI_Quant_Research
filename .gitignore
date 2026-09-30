@@ -35,6 +35,8 @@ data/*
 !data/panels/**
 !data/panels_pit_v3/
 !data/panels_pit_v3/**
+!data/panels_oos2020_stable/
+!data/panels_oos2020_stable/**
 !/data/panels/.panel_manifest.json
 !/data/panels_pit_v3/.panel_manifest.json
 
@@ -47,3 +49,4 @@ logs/
 shioaji.log
 database/shares*.json
 !database/shares.json
+database/repair_backups/

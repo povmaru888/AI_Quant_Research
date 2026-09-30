@@ -65,6 +65,18 @@ FACTOR_COLUMNS_PIT_V3: tuple[str, ...] = tuple(
     for column in FACTOR_COLUMNS
 )
 
+
+def is_pit_v3_feature_version(feature_version: str) -> bool:
+    """Return whether a feature version uses point-in-time market values."""
+    return feature_version == "factor_adj_pit_v3" or feature_version.startswith(
+        "factor_adj_pit_v3_"
+    )
+
+
+def uses_stable_feature_schema(feature_version: str) -> bool:
+    """Return whether preprocessing keeps a fixed, missingness-aware schema."""
+    return feature_version.endswith("_stable")
+
 _MARKET_ID = "TAIEX"
 # Equity factors use adjusted history. The raw close is needed only for
 # TAIEX, an index without a stock split/dividend adjustment series.
@@ -416,9 +428,16 @@ def _chip_factors(
     stock_id: str | None = None,
     as_of_str: str | None = None,
 ) -> dict[str, float]:
+    has_issued_shares = "issued_shares" in snap
+    foreign_factor = (
+        "foreign_net_buy_to_issued_shares" if has_issued_shares else "foreign_net_buy_float"
+    )
+    trust_factor = (
+        "trust_net_buy_to_issued_shares" if has_issued_shares else "trust_net_buy_float"
+    )
     out = {
-        "foreign_net_buy_float": float("nan"),
-        "trust_net_buy_float": float("nan"),
+        foreign_factor: float("nan"),
+        trust_factor: float("nan"),
         "margin_balance_change": float("nan"),
         "short_margin_ratio": _safe_div(
             _num(snap.get("short_balance")), _num(snap.get("margin_balance"))
@@ -436,17 +455,11 @@ def _chip_factors(
     if len(eligible) < 20:
         return out
     window = eligible.tail(20)
-    denominator_name = "issued_shares" if "issued_shares" in snap else "float_shares"
+    denominator_name = "issued_shares" if has_issued_shares else "float_shares"
     float_shares = _num(snap.get(denominator_name))
     for factor, column in (
-        (
-            "foreign_net_buy_to_issued_shares" if "issued_shares" in snap else "foreign_net_buy_float",
-            "foreign_net_buy",
-        ),
-        (
-            "trust_net_buy_to_issued_shares" if "issued_shares" in snap else "trust_net_buy_float",
-            "trust_net_buy",
-        ),
+        (foreign_factor, "foreign_net_buy"),
+        (trust_factor, "trust_net_buy"),
     ):
         if column in window.columns:
             total = window[column].to_numpy(dtype=float, na_value=np.nan)

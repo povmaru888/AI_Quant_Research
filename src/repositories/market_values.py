@@ -149,11 +149,10 @@ def upsert_partial_market_value_day(
             },
         )
     )
-    # Keep these rows available for audit while excluding the incomplete day
-    # from PIT loaders, which only accept status='succeeded'.
+    # Keep verified rows auditable without claiming a complete exchange snapshot.
     marker_stmt = sqlite_insert(MarketValueSyncDay).values(
         trade_date=day,
-        status="failed",
+        status="partial",
         row_count=len(records),
         content_hash=canonical_day_hash(frame),
     )
@@ -197,8 +196,11 @@ def mark_sync_day(session: Session, trade_day: str, status: str) -> None:
     session.flush()
 
 
-def load_market_value_snapshot(session: Session, as_of: date) -> pd.DataFrame:
+def load_market_value_snapshot(
+    session: Session, as_of: date, *, include_partial: bool = False
+) -> pd.DataFrame:
     """Load the exact-day market-value rows for a signal date."""
+    statuses = ("succeeded", "partial") if include_partial else ("succeeded",)
     rows = session.execute(
         select(MarketValue.stock_id, MarketValue.trade_date, MarketValue.market_value)
         .join(
@@ -206,7 +208,7 @@ def load_market_value_snapshot(session: Session, as_of: date) -> pd.DataFrame:
             MarketValueSyncDay.trade_date == MarketValue.trade_date,
         )
         .where(MarketValue.trade_date == as_of.isoformat())
-        .where(MarketValueSyncDay.status == "succeeded")
+        .where(MarketValueSyncDay.status.in_(statuses))
         .order_by(MarketValue.stock_id)
     ).all()
     return pd.DataFrame(rows, columns=["stock_id", "trade_date", "market_value"])

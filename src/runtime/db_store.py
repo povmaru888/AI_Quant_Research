@@ -68,6 +68,10 @@ from models.security import Stock
 from repositories import artifacts as artifacts_repo
 from repositories import fundamentals as fundamentals_repo
 from repositories import market_values as market_values_repo
+from services.feature_service import (
+    is_pit_v3_feature_version,
+    uses_stable_feature_schema,
+)
 from repositories import prices as prices_repo
 from repositories import research as research_repo
 from repositories import runs as runs_repo
@@ -411,7 +415,7 @@ class DbStore:
             actives = stocks_repo.get_active_stocks(session, as_of_date)
             caps = (
                 self._pit_market_caps(session, as_of)
-                if self._settings.features.feature_version == "factor_adj_pit_v3"
+                if is_pit_v3_feature_version(self._settings.features.feature_version)
                 else self._market_caps(session, as_of)
             )
         frame = actives.loc[actives["stock_id"] != TAIEX_ID].copy()
@@ -423,14 +427,25 @@ class DbStore:
         """Load direct PIT market values for this store's signal date."""
         as_of = date.fromisoformat(self._require_as_of())
         with self._scope() as session:
-            return market_values_repo.load_market_value_snapshot(session, as_of)
+            return market_values_repo.load_market_value_snapshot(
+                session,
+                as_of,
+                include_partial=uses_stable_feature_schema(
+                    self._settings.features.feature_version
+                ),
+            )
 
     def _pit_market_caps(self, session, as_of: str) -> dict[str, float]:
+        statuses = (
+            ("succeeded", "partial")
+            if uses_stable_feature_schema(self._settings.features.feature_version)
+            else ("succeeded",)
+        )
         rows = session.execute(
             select(MarketValue.stock_id, MarketValue.market_value)
             .join(MarketValueSyncDay, MarketValueSyncDay.trade_date == MarketValue.trade_date)
             .where(MarketValue.trade_date == as_of)
-            .where(MarketValueSyncDay.status == "succeeded")
+            .where(MarketValueSyncDay.status.in_(statuses))
         ).all()
         return {stock_id: float(market_value) for stock_id, market_value in rows}
 
