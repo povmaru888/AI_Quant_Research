@@ -1,0 +1,60 @@
+{
+  "model_version": "xgb_oos2021_validation",
+  "feature_version": "factor_adj_v2",
+  "train_months": [
+    "2016-01",
+    "2019-11",
+    47
+  ],
+  "purge_month": "2019-12",
+  "valid_months": [
+    "2020-01",
+    "2020-12",
+    12
+  ],
+  "common_features": [
+    "margin_balance_change",
+    "momentum_120d",
+    "momentum_20d",
+    "momentum_60d",
+    "operating_income_qoq",
+    "operating_margin",
+    "revenue_mom",
+    "roe",
+    "short_margin_ratio",
+    "volume_ma20_ma60"
+  ],
+  "train_rows": 18330,
+  "valid_rows": 5981,
+  "best_params": {
+    "max_depth": 3,
+    "learning_rate": 0.03616119436314179,
+    "n_estimators": 102,
+    "subsample": 0.7033861603434535,
+    "colsample_bytree": 0.6011063461686903,
+    "min_child_weight": 5,
+    "reg_alpha": 8.311221770473534,
+    "reg_lambda": 7.504342768029315e-07,
+    "random_state": 42
+  },
+  "parameter_source": "models/model_b2/report.json",
+  "parameters_reoptimized": false,
+  "validation_rank_ic": 0.10308710528983088,
+  "validation_pooled_rank_ic": 0.10039841633247513,
+  "validation_top_decile_spread": 0.14798105565239014,
+  "validation_monthly_ic": {
+    "2020-01": 0.1391777097002593,
+    "2020-02": 0.05256413153182313,
+    "2020-03": 0.11370331128437912,
+    "2020-04": 0.18005651715078003,
+    "2020-05": 0.13738649480877024,
+    "2020-06": 0.08680248242192712,
+    "2020-07": 0.06718469568898557,
+    "2020-08": 0.10086466079240419,
+    "2020-09": 0.08163568140848938,
+    "2020-10": 0.11861157168378972,
+    "2020-11": 0.09430225518014962,
+    "2020-12": 0.06475575182621311
+  },
+  "trials": 0
+}

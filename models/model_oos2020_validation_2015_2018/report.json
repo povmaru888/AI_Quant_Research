@@ -1,0 +1,51 @@
+{
+  "model_version": "xgb_oos2020_validation",
+  "feature_version": "factor_adj_v2",
+  "train_months": [
+    "2015-01",
+    "2018-11",
+    47
+  ],
+  "purge_month": "2018-12",
+  "valid_months": [
+    "2019-01",
+    "2019-12",
+    12
+  ],
+  "common_features": [
+    "short_margin_ratio"
+  ],
+  "train_rows": 18024,
+  "valid_rows": 4829,
+  "best_params": {
+    "max_depth": 3,
+    "learning_rate": 0.03616119436314179,
+    "n_estimators": 102,
+    "subsample": 0.7033861603434535,
+    "colsample_bytree": 0.6011063461686903,
+    "min_child_weight": 5,
+    "reg_alpha": 8.311221770473534,
+    "reg_lambda": 7.504342768029315e-07,
+    "random_state": 42
+  },
+  "parameter_source": "models/model_b2/report.json",
+  "parameters_reoptimized": false,
+  "validation_rank_ic": 0.08703500030845929,
+  "validation_pooled_rank_ic": 0.08658683075696323,
+  "validation_top_decile_spread": 0.10824011152265967,
+  "validation_monthly_ic": {
+    "2019-01": 0.02733899634156815,
+    "2019-02": 0.12789558316173258,
+    "2019-03": 0.06415282166099047,
+    "2019-04": -0.10633461591666067,
+    "2019-05": 0.2800417201748237,
+    "2019-06": 0.15691185682957204,
+    "2019-07": 0.0575347596147544,
+    "2019-08": 0.13913353831926514,
+    "2019-09": 0.1533972737084678,
+    "2019-10": 0.011071591272001663,
+    "2019-11": 0.1296382387125073,
+    "2019-12": 0.0036382398224889473
+  },
+  "trials": 0
+}

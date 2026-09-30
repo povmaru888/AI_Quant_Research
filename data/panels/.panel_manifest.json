@@ -1,6 +1,236 @@
 {
   "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+  "month_sources": {
+    "2015-01-30": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2015-02-26": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2015-03-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2015-04-30": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2015-05-29": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2015-06-30": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2015-07-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2015-08-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2015-09-30": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2015-10-30": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2015-11-30": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2015-12-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2016-01-30": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2016-02-26": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2016-03-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2016-04-29": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2016-05-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2016-06-30": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2016-07-29": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2016-08-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2016-09-30": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2016-10-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2016-11-30": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2016-12-30": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255"
+    },
+    "2017-01-24": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2017-02-24": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2017-03-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2017-04-28": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2017-05-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2017-06-30": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2017-07-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2017-08-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2017-09-30": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2017-10-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2017-11-30": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2017-12-29": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2018-01-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2018-02-27": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2018-03-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2018-04-30": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2018-05-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2018-06-29": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2018-07-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2018-08-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2018-11-30": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2018-12-28": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2019-01-30": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2019-02-27": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2019-03-29": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2019-04-30": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    },
+    "2019-05-31": {
+      "build_fingerprint": "463a7d2db940c1087b699398240f034c5ae8b74460fd5ce8dd03a9abe859f26d",
+      "source_fingerprint": "d91f3031fc227d554d1632cc86ce17843c3542815a2838175dedf8bad318f563"
+    }
+  },
   "months": [
+    "2015-01-30",
+    "2015-02-26",
+    "2015-03-31",
+    "2015-04-30",
+    "2015-05-29",
+    "2015-06-30",
+    "2015-07-31",
+    "2015-08-31",
+    "2015-09-30",
+    "2015-10-30",
+    "2015-11-30",
+    "2015-12-31",
+    "2016-01-30",
+    "2016-02-26",
+    "2016-03-31",
+    "2016-04-29",
+    "2016-05-31",
+    "2016-06-30",
+    "2016-07-29",
+    "2016-08-31",
+    "2016-09-30",
+    "2016-10-31",
+    "2016-11-30",
+    "2016-12-30",
     "2017-01-24",
     "2017-02-24",
     "2017-03-31",
@@ -12,9 +242,24 @@
     "2017-09-30",
     "2017-10-31",
     "2017-11-30",
-    "2017-12-29"
+    "2017-12-29",
+    "2018-01-31",
+    "2018-02-27",
+    "2018-03-31",
+    "2018-04-30",
+    "2018-05-31",
+    "2018-06-29",
+    "2018-07-31",
+    "2018-08-31",
+    "2018-11-30",
+    "2018-12-28",
+    "2019-01-30",
+    "2019-02-27",
+    "2019-03-29",
+    "2019-04-30",
+    "2019-05-31"
   ],
   "panel_format_version": 2,
-  "source_fingerprint": "c2e81d8452963d3e491f55ca94404ed6cf190a6d17d5d3ef7bca5d23236d22fb",
-  "updated_at": "2026-09-30T00:43:10.995025+00:00"
+  "source_fingerprint": "153679f23d5ad22ed732358efe72fc7e94e1734ad90738559ab5ebbb6527f255",
+  "updated_at": "2026-09-30T05:24:39.647549+00:00"
 }

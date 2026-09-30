@@ -21,6 +21,7 @@ from repositories.market_values import (
     load_market_value_snapshot,
     mark_sync_day,
     upsert_market_value_day,
+    upsert_partial_market_value_day,
 )
 
 
@@ -198,6 +199,42 @@ def test_market_value_daily_upsert_replaces_corrected_snapshot_atomically(tmp_pa
         engine.dispose()
 
 
+def test_partial_market_value_upsert_keeps_rows_but_never_claims_success(tmp_path: Path) -> None:
+    db_path = tmp_path / "partial-market.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA foreign_keys = ON")
+    _migrate(conn)
+    conn.execute("INSERT INTO stocks (stock_id, market) VALUES ('2330', 'TWSE')")
+    conn.commit()
+    conn.close()
+
+    engine = create_engine(f"sqlite:///{db_path}")
+    day = date(2024, 12, 31)
+    partial = pd.DataFrame(
+        [{"trade_date": day.isoformat(), "stock_id": "2330", "market_value": 100.0}]
+    )
+    try:
+        with Session(engine) as session:
+            assert (
+                upsert_partial_market_value_day(
+                    session, day, partial, source="verified previous-day reconstruction"
+                )
+                == 1
+            )
+            session.commit()
+            marker = session.get(MarketValueSyncDay, day.isoformat())
+            assert marker is not None
+            assert marker.status == "failed"
+            assert marker.row_count == 1
+            row = session.get(MarketValue, (day.isoformat(), "2330"))
+            assert row is not None
+            assert row.market_value == 100.0
+            assert row.source == "verified previous-day reconstruction"
+            assert load_market_value_snapshot(session, day).empty
+    finally:
+        engine.dispose()
+
+
 def test_market_value_rows_do_not_trigger_one_revision_write_per_security(temp_db_conn) -> None:
     migrations = Path(__file__).resolve().parents[1] / "database/migrations/versions"
     for path in sorted(migrations.glob("[0-9]*.py")):
@@ -210,7 +247,8 @@ def test_market_value_rows_do_not_trigger_one_revision_write_per_security(temp_d
         "SELECT revision FROM source_revision WHERE singleton=1"
     ).fetchone()[0]
     temp_db_conn.executemany(
-        "INSERT INTO market_values (trade_date, stock_id, market_value, source) VALUES (?, ?, ?, ?)",
+        "INSERT INTO market_values (trade_date, stock_id, market_value, source) "
+        "VALUES (?, ?, ?, ?)",
         [("2024-12-31", f"S{index}", 100.0 + index, "test") for index in range(10)],
     )
     after_market_rows = temp_db_conn.execute(

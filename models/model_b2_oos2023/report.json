@@ -1,0 +1,58 @@
+{
+ "model_version": "xgb_b2_oos2023",
+ "feature_version": "factor_adj_v2",
+ "refit_months": [
+  "2019-01",
+  "2022-11",
+  47
+ ],
+ "refit_rows": 24765,
+ "best_params": {
+  "max_depth": 3,
+  "learning_rate": 0.03616119436314179,
+  "n_estimators": 102,
+  "subsample": 0.7033861603434535,
+  "colsample_bytree": 0.6011063461686903,
+  "min_child_weight": 5,
+  "reg_alpha": 8.311221770473534,
+  "reg_lambda": 7.504342768029315e-07,
+  "random_state": 42
+ },
+ "common_features": [
+  "amihud_illiquidity",
+  "margin_balance_change",
+  "max_drawdown_120d",
+  "momentum_20d",
+  "momentum_60d",
+  "operating_income_qoq",
+  "operating_margin",
+  "revenue_mom",
+  "revenue_yoy",
+  "roe",
+  "short_margin_ratio",
+  "volatility_60d",
+  "volume_ma20_ma60"
+ ],
+ "oos_months": [
+  "2023-01",
+  "2023-12",
+  12
+ ],
+ "oos_rank_ic": 0.17589909978234888,
+ "oos_top_decile_spread": 0.24861692297752114,
+ "oos_monthly_ic": {
+  "2023-01": 0.21962683717099432,
+  "2023-02": 0.18537229905596597,
+  "2023-03": 0.1713343778408385,
+  "2023-04": 0.21176834882779066,
+  "2023-05": 0.20608487028055356,
+  "2023-06": 0.21221036092319465,
+  "2023-07": 0.05473663084200865,
+  "2023-08": 0.1653579183175851,
+  "2023-09": 0.032838747156310716,
+  "2023-10": 0.3269070345325388,
+  "2023-11": 0.09865336488177089,
+  "2023-12": 0.225898407558635
+ },
+ "frozen_from": "models/model_b1"
+}

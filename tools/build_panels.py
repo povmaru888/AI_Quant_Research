@@ -282,13 +282,34 @@ def main(argv: list[str] | None = None) -> int:
                 failed.append(("source", "source data changed while panels were being built"))
                 print("source data changed while panels were being built; rerun after sync completes", file=sys.stderr)
             if not failed:
+                manifest_path = out / ".panel_manifest.json"
+                try:
+                    previous_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    previous_manifest = {}
+                merged_months = sorted(set(previous_manifest.get("months", [])) | set(months))
+                month_sources = dict(previous_manifest.get("month_sources", {}))
+                previous_build_fp = previous_manifest.get("build_fingerprint")
+                previous_source_fp = previous_manifest.get("source_fingerprint")
+                if previous_build_fp and previous_source_fp:
+                    for old_month in previous_manifest.get("months", []):
+                        month_sources.setdefault(old_month, {
+                            "build_fingerprint": previous_build_fp,
+                            "source_fingerprint": previous_source_fp,
+                        })
+                for built_month in months:
+                    month_sources[built_month] = {
+                        "build_fingerprint": build_fp,
+                        "source_fingerprint": source_fp,
+                    }
                 _atomic_json(
-                    out / ".panel_manifest.json",
+                    manifest_path,
                     {
                         "panel_format_version": PANEL_FORMAT_VERSION,
                         "build_fingerprint": build_fp,
                         "source_fingerprint": source_fp,
-                        "months": months,
+                        "months": merged_months,
+                        "month_sources": month_sources,
                         "updated_at": datetime.now(timezone.utc).isoformat(),
                     },
                 )

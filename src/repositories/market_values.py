@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import date
+from datetime import date, datetime, timezone
 
 import pandas as pd
 from sqlalchemy import delete, select
@@ -32,6 +32,7 @@ def upsert_market_value_day(
     rows: pd.DataFrame,
     *,
     source_content_hash: str | None = None,
+    source: str = "FinMind:TaiwanStockMarketValue",
 ) -> int:
     """Atomically upsert one validated full-market day and mark it complete."""
     day = trade_day.isoformat()
@@ -57,7 +58,7 @@ def upsert_market_value_day(
             "trade_date": day,
             "stock_id": row.stock_id,
             "market_value": float(row.market_value),
-            "source": "FinMind:TaiwanStockMarketValue",
+            "source": source,
         }
         for row in frame.itertuples(index=False)
     ]
@@ -99,6 +100,74 @@ def upsert_market_value_day(
         },
     )
     session.execute(marker)
+    session.flush()
+    return len(records)
+
+
+def upsert_partial_market_value_day(
+    session: Session,
+    trade_day: date,
+    rows: pd.DataFrame,
+    *,
+    source: str,
+) -> int:
+    """Store validated known values without claiming a complete daily snapshot."""
+    day = trade_day.isoformat()
+    if rows.empty:
+        raise ValueError(f"partial market value day {day} is empty")
+    if not {"trade_date", "stock_id", "market_value"}.issubset(rows.columns):
+        raise ValueError("market values require trade_date, stock_id and market_value")
+    frame = rows.loc[:, ["trade_date", "stock_id", "market_value"]].copy()
+    frame["trade_date"] = frame["trade_date"].astype(str)
+    frame["stock_id"] = frame["stock_id"].astype(str)
+    frame["market_value"] = pd.to_numeric(frame["market_value"], errors="coerce")
+    if frame["trade_date"].ne(day).any():
+        raise ValueError(f"partial market value payload contains dates other than {day}")
+    if frame["stock_id"].isna().any() or frame["stock_id"].duplicated().any():
+        raise ValueError(f"partial market values have missing or duplicate stock IDs for {day}")
+    if frame["market_value"].isna().any() or frame["market_value"].le(0).any():
+        raise ValueError(f"partial market values have missing or non-positive values for {day}")
+    now = datetime.now(timezone.utc).isoformat()
+    records = [
+        {
+            "trade_date": day,
+            "stock_id": row.stock_id,
+            "market_value": float(row.market_value),
+            "source": source,
+            "updated_at": now,
+        }
+        for row in frame.itertuples(index=False)
+    ]
+    insert_stmt = sqlite_insert(MarketValue).values(records)
+    session.execute(
+        insert_stmt.on_conflict_do_update(
+            index_elements=list(_VALUE_KEY),
+            set_={
+                "market_value": insert_stmt.excluded.market_value,
+                "source": insert_stmt.excluded.source,
+                "updated_at": insert_stmt.excluded.updated_at,
+            },
+        )
+    )
+    # Keep these rows available for audit while excluding the incomplete day
+    # from PIT loaders, which only accept status='succeeded'.
+    marker_stmt = sqlite_insert(MarketValueSyncDay).values(
+        trade_date=day,
+        status="failed",
+        row_count=len(records),
+        content_hash=canonical_day_hash(frame),
+    )
+    session.execute(
+        marker_stmt.on_conflict_do_update(
+            index_elements=["trade_date"],
+            set_={
+                "status": marker_stmt.excluded.status,
+                "row_count": marker_stmt.excluded.row_count,
+                "content_hash": marker_stmt.excluded.content_hash,
+                "synced_at": marker_stmt.excluded.synced_at,
+            },
+        )
+    )
     session.flush()
     return len(records)
 
