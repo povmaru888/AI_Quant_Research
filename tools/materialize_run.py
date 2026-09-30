@@ -49,6 +49,7 @@ from services.metrics_service import (
     run_cost_sensitivity,  # noqa: E402
 )
 from services.pit_service import build_pit_snapshot  # noqa: E402
+from services.selection_metrics_service import build_selection_metrics  # noqa: E402
 from services.universe_service import build_universe  # noqa: E402
 from services.xgb_service import DEFAULT_PARAMS, rank_ic, train_xgb  # noqa: E402
 from settings import load_settings  # noqa: E402
@@ -123,42 +124,6 @@ def _forward_returns(panel: dict[str, list[float]], days: int) -> pd.Series:
         and c[0] > 0
         and c[days] > 0
     ]
-    if not rows:
-        return pd.Series(dtype=float)
-    return pd.DataFrame(rows).set_index("stock_id")["fwd"]
-
-
-def _close_history(prices: pd.DataFrame, start: str) -> dict[str, tuple[np.ndarray, np.ndarray]]:
-    """Sorted per-stock dates and adjusted closes from ``start`` onward."""
-    frame = prices.loc[
-        prices["trade_date"] >= start, ["stock_id", "trade_date", "close_adj"]
-    ].copy()
-    frame["close_adj"] = pd.to_numeric(frame["close_adj"], errors="coerce")
-    frame.loc[frame["close_adj"] <= 0, "close_adj"] = np.nan
-    frame["trade_date"] = frame["trade_date"].astype(str)
-    frame = frame.sort_values(["stock_id", "trade_date"])
-    return {
-        str(stock_id): (
-            group["trade_date"].to_numpy(dtype=str),
-            group["close_adj"].to_numpy(dtype=float, na_value=np.nan),
-        )
-        for stock_id, group in frame.groupby("stock_id", sort=False)
-    }
-
-
-def _forward_returns_at(
-    history: dict[str, tuple[np.ndarray, np.ndarray]], signal_date: str, days: int
-) -> pd.Series:
-    """Forward return from each stock's first bar on/after a signal date."""
-    rows = []
-    for stock_id, (dates, closes) in history.items():
-        start_idx = int(np.searchsorted(dates, signal_date, side="left"))
-        end_idx = start_idx + days
-        if end_idx >= len(closes):
-            continue
-        start, end = closes[start_idx], closes[end_idx]
-        if np.isfinite(start) and np.isfinite(end) and start > 0 and end > 0:
-            rows.append({"stock_id": stock_id, "fwd": float(np.log(end / start))})
     if not rows:
         return pd.Series(dtype=float)
     return pd.DataFrame(rows).set_index("stock_id")["fwd"]
@@ -290,31 +255,37 @@ def main(argv: list[str] | None = None) -> int:
                 Prediction.prediction_date,
                 Prediction.stock_id,
                 Prediction.prediction_probability,
+                Prediction.rank,
             )
             .where(Prediction.run_id == run_id)
             .order_by(Prediction.prediction_date, Prediction.stock_id)
         ).all()
     predictions_by_date: dict[str, dict[str, float]] = {}
-    for prediction_date, stock_id, probability in pred_rows:
+    for prediction_date, stock_id, probability, _rank in pred_rows:
         predictions_by_date.setdefault(str(prediction_date), {})[str(stock_id)] = float(probability)
     if as_of_str not in predictions_by_date:
         print(f"cannot materialize {run_id}: no predictions for {as_of_str}", file=sys.stderr)
         return 1
-    close_history = _close_history(prices, min(predictions_by_date))
-    monthly_payload = []
+
+    prediction_frame = pd.DataFrame(
+        pred_rows,
+        columns=["prediction_date", "stock_id", "prediction_probability", "rank"],
+    )
+    monthly_payload = build_selection_metrics(prediction_frame, prices)
+    monthly_rows = monthly_payload["monthly"]
     scores = pd.Series(dtype=float)
     month_ic = float("nan")
-    for prediction_date, prediction_scores in sorted(predictions_by_date.items()):
-        monthly_scores = pd.Series(prediction_scores, dtype=float)
-        forward = _forward_returns_at(close_history, prediction_date, _FORWARD_DAYS)
-        ic = rank_ic(monthly_scores, forward)
-        monthly_payload.append({"month": prediction_date[:7], "ic": _finite(ic)})
-        if prediction_date == as_of_str:
-            scores = monthly_scores
-            month_ic = ic
+    for row in monthly_rows:
+        if row["signal_date"] == as_of_str:
+            scores = pd.Series(predictions_by_date[as_of_str], dtype=float)
+            month_ic = row["continuous_rank_ic"]
     panel = _close_panel(prices, as_of_str)
     weeklies = _weekly_ics(scores, panel)
-    monthly_ics = [float(row["ic"]) for row in monthly_payload if row["ic"] is not None]
+    monthly_ics = [
+        float(row["continuous_rank_ic"])
+        for row in monthly_rows
+        if row["continuous_rank_ic"] is not None
+    ]
     run_rank_ic = float(np.mean(monthly_ics)) if monthly_ics else float("nan")
     monthly_ic_std = float(np.std(monthly_ics, ddof=1)) if len(monthly_ics) >= 2 else 0.0
     if len(monthly_ics) >= 2 and monthly_ic_std > 0:

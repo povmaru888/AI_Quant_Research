@@ -924,7 +924,7 @@ class DbStore:
         return {
             "shap_top": shap_top,
             "feature_importance": importance,
-            "monthly_ic": monthly if isinstance(monthly, list) else None,
+            "monthly_ic": monthly if isinstance(monthly, (list, dict)) else None,
             "prediction_dist": [float(p) for p in probs],
         }
 

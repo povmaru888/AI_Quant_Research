@@ -410,6 +410,34 @@ def test_dashboard_reads(store: DbStore, sample_prices: pd.DataFrame) -> None:
     assert set(model_data) == {"shap_top", "feature_importance", "monthly_ic", "prediction_dist"}
 
 
+def test_model_data_reads_versioned_monthly_selection_artifact(
+    store: DbStore, sample_prices: pd.DataFrame, monkeypatch
+) -> None:
+    _seed_market(store, sample_prices)
+    run_id = "oos-versioned-monthly"
+    store.start_run(
+        {
+            "run_id": run_id,
+            "data_end_date": AS_OF,
+            "feature_version": "factor_adj_v2",
+            "parameter_version": "p1",
+        }
+    )
+    store.finish_run(run_id, "succeeded")
+    payload = {
+        "schema_version": 2,
+        "summary": {"mean_top15_excess_return": 0.025},
+        "monthly": [{"month": "2020-01", "top15_excess_return": 0.025}],
+    }
+    monkeypatch.setattr(
+        store,
+        "_artifact",
+        lambda _run_id, kind: payload if kind == "monthly_ic" else {},
+    )
+
+    assert store.load_model_data(run_id)["monthly_ic"] == payload
+
+
 def test_load_holdings_uses_run_feature_version(
     store: DbStore, sample_prices: pd.DataFrame
 ) -> None:
