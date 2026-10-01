@@ -72,7 +72,7 @@ PREDICTION_COLUMNS = (
 _FEATURE_COLUMNS = frozenset(col.name for col in Feature.__table__.columns)
 _FEATURE_KEY = ("rebalance_date", "stock_id", "feature_version")
 _PREDICTION_COLUMNS = frozenset(col.name for col in Prediction.__table__.columns)
-_PREDICTION_KEY = ("prediction_date", "stock_id", "model_version")
+_PREDICTION_KEY = ("run_id", "prediction_date", "stock_id", "model_version")
 
 
 def _save(session: Session, entity, key: tuple[str, ...], records: list[dict]) -> int:

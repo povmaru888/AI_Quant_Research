@@ -14,7 +14,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
 from database import create_engine_from_settings, session_scope
-from models.research import Feature, PipelineRun
+from models.research import Feature, PipelineRun, Prediction
 from repositories.research import (
     PREDICTION_COLUMNS,
     load_predictions,
@@ -256,6 +256,43 @@ def test_save_predictions_idempotent(settings: Settings, temp_db_path: Path) -> 
         with session_scope(engine) as session:
             save_predictions(session, changed)
         assert _table_count(engine, "predictions") == 2
+    finally:
+        engine.dispose()
+
+
+def test_save_predictions_keeps_same_model_date_stock_for_two_runs(
+    settings: Settings, temp_db_path: Path
+) -> None:
+    engine = _seeded_engine(settings, temp_db_path)
+    try:
+        with session_scope(engine) as session:
+            session.add(
+                PipelineRun(
+                    run_id="run-002",
+                    run_time="2020-01-02",
+                    data_end_date="2019-12-31",
+                    feature_version="factor_v1",
+                    parameter_version="p1",
+                    status="started",
+                )
+            )
+        first = _prediction_rows().iloc[[0]].copy()
+        second = first.copy()
+        second["run_id"] = "run-002"
+        second["prediction_probability"] = 0.4
+        second["rank"] = 2
+        with session_scope(engine) as session:
+            save_predictions(session, first)
+            save_predictions(session, second)
+        with session_scope(engine) as session:
+            rows = session.execute(
+                select(
+                    Prediction.run_id,
+                    Prediction.prediction_probability,
+                    Prediction.rank,
+                ).order_by(Prediction.run_id)
+            ).all()
+        assert rows == [("run-001", 0.8, 1), ("run-002", 0.4, 2)]
     finally:
         engine.dispose()
 

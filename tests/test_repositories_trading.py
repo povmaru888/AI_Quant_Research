@@ -13,7 +13,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
 from database import create_engine_from_settings, session_scope
-from models.research import Order, PipelineRun
+from models.research import Order, PipelineRun, Signal
 from repositories.stocks import upsert_stocks
 from repositories.trading import save_orders, save_positions, save_signals
 from settings import Settings
@@ -151,6 +151,41 @@ def test_save_signals_idempotent(settings: Settings, temp_db_path: Path) -> None
         engine.dispose()
 
 
+def test_save_signals_keeps_same_date_stock_for_two_runs(
+    settings: Settings, temp_db_path: Path
+) -> None:
+    engine = _seeded_engine(settings, temp_db_path)
+    try:
+        with session_scope(engine) as session:
+            session.add(
+                PipelineRun(
+                    run_id="run-002",
+                    run_time="2020-01-02",
+                    data_end_date="2019-12-31",
+                    feature_version="factor_v1",
+                    parameter_version="p1",
+                    status="started",
+                )
+            )
+        first = _signal_rows().iloc[[0]].copy()
+        second = first.copy()
+        second["run_id"] = "run-002"
+        second["signal"] = "HOLD"
+        second["target_weight"] = 0.2
+        with session_scope(engine) as session:
+            save_signals(session, first)
+            save_signals(session, second)
+        with session_scope(engine) as session:
+            rows = session.execute(
+                select(Signal.run_id, Signal.signal, Signal.target_weight).order_by(
+                    Signal.run_id
+                )
+            ).all()
+        assert rows == [("run-001", "BUY", 0.1), ("run-002", "HOLD", 0.2)]
+    finally:
+        engine.dispose()
+
+
 def test_save_positions_idempotent(settings: Settings, temp_db_path: Path) -> None:
     engine = _seeded_engine(settings, temp_db_path)
     try:
@@ -244,6 +279,7 @@ def test_validation(settings: Settings, temp_db_path: Path) -> None:
                     session,
                     pd.DataFrame(
                         {
+                            "run_id": pd.Series(dtype=str),
                             "signal_date": pd.Series(dtype=str),
                             "stock_id": pd.Series(dtype=str),
                         }

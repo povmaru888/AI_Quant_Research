@@ -74,26 +74,30 @@ class Feature(Base):
 
 
 class Prediction(Base):
-    """Model output; key (prediction_date, stock_id, model_version)."""
+    """Model output; key (run_id, prediction_date, stock_id, model_version)."""
 
     __tablename__ = "predictions"
 
     prediction_date: Mapped[str] = mapped_column(String, primary_key=True)
     stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.stock_id"), primary_key=True)
-    run_id: Mapped[str] = mapped_column(ForeignKey("pipeline_runs.run_id"), nullable=False)
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("pipeline_runs.run_id"), primary_key=True
+    )
     model_version: Mapped[str] = mapped_column(String, primary_key=True)
     prediction_probability: Mapped[float] = mapped_column(Float, nullable=False)
     rank: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
 class Signal(Base):
-    """Target holding signal; key (signal_date, stock_id)."""
+    """Target holding signal; key (run_id, signal_date, stock_id)."""
 
     __tablename__ = "signals"
 
     signal_date: Mapped[str] = mapped_column(String, primary_key=True)
     stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.stock_id"), primary_key=True)
-    run_id: Mapped[str] = mapped_column(ForeignKey("pipeline_runs.run_id"), nullable=False)
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("pipeline_runs.run_id"), primary_key=True
+    )
     signal: Mapped[str] = mapped_column(String, nullable=False)
     rank: Mapped[int] = mapped_column(Integer, nullable=False)
     target_weight: Mapped[float] = mapped_column(Float, nullable=False)
@@ -133,12 +137,14 @@ class Order(Base):
 
 
 class PortfolioDaily(Base):
-    """Daily portfolio state; key trade_date."""
+    """Daily portfolio state; key (run_id, trade_date)."""
 
     __tablename__ = "portfolio_daily"
 
     trade_date: Mapped[str] = mapped_column(String, primary_key=True)
-    run_id: Mapped[str] = mapped_column(ForeignKey("pipeline_runs.run_id"), nullable=False)
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("pipeline_runs.run_id"), primary_key=True
+    )
     nav: Mapped[float] = mapped_column(Float, nullable=False)
     equity_exposure: Mapped[float] = mapped_column(Float, nullable=False)
     forecast_volatility: Mapped[float | None] = mapped_column(Float, nullable=True)

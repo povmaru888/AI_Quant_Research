@@ -167,7 +167,7 @@ CREATE TABLE IF NOT EXISTS predictions (
         prediction_probability >= 0 AND prediction_probability <= 1
     ),
     rank INTEGER NOT NULL CHECK (rank > 0),
-    PRIMARY KEY (prediction_date, stock_id, model_version),
+    PRIMARY KEY (run_id, prediction_date, stock_id, model_version),
     FOREIGN KEY (stock_id) REFERENCES stocks(stock_id),
     FOREIGN KEY (run_id) REFERENCES pipeline_runs(run_id)
 );
@@ -179,7 +179,7 @@ CREATE TABLE IF NOT EXISTS signals (
     signal TEXT NOT NULL CHECK (signal IN ('BUY', 'HOLD', 'SELL', 'NONE')),
     rank INTEGER NOT NULL,
     target_weight REAL NOT NULL CHECK (target_weight >= 0 AND target_weight <= 1),
-    PRIMARY KEY (signal_date, stock_id),
+    PRIMARY KEY (run_id, signal_date, stock_id),
     FOREIGN KEY (stock_id) REFERENCES stocks(stock_id),
     FOREIGN KEY (run_id) REFERENCES pipeline_runs(run_id)
 );
@@ -215,7 +215,7 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 
 CREATE TABLE IF NOT EXISTS portfolio_daily (
-    trade_date TEXT PRIMARY KEY,
+    trade_date TEXT NOT NULL,
     run_id TEXT NOT NULL,
     nav REAL NOT NULL CHECK (nav >= 0),
     equity_exposure REAL NOT NULL CHECK (equity_exposure >= 0 AND equity_exposure <= 1),
@@ -225,6 +225,7 @@ CREATE TABLE IF NOT EXISTS portfolio_daily (
     taiex_close REAL,
     taiex_ma60 REAL,
     market_regime TEXT NOT NULL,
+    PRIMARY KEY (run_id, trade_date),
     FOREIGN KEY (run_id) REFERENCES pipeline_runs(run_id)
 );
 

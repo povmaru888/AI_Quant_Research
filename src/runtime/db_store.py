@@ -717,6 +717,7 @@ class DbStore:
         with self._scope() as session:
             rank_rows = session.execute(
                 select(Prediction.stock_id, Prediction.rank).where(
+                    Prediction.run_id == run_id,
                     Prediction.prediction_date == as_of,
                     Prediction.model_version == version,
                 )

@@ -38,7 +38,7 @@ ORDER_COLUMNS = (
 )
 
 _SIGNAL_COLUMNS = frozenset(col.name for col in Signal.__table__.columns)
-_SIGNAL_KEY = ("signal_date", "stock_id")
+_SIGNAL_KEY = ("run_id", "signal_date", "stock_id")
 _POSITION_COLUMNS = frozenset(col.name for col in Position.__table__.columns)
 _POSITION_KEY = ("position_date", "stock_id")
 _ORDER_COLUMNS = frozenset(col.name for col in Order.__table__.columns)
