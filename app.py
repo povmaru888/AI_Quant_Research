@@ -31,8 +31,8 @@ class RunStore(Protocol):
     def list_runs(self, status: str | None = None) -> list[dict]: ...
 
 
-def available_runs(store: RunStore, feature_version: str | None = None) -> list[str]:
-    """Return succeeded RESEARCH run ids, preserving store order.
+def _available_run_rows(store: RunStore) -> list[dict]:
+    """Return succeeded RESEARCH run rows, preserving store order.
 
     Daily sync jobs share the runs table; they are filtered by their
     ``job:`` parameter_version so the selector only offers rebalance runs.
@@ -41,7 +41,7 @@ def available_runs(store: RunStore, feature_version: str | None = None) -> list[
     rows = store.list_runs(status=SUCCEEDED)
     if not isinstance(rows, list):
         raise ValueError("invalid runs: list_runs must return a list")
-    run_ids: list[str] = []
+    run_rows: list[dict] = []
     for row in rows:
         if not isinstance(row, dict):
             raise ValueError(f"invalid run row: must be a dict, got {row!r}")
@@ -53,10 +53,21 @@ def available_runs(store: RunStore, feature_version: str | None = None) -> list[
         marker = row.get("parameter_version", "")
         if isinstance(marker, str) and marker.startswith("job:"):
             continue
-        if feature_version is not None and row.get("feature_version", feature_version) != feature_version:
-            continue
-        run_ids.append(run_id)
-    return run_ids
+        run_rows.append(row)
+    return run_rows
+
+
+def available_runs(store: RunStore) -> list[str]:
+    """Return all succeeded RESEARCH run ids, regardless of feature version."""
+    return [row["run_id"] for row in _available_run_rows(store)]
+
+
+def _run_label(row: dict) -> str:
+    run_id = row["run_id"]
+    feature_version = row.get("feature_version")
+    if isinstance(feature_version, str) and feature_version.strip():
+        return f"{run_id} [{feature_version}]"
+    return run_id
 
 
 def _default_load_settings():
@@ -124,15 +135,20 @@ def main(
             st.info("尚未連接資料來源：請先完成資料同步後再回來查看。")
             return
     try:
-        current_version = getattr(getattr(settings, "features", None), "feature_version", None)
-        run_ids = available_runs(store, feature_version=current_version)
+        run_rows = _available_run_rows(store)
+        run_ids = [row["run_id"] for row in run_rows]
+        run_labels = {row["run_id"]: _run_label(row) for row in run_rows}
     except Exception as exc:
         st.error(f"讀取研究紀錄失敗：{exc}")
         return
     if not run_ids:
         st.info("尚無已完成的研究 run：請先執行月度訊號 job。")
         return
-    run_id = st.sidebar.selectbox("研究 run（僅顯示已完成）", run_ids)
+    run_id = st.sidebar.selectbox(
+        "研究 run（僅顯示已完成）",
+        run_ids,
+        format_func=lambda value: run_labels[value],
+    )
     page = st.sidebar.radio("頁面", list(PAGES))
     try:
         if page == "投組" and callable(getattr(store, "list_holding_dates", None)):

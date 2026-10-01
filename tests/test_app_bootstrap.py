@@ -100,12 +100,12 @@ def test_available_runs_skips_daily_job_runs() -> None:
     assert available_runs(FakeStore(rows)) == ["rebalance-2026-07-31b", "legacy"]
 
 
-def test_available_runs_filters_stale_feature_versions() -> None:
+def test_available_runs_keeps_mixed_feature_versions() -> None:
     rows = [
         {"run_id": "old", "status": "succeeded", "feature_version": "factor_v1"},
         {"run_id": "adjusted", "status": "succeeded", "feature_version": "factor_adj_v2"},
     ]
-    assert available_runs(FakeStore(rows), feature_version="factor_adj_v2") == ["adjusted"]
+    assert available_runs(FakeStore(rows)) == ["old", "adjusted"]
 
 
 def test_available_runs_rejects_bad_rows() -> None:
@@ -143,6 +143,38 @@ def test_main_happy_path_dispatches_first_page() -> None:
     assert ("load", "總覽", "run-00", "") in seen
     assert ("render", "總覽", "總覽") in seen
     assert not [c for c in st.calls if c[0] in ("info", "error")]
+
+
+def test_main_labels_runs_with_their_feature_versions() -> None:
+    st = FakeSt()
+    rows = [
+        {
+            "run_id": "oos-2020-b2",
+            "status": "succeeded",
+            "feature_version": "factor_adj_v2",
+        },
+        {
+            "run_id": "oos-2020-b2-stable-schema",
+            "status": "succeeded",
+            "feature_version": "factor_adj_pit_v3_stable",
+        },
+    ]
+    seen: list[str] = []
+    main(
+        st=st,
+        store=FakeStore(rows),
+        load_settings_fn=lambda: object(),
+        loaders={"總覽": lambda run_id, _as_of: seen.append(run_id) or "payload"},
+        pages={"總覽": lambda _st, _payload: None},
+    )
+
+    selectbox = next(call for call in st.calls if call[0] == "selectbox")
+    format_func = selectbox[3]["format_func"]
+    assert format_func("oos-2020-b2") == "oos-2020-b2 [factor_adj_v2]"
+    assert format_func("oos-2020-b2-stable-schema") == (
+        "oos-2020-b2-stable-schema [factor_adj_pit_v3_stable]"
+    )
+    assert seen == ["oos-2020-b2"]
 
 
 def test_main_offers_month_selector_for_portfolio() -> None:
