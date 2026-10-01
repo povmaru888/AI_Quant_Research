@@ -46,6 +46,18 @@ def _snapshot(**overrides):
             {"date": "2020-02-05", "nav": 1.01},
         ],
         "monthly_returns": [{"month": "2020-02", "return": 0.01}],
+        "benchmark_metrics": {
+            "cagr": 0.08,
+            "sharpe": 0.9,
+            "sortino": 1.1,
+            "max_drawdown": -0.2,
+        },
+        "benchmark_equity_curve": [
+            {"date": "2020-02-03", "nav": 1.0},
+            {"date": "2020-02-04", "nav": 0.99},
+            {"date": "2020-02-05", "nav": 1.03},
+        ],
+        "benchmark_monthly_returns": [{"month": "2020-02", "return": 0.03}],
     }
     base.update(overrides)
     return base
@@ -55,14 +67,19 @@ def test_render_full_snapshot() -> None:
     st = FakeSt()
     render_overview(_snapshot(), st=st)
     writes = [c[1] for c in st.calls if c[0] == "write"]
-    assert "CAGR: 0.1234" in writes
-    assert "Sharpe: 1.5000" in writes
-    assert "Sortino: N/A" in writes
+    assert "CAGR: 策略 0.1234｜TAIEX 0.0800" in writes
+    assert "Sharpe: 策略 1.5000｜TAIEX 0.9000" in writes
+    assert "Sortino: 策略 N/A｜TAIEX 1.1000" in writes
     assert "Turnover: N/A" in writes
     charts = [c[1] for c in st.calls if c[0] == "plotly_chart"]
     assert len(charts) == 3
-    assert charts[0].data[0].name == "NAV"
+    assert [trace.name for trace in charts[0].data] == ["策略 NAV", "TAIEX NAV"]
     assert list(charts[0].data[0].y) == [1.0, 1.02, 1.01]
+    assert [trace.name for trace in charts[1].data] == [
+        "策略 Drawdown",
+        "TAIEX Drawdown",
+    ]
+    assert list(charts[2].data[0].y) == ["策略", "TAIEX"]
 
 
 def test_render_missing_values_degrade() -> None:
@@ -90,7 +107,7 @@ def test_drawdown_recomputed_from_nav() -> None:
             {"date": "d3", "nav": 0.99},
         ]
     )
-    assert figure.data[0].name == "Drawdown"
+    assert figure.data[0].name == "策略 Drawdown"
     assert list(figure.data[0].y) == pytest.approx([0.0, 0.0, 0.99 / 1.1 - 1.0])
 
 

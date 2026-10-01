@@ -36,6 +36,9 @@ class FakeStore:
             "oos_months": ["2020-02"],
             "equity_curve": [{"date": "2020-02-03", "nav": 1.0}],
             "monthly_returns": [{"month": "2020-02", "return": 0.01}],
+            "benchmark_metrics": {"cagr": 0.08},
+            "benchmark_equity_curve": [{"date": "2020-02-03", "nav": 1.0}],
+            "benchmark_monthly_returns": [{"month": "2020-02", "return": 0.02}],
             "orm_entity": object(),
         }
 
@@ -97,6 +100,8 @@ def test_get_overview_shape_and_nan() -> None:
     assert payload["oos_months"] == ["2020-02"]
     assert payload["equity_curve"] == [{"date": "2020-02-03", "nav": 1.0}]
     assert payload["monthly_returns"][0]["month"] == "2020-02"
+    assert payload["benchmark_metrics"] == {"cagr": 0.08}
+    assert payload["benchmark_monthly_returns"][0]["return"] == 0.02
     assert "orm_entity" not in payload
 
 

@@ -25,7 +25,13 @@ OVERVIEW_KEYS: tuple[str, ...] = (
     "parameter_version",
 )
 
-OVERVIEW_OPTIONAL_KEYS: tuple[str, ...] = ("equity_curve", "monthly_returns")
+OVERVIEW_OPTIONAL_KEYS: tuple[str, ...] = (
+    "equity_curve",
+    "monthly_returns",
+    "benchmark_metrics",
+    "benchmark_equity_curve",
+    "benchmark_monthly_returns",
+)
 
 HOLDING_COLUMNS: tuple[str, ...] = (
     "stock_id",

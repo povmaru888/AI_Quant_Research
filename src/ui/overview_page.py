@@ -21,6 +21,7 @@ METRIC_LABELS: tuple[tuple[str, str], ...] = (
     ("turnover", "Turnover"),
     ("rank_ic", "IC"),
 )
+BENCHMARK_METRICS = frozenset({"cagr", "sharpe", "sortino", "max_drawdown"})
 
 
 def _clean_points(points: object) -> list[tuple[str, float]]:
@@ -41,8 +42,8 @@ def _clean_points(points: object) -> list[tuple[str, float]]:
     return cleaned
 
 
-def equity_curve_figure(points: object) -> go.Figure:
-    """NAV curve; corrupt rows are skipped, all-bad yields an empty figure."""
+def equity_curve_figure(points: object, benchmark: object = None) -> go.Figure:
+    """Strategy and TAIEX NAV curves on the same starting capital."""
     cleaned = _clean_points(points)
     figure = go.Figure()
     if not cleaned:
@@ -50,13 +51,23 @@ def equity_curve_figure(points: object) -> go.Figure:
         return figure
     days = [day for day, _ in cleaned]
     navs = [nav for _, nav in cleaned]
-    figure.add_trace(go.Scatter(x=days, y=navs, mode="lines", name="NAV"))
-    figure.update_layout(title="Equity curve")
+    figure.add_trace(go.Scatter(x=days, y=navs, mode="lines", name="策略 NAV"))
+    market = _clean_points(benchmark)
+    if market:
+        figure.add_trace(
+            go.Scatter(
+                x=[day for day, _ in market],
+                y=[nav for _, nav in market],
+                mode="lines",
+                name="TAIEX NAV",
+            )
+        )
+    figure.update_layout(title="NAV：策略 vs TAIEX")
     return figure
 
 
-def drawdown_figure(points: object) -> go.Figure:
-    """Drawdown recomputed from NAV (input drawdown columns are ignored)."""
+def drawdown_figure(points: object, benchmark: object = None) -> go.Figure:
+    """Strategy and TAIEX drawdowns recomputed from their NAV curves."""
     cleaned = _clean_points(points)
     figure = go.Figure()
     if not cleaned:
@@ -68,13 +79,27 @@ def drawdown_figure(points: object) -> go.Figure:
     for _, nav in cleaned:
         peak = max(peak, nav)
         drawdowns.append(nav / peak - 1.0)
-    figure.add_trace(go.Scatter(x=days, y=drawdowns, mode="lines", name="Drawdown"))
-    figure.update_layout(title="Drawdown")
+    figure.add_trace(go.Scatter(x=days, y=drawdowns, mode="lines", name="策略 Drawdown"))
+    market = _clean_points(benchmark)
+    if market:
+        market_peak = 0.0
+        market_drawdowns: list[float] = []
+        for _, nav in market:
+            market_peak = max(market_peak, nav)
+            market_drawdowns.append(nav / market_peak - 1.0)
+        figure.add_trace(
+            go.Scatter(
+                x=[day for day, _ in market],
+                y=market_drawdowns,
+                mode="lines",
+                name="TAIEX Drawdown",
+            )
+        )
+    figure.update_layout(title="Drawdown：策略 vs TAIEX")
     return figure
 
 
-def monthly_heatmap_figure(monthly: object) -> go.Figure:
-    """Monthly-return heatmap; corrupt rows are skipped."""
+def _clean_monthly(monthly: object) -> list[tuple[str, float]]:
     rows: list[tuple[str, float]] = []
     if isinstance(monthly, list):
         for entry in monthly:
@@ -88,19 +113,32 @@ def monthly_heatmap_figure(monthly: object) -> go.Figure:
             if not math.isfinite(value):
                 continue
             rows.append((month, float(value)))
+    return rows
+
+
+def monthly_heatmap_figure(monthly: object, benchmark: object = None) -> go.Figure:
+    """Strategy and TAIEX monthly-return heatmap."""
+    rows = _clean_monthly(monthly)
     figure = go.Figure()
     if not rows:
         figure.update_layout(title="Monthly returns (no data)")
         return figure
+    market_by_month = dict(_clean_monthly(benchmark))
+    months = [month for month, _ in rows]
+    z = [[value for _, value in rows]]
+    labels = ["策略"]
+    if market_by_month:
+        z.append([market_by_month.get(month) for month in months])
+        labels.append("TAIEX")
     figure.add_trace(
         go.Heatmap(
-            x=[month for month, _ in rows],
-            y=["return"],
-            z=[[value for _, value in rows]],
+            x=months,
+            y=labels,
+            z=z,
             name="Monthly returns",
         )
     )
-    figure.update_layout(title="Monthly returns")
+    figure.update_layout(title="每月報酬：策略 vs TAIEX")
     return figure
 
 
@@ -127,18 +165,27 @@ def render_overview(snapshot: dict, st=None) -> None:
     metrics = snapshot.get("metrics", {})
     if not isinstance(metrics, dict):
         metrics = {}
+    benchmark_metrics = snapshot.get("benchmark_metrics", {})
+    if not isinstance(benchmark_metrics, dict):
+        benchmark_metrics = {}
     for key, label in METRIC_LABELS:
-        st.write(f"{label}: {_format_metric(metrics.get(key))}")
+        strategy_value = _format_metric(metrics.get(key))
+        if key in BENCHMARK_METRICS:
+            market_value = _format_metric(benchmark_metrics.get(key))
+            st.write(f"{label}: 策略 {strategy_value}｜TAIEX {market_value}")
+        else:
+            st.write(f"{label}: {strategy_value}")
     equity = snapshot.get("equity_curve")
+    benchmark_equity = snapshot.get("benchmark_equity_curve")
     if _clean_points(equity):
-        st.plotly_chart(equity_curve_figure(equity))
-        st.plotly_chart(drawdown_figure(equity))
+        st.plotly_chart(equity_curve_figure(equity, benchmark_equity))
+        st.plotly_chart(drawdown_figure(equity, benchmark_equity))
     else:
         st.info("尚無淨值曲線資料。")
     monthly = snapshot.get("monthly_returns")
     rows = monthly if isinstance(monthly, list) and monthly else None
     if rows:
-        figure = monthly_heatmap_figure(rows)
+        figure = monthly_heatmap_figure(rows, snapshot.get("benchmark_monthly_returns"))
         if figure.data:
             st.plotly_chart(figure)
         else:

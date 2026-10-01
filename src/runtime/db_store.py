@@ -78,6 +78,7 @@ from repositories import runs as runs_repo
 from repositories import stocks as stocks_repo
 from repositories import trading as trading_repo
 from services.backtest_service import run_backtest
+from services.benchmark_service import build_benchmark_payload
 from services.dashboard_service import HOLDING_COLUMNS
 from settings import Settings
 
@@ -692,6 +693,26 @@ class DbStore:
             for key in ("equity_curve", "monthly_returns"):
                 if payload.get(key) is not None:
                     summary[key] = payload[key]
+        equity_curve = summary.get("equity_curve")
+        if isinstance(equity_curve, list) and equity_curve:
+            days = [
+                row.get("date")
+                for row in equity_curve
+                if isinstance(row, dict) and isinstance(row.get("date"), str)
+            ]
+            if days:
+                with self._scope() as session:
+                    taiex_rows = session.execute(
+                        select(Price.trade_date, Price.close)
+                        .where(
+                            Price.stock_id == TAIEX_ID,
+                            Price.trade_date >= min(days),
+                            Price.trade_date <= max(days),
+                        )
+                        .order_by(Price.trade_date)
+                    ).all()
+                taiex = pd.DataFrame(taiex_rows, columns=["trade_date", "close"])
+                summary.update(build_benchmark_payload(equity_curve, taiex))
         return summary
 
     # -- research saves ------------------------------------------------------
