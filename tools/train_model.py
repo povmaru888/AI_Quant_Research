@@ -31,15 +31,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from runtime.dotenv import load_dotenv  # noqa: E402
 from services.feature_selection_service import select_stable_training_features  # noqa: E402
+from services.feature_service import uses_training_coverage_selection  # noqa: E402
 from services.optimization_service import optimize_xgb  # noqa: E402
-from services.feature_service import uses_stable_feature_schema  # noqa: E402
 from services.xgb_service import predict_xgb, rank_ic, train_xgb  # noqa: E402
 from settings import load_settings  # noqa: E402
 
 
-def _load_panels(
-    panels: Path, months: list[str], feature_version: str
-) -> dict[str, dict]:
+def _load_panels(panels: Path, months: list[str], feature_version: str) -> dict[str, dict]:
     out = {}
     for month in months:
         path = panels / f"{month}.pkl"
@@ -102,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
     valid_panels = _load_panels(panels, valid_months, settings.features.feature_version)
 
     feature_selection = None
-    if uses_stable_feature_schema(settings.features.feature_version):
+    if uses_training_coverage_selection(settings.features.feature_version):
         columns, feature_selection = select_stable_training_features(train_panels, train_months)
     else:
         common = set(train_panels[train_months[0]]["feature_columns"])
@@ -130,9 +128,7 @@ def main(argv: list[str] | None = None) -> int:
     train_frame, train_y = assemble(train_months, train_panels)
     valid_frame, valid_y = assemble(valid_months, valid_panels)
     print(f"train rows: {len(train_frame)}, valid rows: {len(valid_frame)}")
-    print(
-        f"train pos: {float(train_y.mean()):.3f}, valid pos: {float(valid_y.mean()):.3f}"
-    )
+    print(f"train pos: {float(train_y.mean()):.3f}, valid pos: {float(valid_y.mean()):.3f}")
     train_x = train_frame[columns]
     valid_x = valid_frame[columns]
 
@@ -188,8 +184,7 @@ def main(argv: list[str] | None = None) -> int:
         top_n = max(1, len(order) // 10)
         month_spreads.append(
             float(
-                truth_m.loc[order.index[:top_n]].mean()
-                - truth_m.loc[order.index[-top_n:]].mean()
+                truth_m.loc[order.index[:top_n]].mean() - truth_m.loc[order.index[-top_n:]].mean()
             )
         )
     ics = [ic for ic in month_ics if np.isfinite(ic)]

@@ -42,7 +42,7 @@ from runtime.dotenv import load_dotenv  # noqa: E402
 from runtime.oos_data import PreparedOOSData, month_end_signal_dates  # noqa: E402
 from services.execution_service import create_orders  # noqa: E402
 from services.feature_preprocess_service import preprocess_features  # noqa: E402
-from services.feature_service import calculate_raw_features, is_pit_v3_feature_version  # noqa: E402
+from services.feature_service import calculate_raw_features, uses_pit_market_values  # noqa: E402
 from services.pit_service import build_pit_snapshot  # noqa: E402
 from services.portfolio_service import build_target_holdings  # noqa: E402
 from services.risk_service import apply_risk_controls  # noqa: E402
@@ -226,7 +226,7 @@ def main(argv: list[str] | None = None) -> int:
                 prices,
                 market_values=(
                     monthly.load_market_value_snapshot()
-                    if is_pit_v3_feature_version(settings.features.feature_version)
+                    if uses_pit_market_values(settings.features.feature_version)
                     else None
                 ),
             )
@@ -281,9 +281,7 @@ def main(argv: list[str] | None = None) -> int:
             write_seconds += time.perf_counter() - write_started
             print(f"[{signal_str}] no next open, skipped")
             continue
-        current_positions = {
-            sid: shares for sid, shares in positions.items() if shares > 0
-        }
+        current_positions = {sid: shares for sid, shares in positions.items() if shares > 0}
         current = pd.DataFrame(
             {"stock_id": list(current_positions), "shares": list(current_positions.values())}
         )
@@ -319,9 +317,7 @@ def main(argv: list[str] | None = None) -> int:
         # Mark the portfolio on adjusted closes. If this month produced
         # fills, value it after execution on that session; otherwise use
         # the signal-date close. Raw share counts are for orders only.
-        mark_date = (
-            str(orders["execution_date"].max()) if not orders.empty else signal_str
-        )
+        mark_date = str(orders["execution_date"].max()) if not orders.empty else signal_str
         quote_source = prepared.quotes if fast_path and prepared is not None else prices
         day_closes = (
             quote_source.loc[quote_source["trade_date"] == mark_date]
@@ -333,18 +329,14 @@ def main(argv: list[str] | None = None) -> int:
         missing_adj = [
             sid
             for sid in held_ids
-            if sid not in day_closes
-            or not pd.notna(day_closes[sid])
-            or float(day_closes[sid]) <= 0
+            if sid not in day_closes or not pd.notna(day_closes[sid]) or float(day_closes[sid]) <= 0
         ]
         if missing_adj:
             error = f"missing adjusted close for holdings {missing_adj} on {mark_date}"
             print(error, file=sys.stderr)
             store.finish_run(args.run_id, "failed", error)
             return 1
-        nav = cash + sum(
-            adjusted_units.get(sid, 0.0) * float(day_closes[sid]) for sid in held_ids
-        )
+        nav = cash + sum(adjusted_units.get(sid, 0.0) * float(day_closes[sid]) for sid in held_ids)
         print(
             f"[{signal_str}] orders={n_saved} positions={len(positions)} nav={nav:,.0f}",
             flush=True,

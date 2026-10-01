@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from math import ceil
-from typing import Mapping
-
-import pandas as pd
-
 
 DEFAULT_ROW_COVERAGE = 0.80
 DEFAULT_MONTH_FRACTION = 0.90
@@ -21,12 +18,12 @@ def select_stable_training_features(
     month_fraction_threshold: float = DEFAULT_MONTH_FRACTION,
     minimum_factors: int = DEFAULT_MINIMUM_FACTORS,
 ) -> tuple[list[str], dict[str, dict[str, float | int | bool]]]:
-    """Select factors using training panels only and keep useful missing flags.
+    """Select factors using training panels only.
 
     A base factor is eligible when at least ``month_fraction_threshold`` of
     training months have ``row_coverage_threshold`` or better coverage. An
-    eligible factor's missingness flag is included only if training data
-    actually contains missing observations for it.
+    Legacy stable panels may include missingness flags.  Factor v4 panels do
+    not, so their selected schema contains base factors only.
     """
     if not months:
         raise ValueError("training months must not be empty")
@@ -38,10 +35,15 @@ def select_stable_training_features(
         raise ValueError("minimum_factors must be positive")
 
     first = panels[months[0]]
-    schema = [column for column in first.get("feature_columns", []) if not column.endswith("__missing")]
+    schema = [
+        column for column in first.get("feature_columns", []) if not column.endswith("__missing")
+    ]
     if not schema:
         raise ValueError(f"{months[0]} has no base factor schema")
     required_months = ceil(len(months) * month_fraction_threshold)
+    indicator_mode = any(
+        column.endswith("__missing") for column in first.get("feature_columns", [])
+    )
     diagnostics: dict[str, dict[str, float | int | bool]] = {}
     eligible: list[str] = []
     for factor in schema:
@@ -57,8 +59,10 @@ def select_stable_training_features(
             if factor not in panel["frame"].columns:
                 raise ValueError(f"{month} fixed schema is missing factor {factor}")
             indicator = f"{factor}__missing"
-            if indicator not in panel["frame"].columns:
+            if indicator_mode and indicator not in panel["frame"].columns:
                 raise ValueError(f"{month} fixed schema is missing indicator {indicator}")
+            if not indicator_mode and indicator in panel["frame"].columns:
+                raise ValueError(f"{month} unexpectedly contains indicator {indicator}")
             monthly_coverage.append(value)
         qualified_months = sum(value >= row_coverage_threshold for value in monthly_coverage)
         is_eligible = qualified_months >= required_months
@@ -75,8 +79,7 @@ def select_stable_training_features(
 
     if len(eligible) < minimum_factors:
         raise ValueError(
-            f"only {len(eligible)} factors meet training coverage; "
-            f"minimum is {minimum_factors}"
+            f"only {len(eligible)} factors meet training coverage; minimum is {minimum_factors}"
         )
 
     selected = list(eligible)
@@ -85,7 +88,7 @@ def select_stable_training_features(
         has_missing = any(
             float(panels[month]["feature_coverage"][factor]) < 1.0 for month in months
         )
-        diagnostics[factor]["missing_indicator_included"] = has_missing
-        if has_missing:
+        diagnostics[factor]["missing_indicator_included"] = indicator_mode and has_missing
+        if indicator_mode and has_missing:
             selected.append(indicator)
     return selected, diagnostics

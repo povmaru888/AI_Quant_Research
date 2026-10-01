@@ -45,6 +45,7 @@ class UniverseSettings:
     min_avg_traded_value_20d_twd: float
     min_price_twd: float
     excluded_flags: tuple[str, ...] = field(default_factory=tuple)
+    min_listing_age_trading_days: int = 0
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,8 @@ class FeaturesSettings:
     correlation_threshold: float
     volatility_window: int
     feature_version: str
+    required_adjusted_price_rows: int = 0
+    required_financial_fields: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
@@ -219,6 +222,7 @@ def load_settings(path: str | Path, env: Mapping[str, str] | None = None) -> Set
         ),
         min_price_twd=_require_positive_number(universe, "universe", "min_price_twd"),
         excluded_flags=tuple(excluded),
+        min_listing_age_trading_days=int(universe.get("min_listing_age_trading_days", 0)),
     )
 
     winsor_lower = _require(features, "features", "winsor_lower_quantile")
@@ -237,7 +241,18 @@ def load_settings(path: str | Path, env: Mapping[str, str] | None = None) -> Set
         correlation_threshold=_require_unit_interval(features, "features", "correlation_threshold"),
         volatility_window=_require_positive_int(features, "features", "volatility_window"),
         feature_version=_require_str(features, "features", "feature_version"),
+        required_adjusted_price_rows=int(features.get("required_adjusted_price_rows", 0)),
+        required_financial_fields=tuple(features.get("required_financial_fields", ())),
     )
+    if universe_settings.min_listing_age_trading_days < 0:
+        raise SettingsError("invalid universe.min_listing_age_trading_days: must be >= 0")
+    if features_settings.required_adjusted_price_rows < 0:
+        raise SettingsError("invalid features.required_adjusted_price_rows: must be >= 0")
+    if not all(
+        isinstance(value, str) and value.strip()
+        for value in features_settings.required_financial_fields
+    ):
+        raise SettingsError("invalid features.required_financial_fields: must be strings")
 
     label_settings = LabelSettings(
         horizon_trading_days=_require_positive_int(label, "label", "horizon_trading_days"),

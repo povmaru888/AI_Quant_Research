@@ -52,7 +52,7 @@ from runtime.oos_data import (  # noqa: E402
 )
 from services.backtest_service import run_backtest  # noqa: E402
 from services.feature_preprocess_service import preprocess_features  # noqa: E402
-from services.feature_service import calculate_raw_features, is_pit_v3_feature_version  # noqa: E402
+from services.feature_service import calculate_raw_features, uses_pit_market_values  # noqa: E402
 from services.label_service import build_labels  # noqa: E402
 from services.metrics_service import (
     calculate_metrics,  # noqa: E402
@@ -103,8 +103,7 @@ def _prices_through_oos_horizon(
     ]
     if valuation_month_dates.empty:
         raise ValueError(
-            f"price history has no trading day in final valuation month "
-            f"{valuation_period}"
+            f"price history has no trading day in final valuation month {valuation_period}"
         )
     return window, str(valuation_month_dates.max())
 
@@ -138,11 +137,7 @@ def _forward_returns(panel: dict[str, list[float]], days: int) -> pd.Series:
     rows = [
         {"stock_id": s, "fwd": float(np.log(c[days] / c[0]))}
         for s, c in panel.items()
-        if len(c) > days
-        and np.isfinite(c[0])
-        and np.isfinite(c[days])
-        and c[0] > 0
-        and c[days] > 0
+        if len(c) > days and np.isfinite(c[0]) and np.isfinite(c[days]) and c[0] > 0 and c[days] > 0
     ]
     if not rows:
         return pd.Series(dtype=float)
@@ -271,9 +266,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"cannot materialize {run_id}: {exc}", file=sys.stderr)
         return 1
-    valuation_days = [
-        day for day in calendar if valuation_month_start <= day <= calendar_month_end
-    ]
+    valuation_days = [day for day in calendar if valuation_month_start <= day <= calendar_month_end]
     if not valuation_days:
         print(f"cannot materialize {run_id}: no trading day in {valuation_period}", file=sys.stderr)
         return 1
@@ -287,15 +280,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     stages["price_slices"] = time.perf_counter() - price_started
     print(
-        f"backtest price window ends {valuation_end_date} "
-        f"(final execution {last_execution_date})",
+        f"backtest price window ends {valuation_end_date} (final execution {last_execution_date})",
         flush=True,
     )
     print("replaying backtest...", flush=True)
     replay_started = time.perf_counter()
-    result = store.replay_backtest(
-        run_id, backtest_prices, signal_end_date=final_signal_date
-    )
+    result = store.replay_backtest(run_id, backtest_prices, signal_end_date=final_signal_date)
     stages["replay"] = time.perf_counter() - replay_started
     print("backtest done", flush=True)
     # Dashboard metrics describe the active window (first execution onward):
@@ -360,11 +350,7 @@ def main(argv: list[str] | None = None) -> int:
         icir = run_rank_ic / monthly_ic_std
         icir_method = "monthly_forward_return_ic"
     else:
-        icir = (
-            float(np.mean(weeklies) / np.std(weeklies, ddof=1))
-            if len(weeklies) >= 2
-            else None
-        )
+        icir = float(np.mean(weeklies) / np.std(weeklies, ddof=1)) if len(weeklies) >= 2 else None
         icir_method = "weekly_forward_return_ic"
     stages["selection_metrics"] = time.perf_counter() - selection_started
 
@@ -408,9 +394,7 @@ def main(argv: list[str] | None = None) -> int:
         "meta": {
             "icir_method": icir_method,
             "icir_observations": (
-                len(monthly_ics)
-                if icir_method == "monthly_forward_return_ic"
-                else len(weeklies)
+                len(monthly_ics) if icir_method == "monthly_forward_return_ic" else len(weeklies)
             ),
             "icir_weeks": len(weeklies),
             "rank_ic_month": _finite(month_ic),
@@ -469,7 +453,7 @@ def main(argv: list[str] | None = None) -> int:
             prices,
             market_values=(
                 store.load_market_value_snapshot()
-                if is_pit_v3_feature_version(settings.features.feature_version)
+                if uses_pit_market_values(settings.features.feature_version)
                 else None
             ),
         )

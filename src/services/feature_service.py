@@ -65,6 +65,18 @@ FACTOR_COLUMNS_PIT_V3: tuple[str, ...] = tuple(
     for column in FACTOR_COLUMNS
 )
 
+# These columns have no usable source in the current financial ETL.  Keeping
+# them in a fixed v4 schema would turn a data outage into a constant feature.
+_V4_UNAVAILABLE_FACTORS = frozenset({"dividend_yield", "roa", "accrual_assets"})
+FACTOR_COLUMNS_V4: tuple[str, ...] = tuple(
+    column for column in FACTOR_COLUMNS_PIT_V3 if column not in _V4_UNAVAILABLE_FACTORS
+)
+
+
+def is_factor_v4_feature_version(feature_version: str) -> bool:
+    """Return whether the complete-case factor-v4 contract is active."""
+    return feature_version == "factor_v4"
+
 
 def is_pit_v3_feature_version(feature_version: str) -> bool:
     """Return whether a feature version uses point-in-time market values."""
@@ -73,9 +85,31 @@ def is_pit_v3_feature_version(feature_version: str) -> bool:
     )
 
 
+def uses_pit_market_values(feature_version: str) -> bool:
+    """Return whether direct signal-day PIT market value is mandatory."""
+    return is_pit_v3_feature_version(feature_version) or is_factor_v4_feature_version(
+        feature_version
+    )
+
+
 def uses_stable_feature_schema(feature_version: str) -> bool:
     """Return whether preprocessing keeps a fixed, missingness-aware schema."""
     return feature_version.endswith("_stable")
+
+
+def uses_training_coverage_selection(feature_version: str) -> bool:
+    """Return whether training-only coverage chooses a fixed panel schema."""
+    return uses_stable_feature_schema(feature_version) or is_factor_v4_feature_version(
+        feature_version
+    )
+
+
+def allows_partial_pit_market_values(feature_version: str) -> bool:
+    """Return whether per-stock completeness may be checked on partial days."""
+    return uses_stable_feature_schema(feature_version) or is_factor_v4_feature_version(
+        feature_version
+    )
+
 
 _MARKET_ID = "TAIEX"
 # Equity factors use adjusted history. The raw close is needed only for
@@ -432,9 +466,7 @@ def _chip_factors(
     foreign_factor = (
         "foreign_net_buy_to_issued_shares" if has_issued_shares else "foreign_net_buy_float"
     )
-    trust_factor = (
-        "trust_net_buy_to_issued_shares" if has_issued_shares else "trust_net_buy_float"
-    )
+    trust_factor = "trust_net_buy_to_issued_shares" if has_issued_shares else "trust_net_buy_float"
     out = {
         foreign_factor: float("nan"),
         trust_factor: float("nan"),

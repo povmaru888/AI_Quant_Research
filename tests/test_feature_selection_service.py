@@ -39,3 +39,22 @@ def test_rejects_training_period_with_too_few_stable_factors() -> None:
 
     with pytest.raises(ValueError, match="minimum is 8"):
         select_stable_training_features(panels, months)
+
+
+def test_selects_factor_v4_schema_without_missing_indicators() -> None:
+    factors = [f"f{i}" for i in range(8)]
+    months = ["2020-01", "2020-02"]
+    panels = {
+        month: {
+            "feature_columns": factors,
+            "feature_coverage": {factor: 0.95 for factor in factors},
+            "frame": pd.DataFrame({factor: [0.0, 1.0] for factor in factors}),
+        }
+        for month in months
+    }
+
+    selected, diagnostics = select_stable_training_features(panels, months)
+
+    assert selected == factors
+    assert all(not column.endswith("__missing") for column in selected)
+    assert all(diagnostics[factor]["missing_indicator_included"] is False for factor in factors)

@@ -16,6 +16,8 @@ from contracts import FeatureSet
 from services.feature_service import (
     FACTOR_COLUMNS,
     FACTOR_COLUMNS_PIT_V3,
+    FACTOR_COLUMNS_V4,
+    is_factor_v4_feature_version,
     is_pit_v3_feature_version,
     uses_stable_feature_schema,
 )
@@ -35,22 +37,31 @@ def preprocess_features(
         raise ValueError(f"invalid run_id: {run_id!r}")
     if not isinstance(raw, pd.DataFrame) or raw.empty:
         raise ValueError("invalid raw: must be a non-empty DataFrame")
+    version = settings.features.feature_version
     factor_columns = (
-        FACTOR_COLUMNS_PIT_V3
-        if is_pit_v3_feature_version(settings.features.feature_version)
-        else FACTOR_COLUMNS
+        FACTOR_COLUMNS_V4
+        if is_factor_v4_feature_version(version)
+        else (FACTOR_COLUMNS_PIT_V3 if is_pit_v3_feature_version(version) else FACTOR_COLUMNS)
     )
-    missing = [c for c in ("stock_id", "missing_flag", *factor_columns) if c not in raw.columns]
+    required_metadata = (
+        ("stock_id",) if is_factor_v4_feature_version(version) else ("stock_id", "missing_flag")
+    )
+    missing = [c for c in (*required_metadata, *factor_columns) if c not in raw.columns]
     if missing:
         raise ValueError(f"invalid raw: missing columns {missing}")
 
     features = settings.features
-    work = raw[["stock_id", "missing_flag", *factor_columns]].copy()
+    work = raw[[*required_metadata, *factor_columns]].copy()
     for column in factor_columns:
         work[column] = pd.to_numeric(work[column], errors="coerce")
     work[list(factor_columns)] = work[list(factor_columns)].replace([np.inf, -np.inf], np.nan)
 
     coverage = {column: float(work[column].notna().mean()) for column in factor_columns}
+    if is_factor_v4_feature_version(version):
+        unavailable = [column for column, rate in coverage.items() if rate == 0.0]
+        if unavailable:
+            raise ValueError(f"factor_v4 source outage: all-NaN columns {unavailable}")
+        return _preprocess_v4(work, factor_columns, coverage, settings, run_id, as_of)
     if uses_stable_feature_schema(settings.features.feature_version):
         return _preprocess_stable(work, factor_columns, coverage, settings, run_id, as_of)
 
@@ -79,6 +90,37 @@ def preprocess_features(
         frame=frame,
         feature_columns=tuple(kept),
         coverage={column: coverage[column] for column in kept},
+    )
+
+
+def _preprocess_v4(
+    work: pd.DataFrame,
+    factor_columns: tuple[str, ...],
+    raw_coverage: dict[str, float],
+    settings: Settings,
+    run_id: str,
+    as_of: date,
+) -> FeatureSet:
+    """Median-fill a fixed base-factor schema without missingness features."""
+    features = settings.features
+    filled = work.loc[:, factor_columns].apply(lambda series: series.fillna(series.median()))
+    lower = filled.quantile(features.winsor_lower_quantile)
+    upper = filled.quantile(features.winsor_upper_quantile)
+    winsored = filled.clip(lower=lower, upper=upper, axis=1)
+    ranked = winsored.rank(pct=True)
+    stds = ranked.std(ddof=1).replace(0, np.nan)
+    standardized = ((ranked - ranked.mean()) / stds).fillna(0.0)
+    frame = pd.concat(
+        [work[["stock_id"]].reset_index(drop=True), standardized.reset_index(drop=True)], axis=1
+    )
+    return FeatureSet(
+        run_id=run_id,
+        as_of=as_of.isoformat(),
+        feature_version=features.feature_version,
+        frame=frame,
+        feature_columns=factor_columns,
+        coverage=raw_coverage,
+        missing_flag_column=None,
     )
 
 

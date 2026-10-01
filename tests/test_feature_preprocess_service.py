@@ -11,7 +11,7 @@ import pytest
 
 from contracts import FeatureSet
 from services.feature_preprocess_service import preprocess_features
-from services.feature_service import FACTOR_COLUMNS, FACTOR_COLUMNS_PIT_V3
+from services.feature_service import FACTOR_COLUMNS, FACTOR_COLUMNS_PIT_V3, FACTOR_COLUMNS_V4
 
 AS_OF = date(2019, 12, 31)
 
@@ -119,3 +119,39 @@ def test_stable_schema_does_not_correlate_deduplicate(settings) -> None:
 
     assert "momentum_20d" in result.feature_columns
     assert "price_ma20_gap" in result.feature_columns
+
+
+def test_factor_v4_has_base_factors_only_and_median_fills(settings) -> None:
+    v4_settings = replace(
+        settings, features=replace(settings.features, feature_version="factor_v4")
+    )
+    raw = _raw().rename(
+        columns={
+            "foreign_net_buy_float": "foreign_net_buy_to_issued_shares",
+            "trust_net_buy_float": "trust_net_buy_to_issued_shares",
+        }
+    )
+    raw.loc[0, "momentum_20d"] = np.nan
+
+    result = preprocess_features(raw, v4_settings, "run-v4", AS_OF)
+
+    assert result.feature_columns == FACTOR_COLUMNS_V4
+    assert "missing_flag" not in result.frame.columns
+    assert not any(column.endswith("__missing") for column in result.frame.columns)
+    assert result.frame[list(FACTOR_COLUMNS_V4)].isna().sum().sum() == 0
+    assert result.coverage["momentum_20d"] == pytest.approx(79 / 80)
+
+
+def test_factor_v4_rejects_whole_month_source_outage(settings) -> None:
+    v4_settings = replace(
+        settings, features=replace(settings.features, feature_version="factor_v4")
+    )
+    raw = _raw().rename(
+        columns={
+            "foreign_net_buy_float": "foreign_net_buy_to_issued_shares",
+            "trust_net_buy_float": "trust_net_buy_to_issued_shares",
+        }
+    )
+    raw["beta_60d"] = np.nan
+    with pytest.raises(ValueError, match="source outage.*beta_60d"):
+        preprocess_features(raw, v4_settings, "run-v4", AS_OF)

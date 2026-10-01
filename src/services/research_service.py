@@ -23,8 +23,17 @@ import pandas as pd
 from contracts import BacktestResult, PortfolioTarget
 from services.backtest_service import run_backtest
 from services.execution_service import create_orders
+from services.factor_v4_eligibility_service import (
+    filter_factor_v4_universe,
+    filter_to_official_sessions,
+    labelable_ids_from_prices,
+)
 from services.feature_preprocess_service import preprocess_features
-from services.feature_service import calculate_raw_features, is_pit_v3_feature_version
+from services.feature_service import (
+    calculate_raw_features,
+    is_factor_v4_feature_version,
+    uses_pit_market_values,
+)
 from services.label_service import build_labels
 from services.optimization_service import optimize_xgb
 from services.pit_service import build_pit_snapshot
@@ -107,24 +116,48 @@ def _execute(
     optimize,
 ) -> BacktestResult:
     prices = store.load_prices()
-    universe = build_universe(prices, store.load_stocks(), as_of, settings, run_id)
+    if is_factor_v4_feature_version(settings.features.feature_version):
+        prices = filter_to_official_sessions(prices)
+    stocks = store.load_stocks()
+    universe = build_universe(prices, stocks, as_of, settings, run_id)
     if not universe.included_ids:
         raise RuntimeError(f"empty universe for {as_of.isoformat()}; halting month")
     market_value_loader = getattr(store, "load_market_value_snapshot", None)
     market_values = (
         market_value_loader()
-        if is_pit_v3_feature_version(settings.features.feature_version)
+        if uses_pit_market_values(settings.features.feature_version)
         and callable(market_value_loader)
         else None
     )
+    financial_snapshot = store.load_financials_snapshot()
     snapshot = build_pit_snapshot(
         universe,
         as_of,
-        store.load_financials_snapshot(),
+        financial_snapshot,
         store.load_institutional_snapshot(),
         prices,
         market_values=market_values,
     )
+    if is_factor_v4_feature_version(settings.features.feature_version):
+        labelable = labelable_ids_from_prices(
+            prices,
+            list(universe.included_ids),
+            as_of,
+            settings.label.horizon_trading_days,
+        )
+        universe, _ = filter_factor_v4_universe(
+            universe,
+            stocks,
+            prices,
+            financial_snapshot,
+            as_of,
+            settings,
+            labelable_ids=labelable,
+        )
+        if not universe.included_ids:
+            raise RuntimeError(f"empty factor_v4 eligible universe for {as_of.isoformat()}")
+        keep = set(universe.included_ids)
+        snapshot = snapshot.loc[snapshot["stock_id"].astype(str).isin(keep)].reset_index(drop=True)
     raw = calculate_raw_features(
         snapshot,
         prices,

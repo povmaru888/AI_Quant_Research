@@ -18,16 +18,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from runtime.dotenv import load_dotenv  # noqa: E402
 from runtime.panel_data import PreparedPanelData  # noqa: E402
-from services.feature_service import is_pit_v3_feature_version  # noqa: E402
+from services.feature_service import uses_pit_market_values  # noqa: E402
 from services.universe_service import build_universe  # noqa: E402
 from settings import load_settings  # noqa: E402
 
-
 _NEAR_CAP_LOW = 4_000_000_000.0
 _NEAR_CAP_HIGH = 6_000_000_000.0
-_DEFAULT_NONFORMAL_EXCLUSIONS = Path(
-    "data/pit_v3_nonformal_mainboard_exclusions.csv"
-)
+_DEFAULT_NONFORMAL_EXCLUSIONS = Path("data/pit_v3_nonformal_mainboard_exclusions.csv")
 
 
 def _load_nonformal_exclusions(path: Path) -> dict[tuple[str, str], dict[str, str]]:
@@ -62,9 +59,7 @@ def _load_nonformal_exclusions(path: Path) -> dict[tuple[str, str], dict[str, st
             try:
                 date.fromisoformat(signal_date)
             except ValueError as exc:
-                raise ValueError(
-                    f"invalid signal_date on line {line_number} of {path}"
-                ) from exc
+                raise ValueError(f"invalid signal_date on line {line_number} of {path}") from exc
             if not stock_id or not reason or not source.startswith("https://") or not evidence:
                 raise ValueError(f"incomplete nonformal exclusion on line {line_number} of {path}")
             key = (signal_date, stock_id)
@@ -106,8 +101,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     load_dotenv()
     settings = load_settings(args.config)
-    if not is_pit_v3_feature_version(settings.features.feature_version):
-        raise ValueError("coverage check requires a factor_adj_pit_v3 feature version")
+    if not uses_pit_market_values(settings.features.feature_version):
+        raise ValueError("coverage check requires a PIT market-value feature version")
     data = PreparedPanelData(settings, args.start, args.end, f"coverage-{args.start}-{args.end}")
     try:
         nonformal_exclusions = _load_nonformal_exclusions(Path(args.nonformal_exclusions))
@@ -173,9 +168,7 @@ def main(argv: list[str] | None = None) -> int:
             for stock_id in candidates:
                 estimated = _legacy_cap_estimate(data, stock_id, signal_day)
                 actual = values.get(stock_id)
-                in_band = (
-                    actual is not None and _NEAR_CAP_LOW <= actual <= _NEAR_CAP_HIGH
-                ) or (
+                in_band = (actual is not None and _NEAR_CAP_LOW <= actual <= _NEAR_CAP_HIGH) or (
                     actual is None
                     and estimated is not None
                     and _NEAR_CAP_LOW <= estimated <= _NEAR_CAP_HIGH
@@ -222,7 +215,8 @@ def main(argv: list[str] | None = None) -> int:
             "near_4_to_6_billion_missing": near_missing,
             "near_4_to_6_billion_nonformal_mainboard_excluded": near_nonformal_excluded,
             "near_band_estimation_note": (
-                "Exchange-verified stock-date observations outside the formal mainboard are excluded "
+                "Exchange-verified stock-date observations outside the formal "
+                "mainboard are excluded "
                 "before checking near-band estimates. For remaining rows, shares.json is used "
                 "only as a diagnostic estimate and never in v3 panels."
             ),
@@ -235,11 +229,25 @@ def main(argv: list[str] | None = None) -> int:
         output = Path(args.out)
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(json.dumps({k: result[k] for k in (
-            "pre_market_cap_candidates", "market_value_covered", "market_value_missing",
-            "coverage", "nonformal_mainboard_excluded", "near_4_to_6_billion_candidates",
-            "near_4_to_6_billion_missing", "passed"
-        )}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {
+                    k: result[k]
+                    for k in (
+                        "pre_market_cap_candidates",
+                        "market_value_covered",
+                        "market_value_missing",
+                        "coverage",
+                        "nonformal_mainboard_excluded",
+                        "near_4_to_6_billion_candidates",
+                        "near_4_to_6_billion_missing",
+                        "passed",
+                    )
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 0 if result["passed"] else 1
     finally:
         data.close()

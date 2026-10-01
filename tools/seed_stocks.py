@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import date
+from datetime import date, datetime, time, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -67,7 +67,13 @@ def _seed_info(engine, token: str) -> int:
 
 
 def _seed_taiex_finmind(engine, token: str, start: str) -> int:
-    rows = _get(INDICES_DATASET, start, date.today().isoformat(), token)
+    rows = _get(
+        INDICES_DATASET,
+        start,
+        date.today().isoformat(),
+        token,
+        data_id=TAIEX_ID,
+    )
     frame = pd.DataFrame(rows)
     if frame.empty:
         return 0
@@ -101,7 +107,10 @@ def _seed_taiex_finmind(engine, token: str, start: str) -> int:
 
 
 def _seed_taiex_yahoo(engine, start: str) -> int:
-    import yfinance as yf
+    try:
+        import yfinance as yf
+    except ImportError:
+        return _seed_taiex_yahoo_chart(engine, start)
 
     raw = yf.download(
         "^TWII", start=start, end=date.today().isoformat(), auto_adjust=False, progress=False
@@ -134,6 +143,50 @@ def _seed_taiex_yahoo(engine, start: str) -> int:
     ]
     # Index volume is unreliable; zeros pass the volume >= 0 CHECK.
     return _store_taiex(engine, prices, "yfinance")
+
+
+def _seed_taiex_yahoo_chart(engine, start: str) -> int:
+    """Dependency-free Yahoo chart fallback used when yfinance is absent."""
+    import requests
+
+    period1 = int(datetime.combine(date.fromisoformat(start), time.min, timezone.utc).timestamp())
+    period2 = int(datetime.combine(date.today(), time.max, timezone.utc).timestamp())
+    response = requests.get(
+        "https://query1.finance.yahoo.com/v8/finance/chart/%5ETWII",
+        params={"period1": period1, "period2": period2, "interval": "1d", "events": "history"},
+        headers={"User-Agent": "taiwan-quant-xgb/1.0"},
+        timeout=60,
+    )
+    response.raise_for_status()
+    result = response.json().get("chart", {}).get("result")
+    if not result:
+        raise RuntimeError("Yahoo chart returned no TAIEX history")
+    payload = result[0]
+    timestamps = payload.get("timestamp", [])
+    quote = (payload.get("indicators", {}).get("quote") or [{}])[0]
+    frame = pd.DataFrame(
+        {
+            "stock_id": TAIEX_ID,
+            "trade_date": [
+                datetime.fromtimestamp(value, timezone.utc).date().isoformat()
+                for value in timestamps
+            ],
+            "open": quote.get("open", []),
+            "high": quote.get("high", []),
+            "low": quote.get("low", []),
+            "close": quote.get("close", []),
+            "volume": 0.0,
+            "traded_value": 0.0,
+            "source": "yahoo-chart",
+        }
+    )
+    for column in ("open", "high", "low", "close"):
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    frame = frame.dropna(subset=["trade_date", "open", "high", "low", "close"])
+    frame = frame.loc[
+        (frame[["open", "high", "low", "close"]] > 0).all(axis=1) & (frame["high"] >= frame["low"])
+    ]
+    return _store_taiex(engine, frame, "yahoo-chart")
 
 
 def _store_taiex(engine, prices: pd.DataFrame, source: str) -> int:

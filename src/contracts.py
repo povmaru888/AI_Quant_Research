@@ -118,7 +118,7 @@ class FeatureSet:
     frame: pd.DataFrame
     feature_columns: tuple[str, ...]
     coverage: dict[str, float]
-    missing_flag_column: str = "missing_flag"
+    missing_flag_column: str | None = "missing_flag"
 
     def __post_init__(self) -> None:
         _require_run_id(self.run_id)
@@ -129,7 +129,10 @@ class FeatureSet:
             raise ValueError("invalid frame: must be a non-empty DataFrame")
         if "stock_id" not in self.frame.columns:
             raise ValueError("invalid frame: missing 'stock_id' column")
-        if self.missing_flag_column not in self.frame.columns:
+        if (
+            self.missing_flag_column is not None
+            and self.missing_flag_column not in self.frame.columns
+        ):
             raise ValueError(f"invalid frame: missing flag column {self.missing_flag_column!r}")
         columns = tuple(self.feature_columns)
         if not columns:

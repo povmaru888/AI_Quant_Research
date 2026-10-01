@@ -9,7 +9,7 @@ from collections import defaultdict
 from dataclasses import asdict
 from datetime import date
 from pathlib import Path
-from urllib.parse import unquote, quote
+from urllib.parse import quote, unquote
 
 import numpy as np
 import pandas as pd
@@ -17,14 +17,15 @@ import pandas as pd
 from contracts import UniverseSnapshot
 from runtime.db_store import default_shares_path
 from services.feature_service import (
-    is_pit_v3_feature_version,
-    uses_stable_feature_schema,
+    allows_partial_pit_market_values,
+    is_factor_v4_feature_version,
+    uses_pit_market_values,
 )
 from services.universe_service import build_universe
 from settings import Settings
 
 PANEL_FORMAT_VERSION = 2
-PANEL_BUILDER_VERSION = "batch-index-v2"
+PANEL_BUILDER_VERSION = "batch-index-v4-eligibility-r3"
 _TAIEX_ID = "TAIEX"
 _PRICE_COLUMNS = (
     "stock_id",
@@ -104,7 +105,9 @@ def source_fingerprint(settings: Settings) -> str:
     db_uri = "file:" + quote(path.as_posix(), safe="/:\\") + "?mode=ro"
     with sqlite3.connect(db_uri, uri=True, timeout=30.0) as conn:
         try:
-            revision = int(conn.execute("SELECT revision FROM source_revision WHERE singleton=1").fetchone()[0])
+            revision = int(
+                conn.execute("SELECT revision FROM source_revision WHERE singleton=1").fetchone()[0]
+            )
         except sqlite3.Error as exc:
             raise RuntimeError("database migration 004 is required; run tools/init_db.py") from exc
     return canonical_json_hash(
@@ -121,12 +124,17 @@ def canonical_panel_hash(panel: dict) -> str:
     """Hash semantic panel content independently of pickle byte layout."""
     digest = hashlib.sha256()
     for key in ("signal_date", "universe", "feature_columns", "feature_version"):
-        digest.update(json.dumps(panel.get(key), ensure_ascii=False, sort_keys=True, default=str).encode())
+        digest.update(
+            json.dumps(panel.get(key), ensure_ascii=False, sort_keys=True, default=str).encode()
+        )
         digest.update(b"\0")
     if "feature_coverage" in panel:
         digest.update(
             json.dumps(panel["feature_coverage"], ensure_ascii=False, sort_keys=True).encode()
         )
+        digest.update(b"\0")
+    if "eligibility" in panel:
+        digest.update(json.dumps(panel["eligibility"], ensure_ascii=False, sort_keys=True).encode())
         digest.update(b"\0")
     for name in ("frame", "labels"):
         frame = panel[name]
@@ -146,7 +154,9 @@ def canonical_panel_hash(panel: dict) -> str:
                 "index_dtype": str(frame.index.dtype),
             }
         digest.update(json.dumps(metadata, ensure_ascii=False, sort_keys=True).encode())
-        digest.update(pd.util.hash_pandas_object(frame, index=True, categorize=True).to_numpy().tobytes())
+        digest.update(
+            pd.util.hash_pandas_object(frame, index=True, categorize=True).to_numpy().tobytes()
+        )
     return digest.hexdigest()
 
 
@@ -222,7 +232,14 @@ class PreparedPanelData:
         self.rows_loaded["stocks"] = len(rows)
         frame = pd.DataFrame(
             rows,
-            columns=["stock_id", "stock_name", "market", "listed_date", "delisted_date", "industry"],
+            columns=[
+                "stock_id",
+                "stock_name",
+                "market",
+                "listed_date",
+                "delisted_date",
+                "industry",
+            ],
         )
         frame["flags"] = ""
         return frame
@@ -242,6 +259,16 @@ class PreparedPanelData:
             return
         first_day, last_day = months[0], months[-1]
         horizon = self.settings.label.horizon_trading_days
+        history_rows = 121
+        calendar_end = last_day
+        if is_factor_v4_feature_version(self.settings.features.feature_version):
+            history_rows = max(
+                history_rows,
+                self.settings.features.required_adjusted_price_rows + 10,
+            )
+            # Future TAIEX dates are used only to validate that t+20 equity
+            # rows are real sessions; feature slicing still stops at signal day.
+            calendar_end = "9999-12-31"
         sql = f"""
         WITH before_ranked AS (
             SELECT stock_id, trade_date,
@@ -256,21 +283,23 @@ class PreparedPanelData:
             WHERE stock_id != ? AND trade_date > ?
         ),
         selected AS (
-            SELECT {', '.join(_PRICE_COLUMNS)} FROM prices
+            SELECT {", ".join(_PRICE_COLUMNS)} FROM prices
              WHERE stock_id != ? AND trade_date >= ? AND trade_date <= ?
             UNION ALL
-            SELECT p.stock_id, p.trade_date, p.close, p.high_adj, p.close_adj, p.volume, p.traded_value
+            SELECT p.stock_id, p.trade_date, p.close, p.high_adj, p.close_adj,
+                   p.volume, p.traded_value
               FROM prices AS p JOIN before_ranked AS r USING (stock_id, trade_date)
-             WHERE r.rn <= 121
+             WHERE r.rn <= ?
             UNION ALL
-            SELECT p.stock_id, p.trade_date, p.close, p.high_adj, p.close_adj, p.volume, p.traded_value
+            SELECT p.stock_id, p.trade_date, p.close, p.high_adj, p.close_adj,
+                   p.volume, p.traded_value
               FROM prices AS p JOIN after_ranked AS r USING (stock_id, trade_date)
              WHERE r.rn <= ?
             UNION ALL
             SELECT stock_id, trade_date, close, high_adj, close_adj, volume, traded_value
               FROM prices WHERE stock_id = ? AND trade_date <= ?
         )
-        SELECT {', '.join(_PRICE_COLUMNS)} FROM selected ORDER BY stock_id, trade_date
+        SELECT {", ".join(_PRICE_COLUMNS)} FROM selected ORDER BY stock_id, trade_date
         """
         params = (
             _TAIEX_ID,
@@ -280,9 +309,10 @@ class PreparedPanelData:
             _TAIEX_ID,
             first_day,
             last_day,
+            history_rows,
             horizon,
             _TAIEX_ID,
-            last_day,
+            calendar_end,
         )
         cursor = self.conn.execute(sql, params)
         current_id: str | None = None
@@ -296,11 +326,21 @@ class PreparedPanelData:
             dates = np.asarray(columns[1], dtype="U10")
             self.price_by_stock[current_id] = {
                 "trade_date": dates,
-                "close": pd.to_numeric(pd.Series(columns[2]), errors="coerce").to_numpy(dtype=float),
-                "high_adj": pd.to_numeric(pd.Series(columns[3]), errors="coerce").to_numpy(dtype=float),
-                "close_adj": pd.to_numeric(pd.Series(columns[4]), errors="coerce").to_numpy(dtype=float),
-                "volume": pd.to_numeric(pd.Series(columns[5]), errors="coerce").to_numpy(dtype=float),
-                "traded_value": pd.to_numeric(pd.Series(columns[6]), errors="coerce").to_numpy(dtype=float),
+                "close": pd.to_numeric(pd.Series(columns[2]), errors="coerce").to_numpy(
+                    dtype=float
+                ),
+                "high_adj": pd.to_numeric(pd.Series(columns[3]), errors="coerce").to_numpy(
+                    dtype=float
+                ),
+                "close_adj": pd.to_numeric(pd.Series(columns[4]), errors="coerce").to_numpy(
+                    dtype=float
+                ),
+                "volume": pd.to_numeric(pd.Series(columns[5]), errors="coerce").to_numpy(
+                    dtype=float
+                ),
+                "traded_value": pd.to_numeric(pd.Series(columns[6]), errors="coerce").to_numpy(
+                    dtype=float
+                ),
             }
             columns = [[] for _ in _PRICE_COLUMNS]
 
@@ -317,16 +357,41 @@ class PreparedPanelData:
                     columns[index].append(value)
                 total += 1
         flush_group()
+        if is_factor_v4_feature_version(self.settings.features.feature_version):
+            market = self.price_by_stock.get(_TAIEX_ID)
+            if market is None or len(market["trade_date"]) == 0:
+                raise RuntimeError("factor_v4 requires a non-empty TAIEX trading calendar")
+            active_dates: set[str] = set()
+            for stock_id, history in self.price_by_stock.items():
+                if stock_id == _TAIEX_ID:
+                    continue
+                active_dates.update(
+                    str(day)
+                    for day, value in zip(
+                        history["trade_date"], history["traded_value"], strict=True
+                    )
+                    if np.isfinite(value) and value > 0
+                )
+            calendar = market["trade_date"][
+                np.isin(market["trade_date"], np.asarray(sorted(active_dates), dtype="U10"))
+            ]
+            for stock_id, history in self.price_by_stock.items():
+                if stock_id == _TAIEX_ID:
+                    continue
+                keep = np.isin(history["trade_date"], calendar)
+                self.price_by_stock[stock_id] = {
+                    column: values[keep] for column, values in history.items()
+                }
         self.rows_loaded["prices"] = total
 
     def _load_market_values(self, months: list[str]) -> None:
-        if not is_pit_v3_feature_version(self.settings.features.feature_version) or not months:
+        if not uses_pit_market_values(self.settings.features.feature_version) or not months:
             return
         signals = [month_end for month_end in months]
         placeholders = ",".join("?" for _ in signals)
         usable_statuses = (
             "'succeeded', 'partial'"
-            if uses_stable_feature_schema(self.settings.features.feature_version)
+            if allows_partial_pit_market_values(self.settings.features.feature_version)
             else "'succeeded'"
         )
         rows = self.conn.execute(
@@ -336,9 +401,7 @@ class PreparedPanelData:
             "ORDER BY mv.trade_date, mv.stock_id",
             signals,
         ).fetchall()
-        self.market_values = pd.DataFrame(
-            rows, columns=["trade_date", "stock_id", "market_value"]
-        )
+        self.market_values = pd.DataFrame(rows, columns=["trade_date", "stock_id", "market_value"])
         self.market_values_by_day = {
             day: group.set_index("stock_id")["market_value"].astype(float).to_dict()
             for day, group in self.market_values.groupby("trade_date", sort=False)
@@ -346,7 +409,7 @@ class PreparedPanelData:
         self.rows_loaded["market_values"] = len(rows)
 
     def _market_cap(self, stock_id: str, as_of: str) -> float | None:
-        if is_pit_v3_feature_version(self.settings.features.feature_version):
+        if uses_pit_market_values(self.settings.features.feature_version):
             value = self.market_values_by_day.get(as_of, {}).get(stock_id)
             if value is None:
                 return None
@@ -369,14 +432,16 @@ class PreparedPanelData:
         return None
 
     def _stocks_as_of(self, signal_day: str) -> pd.DataFrame:
-        active = self.stocks.loc[
-            self.stocks["listed_date"].isna()
-            | self.stocks["listed_date"].le(signal_day)
-        ].loc[
-            self.stocks["delisted_date"].isna()
-            | self.stocks["delisted_date"].gt(signal_day)
-        ].copy()
-        active["market_cap"] = [self._market_cap(str(stock_id), signal_day) for stock_id in active["stock_id"]]
+        active = (
+            self.stocks.loc[
+                self.stocks["listed_date"].isna() | self.stocks["listed_date"].le(signal_day)
+            ]
+            .loc[self.stocks["delisted_date"].isna() | self.stocks["delisted_date"].gt(signal_day)]
+            .copy()
+        )
+        active["market_cap"] = [
+            self._market_cap(str(stock_id), signal_day) for stock_id in active["stock_id"]
+        ]
         return active.reset_index(drop=True)
 
     def _price_frame(self, stock_ids: list[str], signal_day: str, window: int) -> pd.DataFrame:
@@ -396,7 +461,9 @@ class PreparedPanelData:
         return pd.concat(frames, ignore_index=True)
 
     @staticmethod
-    def _frame_from_indices(stock_id: str, history: dict[str, np.ndarray], indices: np.ndarray) -> pd.DataFrame:
+    def _frame_from_indices(
+        stock_id: str, history: dict[str, np.ndarray], indices: np.ndarray
+    ) -> pd.DataFrame:
         return pd.DataFrame(
             {
                 "stock_id": stock_id,
@@ -427,15 +494,19 @@ class PreparedPanelData:
         for signal_day in months:
             stocks = self._stocks_as_of(signal_day)
             universe = build_universe(
-                self._universe_prices(signal_day), stocks, date.fromisoformat(signal_day),
-                self.settings, self.run_id,
+                self._universe_prices(signal_day),
+                stocks,
+                date.fromisoformat(signal_day),
+                self.settings,
+                self.run_id,
             )
             self.universe_by_month[signal_day] = universe
             self.universe_stocks[signal_day] = stocks
 
     def load_financials(self) -> None:
         rows = self.conn.execute(
-            "SELECT stock_id, report_period, announcement_date, available_date, revenue, net_income, "
+            "SELECT stock_id, report_period, announcement_date, available_date, "
+            "revenue, net_income, "
             "equity, assets, operating_income, operating_cash_flow FROM financials "
             "ORDER BY stock_id, available_date"
         ).fetchall()
@@ -464,13 +535,13 @@ class PreparedPanelData:
             current_id: str | None = None
             group: list[tuple] = []
 
-            def flush_group() -> None:
+            def flush_group() -> None:  # noqa: B023
                 nonlocal group, current_id
-                if current_id is None or not group:
+                if current_id is None or not group:  # noqa: B023
                     group = []
                     return
                 days = np.asarray([row[1] for row in group], dtype="U10")
-                for signal_day in stock_signals.get(current_id, ()):
+                for signal_day in stock_signals.get(current_id, ()):  # noqa: B023
                     stop = int(np.searchsorted(days, signal_day, side="right"))
                     if stop:
                         rows_by_month[signal_day].extend(group[max(0, stop - 21) : stop])
@@ -493,7 +564,9 @@ class PreparedPanelData:
             for signal_day, rows in rows_by_month.items()
         }
         self.rows_loaded["institutional_scanned"] = total_rows
-        self.rows_loaded["institutional_retained"] = sum(len(rows) for rows in rows_by_month.values())
+        self.rows_loaded["institutional_retained"] = sum(
+            len(rows) for rows in rows_by_month.values()
+        )
 
     def prepare(self, months: list[str]) -> dict[str, float]:
         """Load bounded source frames and construct month-level lookups."""

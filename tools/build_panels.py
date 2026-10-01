@@ -19,7 +19,6 @@ import traceback
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -32,10 +31,12 @@ from runtime.panel_data import (  # noqa: E402
     canonical_panel_hash,
     source_fingerprint,
 )
+from services.factor_v4_eligibility_service import filter_factor_v4_universe  # noqa: E402
 from services.feature_preprocess_service import preprocess_features  # noqa: E402
 from services.feature_service import (  # noqa: E402
     calculate_raw_features,
-    is_pit_v3_feature_version,
+    is_factor_v4_feature_version,
+    uses_pit_market_values,
 )
 from services.label_service import build_labels  # noqa: E402
 from services.pit_service import build_pit_snapshot  # noqa: E402
@@ -89,9 +90,7 @@ def _peak_working_set_bytes() -> int | None:
             wintypes.DWORD,
         ]
         get_process_memory_info.restype = wintypes.BOOL
-        if get_process_memory_info(
-            get_current_process(), ctypes.byref(counters), counters.cb
-        ):
+        if get_process_memory_info(get_current_process(), ctypes.byref(counters), counters.cb):
             return int(counters.PeakWorkingSetSize)
     except Exception:  # noqa: BLE001 - profiling must not break panel builds.
         return None
@@ -112,9 +111,7 @@ def _lock(out: Path) -> Path:
     return path
 
 
-def _read_valid_panel(
-    path: Path, feature_version: str, build_fp: str, source_fp: str
-) -> bool:
+def _read_valid_panel(path: Path, feature_version: str, build_fp: str, source_fp: str) -> bool:
     try:
         with path.open("rb") as handle:
             panel = pickle.load(handle)
@@ -160,10 +157,28 @@ def _build_month(data: PreparedPanelData, signal_day: str, run_id: str, settings
         inputs["prices"],
         market_values=(
             inputs["market_values"]
-            if is_pit_v3_feature_version(settings.features.feature_version)
+            if uses_pit_market_values(settings.features.feature_version)
             else None
         ),
     )
+    eligibility = None
+    if is_factor_v4_feature_version(settings.features.feature_version):
+        labelable = set(data.labelable_ids(signal_day, list(universe.included_ids)))
+        universe, eligibility = filter_factor_v4_universe(
+            universe,
+            inputs["stocks"],
+            inputs["feature_prices"],
+            inputs["financials"],
+            as_of,
+            settings,
+            labelable_ids=labelable,
+        )
+        if not universe.included_ids:
+            raise RuntimeError(
+                f"empty factor_v4 eligible universe: {eligibility['excluded_counts']}"
+            )
+        keep = set(universe.included_ids)
+        snapshot = snapshot.loc[snapshot["stock_id"].astype(str).isin(keep)].reset_index(drop=True)
     raw = calculate_raw_features(
         snapshot,
         inputs["feature_prices"],
@@ -176,6 +191,17 @@ def _build_month(data: PreparedPanelData, signal_day: str, run_id: str, settings
     labels = build_labels(inputs["labels_prices"], labelable, as_of, settings)
     if labels.empty:
         raise RuntimeError("no labels")
+    feature_ids = features.frame["stock_id"].astype(str).tolist()
+    universe_ids = list(universe.included_ids)
+    if feature_ids != universe_ids or labels.index.astype(str).tolist() != universe_ids:
+        raise RuntimeError("feature, label, and eligible universe membership/order differ")
+    if is_factor_v4_feature_version(settings.features.feature_version):
+        minimum = max(30, settings.portfolio.top_n * 2)
+        if len(universe_ids) < minimum:
+            raise RuntimeError(
+                f"factor_v4 eligible universe {len(universe_ids)} "
+                f"is below release minimum {minimum}"
+            )
     panel = {
         "signal_date": signal_day,
         "universe": list(universe.included_ids),
@@ -189,6 +215,8 @@ def _build_month(data: PreparedPanelData, signal_day: str, run_id: str, settings
         "frame": features.frame,
         "labels": labels,
     }
+    if eligibility is not None:
+        panel["eligibility"] = eligibility
     return panel
 
 
@@ -247,7 +275,9 @@ def main(argv: list[str] | None = None) -> int:
             profile["months_cache_hit"] = len(months) - len(pending)
             profile["months_pending"] = len(pending)
             if not pending:
-                print(f"cache valid: {len(months)}/{len(months)}; no large source reads", flush=True)
+                print(
+                    f"cache valid: {len(months)}/{len(months)}; no large source reads", flush=True
+                )
                 profile["no_op"] = True
                 return 0
 
@@ -259,7 +289,9 @@ def main(argv: list[str] | None = None) -> int:
             profile["stages_seconds"].update(stage_times)
             profile["rows_loaded"] = dict(data.rows_loaded)
             if source_fingerprint(settings) != source_fp:
-                raise RuntimeError("source data changed during preparation; rerun after sync completes")
+                raise RuntimeError(
+                    "source data changed during preparation; rerun after sync completes"
+                )
             done = len(months) - len(pending)
             failed: list[tuple[str, str]] = []
             for signal_day in pending:
@@ -289,10 +321,17 @@ def main(argv: list[str] | None = None) -> int:
                     "n_labels": len(panel["labels"]),
                     "seconds": elapsed,
                 }
-                print(f"[{done}/{len(months)}] {signal_day} n={len(panel['universe'])} {elapsed:.2f}s", flush=True)
+                print(
+                    f"[{done}/{len(months)}] {signal_day} "
+                    f"n={len(panel['universe'])} {elapsed:.2f}s",
+                    flush=True,
+                )
             if not failed and source_fingerprint(settings) != source_fp:
                 failed.append(("source", "source data changed while panels were being built"))
-                print("source data changed while panels were being built; rerun after sync completes", file=sys.stderr)
+                print(
+                    "source data changed while panels were being built; rerun after sync completes",
+                    file=sys.stderr,
+                )
             if not failed:
                 manifest_path = out / ".panel_manifest.json"
                 try:
@@ -305,10 +344,13 @@ def main(argv: list[str] | None = None) -> int:
                 previous_source_fp = previous_manifest.get("source_fingerprint")
                 if previous_build_fp and previous_source_fp:
                     for old_month in previous_manifest.get("months", []):
-                        month_sources.setdefault(old_month, {
-                            "build_fingerprint": previous_build_fp,
-                            "source_fingerprint": previous_source_fp,
-                        })
+                        month_sources.setdefault(
+                            old_month,
+                            {
+                                "build_fingerprint": previous_build_fp,
+                                "source_fingerprint": previous_source_fp,
+                            },
+                        )
                 for built_month in months:
                     month_sources[built_month] = {
                         "build_fingerprint": build_fp,
