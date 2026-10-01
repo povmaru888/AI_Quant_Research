@@ -58,7 +58,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import Engine, and_, case, func, select
+from sqlalchemy import Engine, and_, case, delete, func, select
 from sqlalchemy.exc import OperationalError
 
 from database import create_engine_from_settings, session_scope
@@ -810,6 +810,61 @@ class DbStore:
         run_id = self._require_run()
         with self._scope() as session:
             return trading_repo.save_orders(session, self._to_order_rows(orders, run_id))
+
+    def save_oos_month(
+        self,
+        predictions: pd.DataFrame,
+        target,
+        orders: pd.DataFrame,
+        model_version: str,
+    ) -> int:
+        """Atomically replace one OOS month's predictions, signals and orders."""
+        run_id = self._require_run()
+        as_of = self._require_as_of()
+        pred = predictions.copy()
+        pred["run_id"] = run_id
+        pred["model_version"] = model_version
+        if "probability" in pred.columns and "prediction_probability" not in pred.columns:
+            pred = pred.rename(columns={"probability": "prediction_probability"})
+        ranks = {
+            str(row.stock_id): int(row.rank)
+            for row in pred[["stock_id", "rank"]].itertuples(index=False)
+        }
+        fallback_rank = max(ranks.values()) + 1 if ranks else 10**6
+        signal_rows = pd.DataFrame(
+            [
+                {
+                    "signal_date": as_of,
+                    "stock_id": stock_id,
+                    "run_id": run_id,
+                    "signal": action,
+                    "rank": ranks.get(stock_id, fallback_rank),
+                    "target_weight": float(target.weights.get(stock_id, 0.0)),
+                }
+                for stock_id, action in target.actions.items()
+            ]
+        )
+        order_rows = self._to_order_rows(orders, run_id) if not orders.empty else pd.DataFrame()
+        with self._scope() as session:
+            session.execute(
+                delete(Prediction).where(
+                    Prediction.run_id == run_id,
+                    Prediction.prediction_date == as_of,
+                    Prediction.model_version == model_version,
+                )
+            )
+            session.execute(
+                delete(Signal).where(Signal.run_id == run_id, Signal.signal_date == as_of)
+            )
+            session.execute(
+                delete(Order).where(Order.run_id == run_id, Order.signal_date == as_of)
+            )
+            prediction_count = research_repo.save_predictions(session, pred)
+            if not signal_rows.empty:
+                trading_repo.save_signals(session, signal_rows)
+            if not order_rows.empty:
+                trading_repo.save_orders(session, order_rows)
+        return prediction_count + len(signal_rows) + len(order_rows)
 
     # -- rebalance extras ----------------------------------------------------
 

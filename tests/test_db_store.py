@@ -347,6 +347,46 @@ def test_save_orders_derives_exact_quantities(store: DbStore, sample_prices: pd.
     assert store.save_orders(_execution_frame().iloc[0:0]) == 0
 
 
+def test_save_oos_month_replaces_scope_atomically(
+    store: DbStore, sample_prices: pd.DataFrame
+) -> None:
+    from models.research import Order, Prediction, Signal
+    from sqlalchemy import func, select
+
+    _seed_market(store, sample_prices)
+    store.start_run({"run_id": "oos", "job": "test", "data_end_date": AS_OF})
+    predictions = pd.DataFrame(
+        {
+            "stock_id": ["2330", "0050"],
+            "probability": [0.8, 0.2],
+            "rank": [1, 2],
+            "prediction_date": [AS_OF, AS_OF],
+        }
+    )
+    target = PortfolioTarget(
+        run_id="oos",
+        signal_date=AS_OF,
+        top_n=15,
+        actions={"2330": "BUY", "0050": "NONE"},
+        weights={"2330": 1.0},
+        cash_weight=0.0,
+        equity_exposure=1.0,
+    )
+    orders = _execution_frame().iloc[[0]].copy()
+    orders["run_id"] = "oos"
+    orders["signal_date"] = AS_OF
+    store.save_oos_month(predictions, target, orders, "xgb")
+
+    shrunk = predictions.iloc[[0]].copy()
+    empty_orders = orders.iloc[0:0].copy()
+    target = dataclasses.replace(target, actions={"2330": "HOLD"})
+    store.save_oos_month(shrunk, target, empty_orders, "xgb")
+    with store._scope() as session:  # noqa: SLF001
+        assert session.execute(select(func.count()).select_from(Prediction)).scalar_one() == 1
+        assert session.execute(select(func.count()).select_from(Signal)).scalar_one() == 1
+        assert session.execute(select(func.count()).select_from(Order)).scalar_one() == 0
+
+
 def test_verify_month_end_and_replace(store: DbStore, sample_prices: pd.DataFrame) -> None:
     _seed_market(store, sample_prices)
     assert store.verify_month_end(date(2020, 1, 31)) is True

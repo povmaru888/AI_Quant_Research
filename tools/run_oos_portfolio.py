@@ -18,8 +18,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pickle
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -37,6 +39,7 @@ from runtime.db_store import (  # noqa: E402  # noqa: E402
     load_shares_cache,
 )
 from runtime.dotenv import load_dotenv  # noqa: E402
+from runtime.oos_data import PreparedOOSData, month_end_signal_dates  # noqa: E402
 from services.execution_service import create_orders  # noqa: E402
 from services.feature_preprocess_service import preprocess_features  # noqa: E402
 from services.feature_service import calculate_raw_features, is_pit_v3_feature_version  # noqa: E402
@@ -60,6 +63,16 @@ def _months(start: str, end: str) -> list[str]:
     return months
 
 
+def _write_profile(path: str | None, payload: dict) -> None:
+    if not path:
+        return
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(f".{destination.name}.{os.getpid()}.tmp")
+    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    os.replace(temporary, destination)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Frozen-model OOS portfolio run.")
     parser.add_argument("--config", default="config.yaml")
@@ -70,6 +83,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--capital", type=float, default=30_000_000.0)
     parser.add_argument("--run-id", default="oos-2024-b2")
     parser.add_argument("--panels", default="data/panels")
+    parser.add_argument("--profile-json", default=None)
     args = parser.parse_args(argv)
     load_dotenv()
     try:
@@ -102,18 +116,12 @@ def main(argv: list[str] | None = None) -> int:
         validation_rank_ic=float(model_report.get("oos_rank_ic") or 0.0),
     )
 
+    started = time.perf_counter()
+    stages: dict[str, float] = {}
     engine = get_engine(settings)
     shares = load_shares_cache(default_shares_path(settings.data.database_url))
-    prices = DbStore(engine, settings, shares_outstanding=shares).load_prices()
     month_list = _months(args.start, args.end)
-    trade_days = sorted(prices.loc[prices["stock_id"] != "TAIEX", "trade_date"].unique())
-    signals: list[str] = []
-    for month in month_list:
-        candidates = [d for d in trade_days if d[:7] == month]
-        if not candidates:
-            print(f"[{month}] no trading days, skipped")
-            continue
-        signals.append(candidates[-1])
+    signals = month_end_signal_dates(engine, month_list)
     if not signals:
         print("no signal dates", file=sys.stderr)
         return 1
@@ -133,26 +141,79 @@ def main(argv: list[str] | None = None) -> int:
     except Exception:  # noqa: BLE001 - rerun reuses the run id.
         pass
 
+    panels_started = time.perf_counter()
+    panels_dir = Path(args.panels) if args.panels else None
+    panel_frames: dict[str, pd.DataFrame] = {}
+    fallback_reason: str | None = None
+    for signal_str in signals:
+        panel_file = (panels_dir / f"{signal_str[:7]}.pkl") if panels_dir else None
+        if not panel_file or not panel_file.is_file():
+            fallback_reason = f"missing panel {signal_str[:7]}"
+            break
+        try:
+            with open(panel_file, "rb") as handle:
+                panel_data = pickle.load(handle)
+            if panel_data.get("feature_version") != settings.features.feature_version:
+                fallback_reason = f"stale panel {signal_str[:7]}"
+                break
+            frame = panel_data["frame"]
+            if not isinstance(frame, pd.DataFrame) or "stock_id" not in frame:
+                fallback_reason = f"invalid panel {signal_str[:7]}"
+                break
+            panel_frames[signal_str] = frame
+        except (OSError, EOFError, pickle.UnpicklingError, KeyError) as exc:
+            fallback_reason = f"invalid panel {signal_str[:7]}: {exc}"
+            break
+    stages["panels"] = time.perf_counter() - panels_started
+    fast_path = fallback_reason is None
+    prices = None
+    prepared = None
+    scored_by_date: dict[str, pd.DataFrame] = {}
+    if fast_path:
+        score_started = time.perf_counter()
+        for signal_str, features_frame in panel_frames.items():
+            if any(column not in features_frame for column in columns):
+                fallback_reason = f"panel {signal_str[:7]} lacks model features"
+                fast_path = False
+                break
+            scored = predict_xgb(artifact, features_frame[["stock_id", *columns]], booster)
+            scored["prediction_date"] = signal_str
+            scored_by_date[signal_str] = scored
+        stages["predictions"] = time.perf_counter() - score_started
+    if fast_path:
+        market_started = time.perf_counter()
+        candidate_ids = {
+            str(row.stock_id)
+            for scored in scored_by_date.values()
+            for row in scored.loc[
+                scored["rank"] <= settings.portfolio.hold_rank_threshold, ["stock_id"]
+            ].itertuples(index=False)
+        }
+        prepared = PreparedOOSData.load(engine, candidate_ids, signals)
+        stages["market_data"] = time.perf_counter() - market_started
+        print(f"fast panel path: {len(candidate_ids)} candidates, {prepared.rows_loaded} rows")
+    else:
+        print(f"legacy fallback: {fallback_reason}", flush=True)
+        market_started = time.perf_counter()
+        prices = DbStore(engine, settings, shares_outstanding=shares).load_prices()
+        stages["market_data"] = time.perf_counter() - market_started
+
     positions: dict[str, int] = {}
     adjusted_units: dict[str, float] = {}
     cash = float(args.capital)
     nav = float(args.capital)
     all_orders: list[pd.DataFrame] = []
-    panels_dir = Path(args.panels) if args.panels else None
+    monthly_seconds = 0.0
+    write_seconds = 0.0
     for signal_str in signals:
+        month_started = time.perf_counter()
         as_of = date.fromisoformat(signal_str)
         monthly = DbStore(engine, settings, as_of=as_of, shares_outstanding=shares)
-        panel_file = (panels_dir / f"{signal_str[:7]}.pkl") if panels_dir else None
-        if panel_file and panel_file.is_file():
-            with open(panel_file, "rb") as handle:
-                panel_data = pickle.load(handle)
-            if panel_data.get("feature_version") != settings.features.feature_version:
-                error = f"[{signal_str}] stale panel feature_version"
-                print(error, file=sys.stderr)
-                store.finish_run(args.run_id, "failed", error)
-                return 1
-            features_frame = panel_data["frame"]
+        if fast_path:
+            features_frame = panel_frames[signal_str]
+            scored = scored_by_date[signal_str]
         else:
+            assert prices is not None
             universe = build_universe(prices, monthly.load_stocks(), as_of, settings, args.run_id)
             if not universe.included_ids:
                 print(f"[{signal_str}] empty universe, skipped")
@@ -182,11 +243,11 @@ def main(argv: list[str] | None = None) -> int:
         if len(available) < len(columns):
             print(f"[{signal_str}] only {len(available)}/{len(columns)} features, skipped")
             continue
-        scored = predict_xgb(artifact, features_frame[["stock_id", *columns]], booster)
-        scored["prediction_date"] = signal_str
+        if not fast_path:
+            scored = predict_xgb(artifact, features_frame[["stock_id", *columns]], booster)
+            scored["prediction_date"] = signal_str
         store._run_id = args.run_id  # noqa: SLF001 - saves bind to this run.
         store._as_of = signal_str  # noqa: SLF001 - snapshot loads bind here.
-        store.save_predictions(scored, args.model_version)
         # Sold-out positions remain as zero-valued keys in the fill ledger;
         # never feed those names back into the rank-buffer holding set.
         prev_positions = pd.DataFrame(
@@ -196,17 +257,28 @@ def main(argv: list[str] | None = None) -> int:
             scored, prev_positions, settings, args.run_id, as_of
         )
         active_stocks = [s for s, action in target.actions.items() if action in ("BUY", "HOLD")]
-        returns_df = (
-            monthly.load_returns(active_stocks)
-            if active_stocks
-            else pd.DataFrame(columns=["stock_id", "trade_date", "log_return"])
-        )
+        if not active_stocks:
+            returns_df = pd.DataFrame(columns=["stock_id", "trade_date", "log_return"])
+        elif fast_path and prepared is not None:
+            returns_df = prepared.returns_for(active_stocks)
+        else:
+            returns_df = monthly.load_returns(active_stocks)
         controlled = apply_risk_controls(
-            target, returns_df, monthly.load_taiex(), as_of, settings
+            target,
+            returns_df,
+            prepared.taiex if fast_path and prepared is not None else monthly.load_taiex(),
+            as_of,
+            settings,
         )
-        store.save_target_holdings(controlled, model_version=args.model_version)
-        next_open = monthly.load_next_open(as_of)
+        next_open = (
+            prepared.next_open(signal_str)
+            if fast_path and prepared is not None
+            else monthly.load_next_open(as_of)
+        )
         if next_open.empty:
+            write_started = time.perf_counter()
+            store.save_oos_month(scored, controlled, pd.DataFrame(), args.model_version)
+            write_seconds += time.perf_counter() - write_started
             print(f"[{signal_str}] no next open, skipped")
             continue
         current_positions = {
@@ -216,12 +288,19 @@ def main(argv: list[str] | None = None) -> int:
             {"stock_id": list(current_positions), "shares": list(current_positions.values())}
         )
         orders = create_orders(controlled, as_of, next_open, current, nav, settings, args.run_id)
-        n_saved = store.save_orders(orders)
+        write_started = time.perf_counter()
+        store.save_oos_month(scored, controlled, orders, args.model_version)
+        write_seconds += time.perf_counter() - write_started
+        n_saved = len(orders)
         if not orders.empty:
             all_orders.append(orders)
             from services.backtest_service import _apply_fill  # noqa: E402,SLF001
 
-            opens = prices.set_index(["trade_date", "stock_id"])[["open", "open_adj"]]
+            opens = (
+                prepared.quote_lookup()[["open", "open_adj"]]
+                if fast_path and prepared is not None
+                else prices.set_index(["trade_date", "stock_id"])[["open", "open_adj"]]
+            )
             ledger = orders.sort_values(["execution_date", "order_id"])
             for record in ledger.to_dict("records"):
                 key = (str(record["execution_date"]), str(record["stock_id"]))
@@ -243,8 +322,9 @@ def main(argv: list[str] | None = None) -> int:
         mark_date = (
             str(orders["execution_date"].max()) if not orders.empty else signal_str
         )
+        quote_source = prepared.quotes if fast_path and prepared is not None else prices
         day_closes = (
-            prices.loc[prices["trade_date"] == mark_date]
+            quote_source.loc[quote_source["trade_date"] == mark_date]
             .set_index("stock_id")["close_adj"]
             .apply(pd.to_numeric, errors="coerce")
             .to_dict()
@@ -269,11 +349,26 @@ def main(argv: list[str] | None = None) -> int:
             f"[{signal_str}] orders={n_saved} positions={len(positions)} nav={nav:,.0f}",
             flush=True,
         )
+        monthly_seconds += time.perf_counter() - month_started
     try:
         store.finish_run(args.run_id, "succeeded")
     except ValueError:
         pass
     final_positions = sum(shares > 0 for shares in positions.values())
+    stages["monthly_risk_execution"] = monthly_seconds
+    stages["db_writes"] = write_seconds
+    stages["total"] = time.perf_counter() - started
+    _write_profile(
+        args.profile_json,
+        {
+            "tool": "run_oos_portfolio",
+            "run_id": args.run_id,
+            "fast_path": fast_path,
+            "fallback_reason": fallback_reason,
+            "rows_loaded": prepared.rows_loaded if prepared is not None else len(prices),
+            "stages_seconds": stages,
+        },
+    )
     print(f"done months={len(all_orders)} final_positions={final_positions}")
     return 0
 

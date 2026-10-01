@@ -24,7 +24,11 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
+import os
+import pickle
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -34,12 +38,18 @@ import sqlalchemy
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from contracts import FeatureSet  # noqa: E402
 from database import session_scope  # noqa: E402
 from models.research import Order, Prediction, Signal  # noqa: E402
 from repositories import artifacts as artifacts_repo  # noqa: E402
 from repositories import research as research_repo  # noqa: E402
 from runtime.db_store import build_store, get_engine  # noqa: E402
 from runtime.dotenv import load_dotenv  # noqa: E402
+from runtime.oos_data import (  # noqa: E402
+    compact_backtest_prices,
+    load_calendar,
+    load_symbol_prices,
+)
 from services.backtest_service import run_backtest  # noqa: E402
 from services.feature_preprocess_service import preprocess_features  # noqa: E402
 from services.feature_service import calculate_raw_features, is_pit_v3_feature_version  # noqa: E402
@@ -55,6 +65,16 @@ from services.xgb_service import DEFAULT_PARAMS, rank_ic, train_xgb  # noqa: E40
 from settings import load_settings  # noqa: E402
 
 _FORWARD_DAYS = 20
+
+
+def _write_profile(path: str | None, payload: dict) -> None:
+    if not path:
+        return
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(f".{destination.name}.{os.getpid()}.tmp")
+    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    os.replace(temporary, destination)
 
 
 def _prices_through_oos_horizon(
@@ -158,7 +178,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Materialize run artifacts.")
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--run-id", default=None)
+    parser.add_argument("--panels", default="data/panels")
+    parser.add_argument("--profile-json", default=None)
     args = parser.parse_args(argv)
+    started = time.perf_counter()
+    stages: dict[str, float] = {}
     load_dotenv()
     try:
         settings = load_settings(args.config)
@@ -172,7 +196,12 @@ def main(argv: list[str] | None = None) -> int:
     else:
         from app import available_runs
 
-        runs = available_runs(store, feature_version=settings.features.feature_version)
+        runs = [
+            candidate
+            for candidate in available_runs(store)
+            if store.load_run_summary(candidate)["feature_version"]
+            == settings.features.feature_version
+        ]
         if not runs:
             print("no succeeded rebalance runs", file=sys.stderr)
             return 1
@@ -198,9 +227,6 @@ def main(argv: list[str] | None = None) -> int:
         shares_outstanding=load_shares_cache(default_shares_path(settings.data.database_url)),
     )
 
-    print("loading prices...", flush=True)
-    prices = store.load_prices()
-    print(f"prices: {len(prices)} bars", flush=True)
     with session_scope(engine) as session:
         final_signal_date = session.execute(
             sqlalchemy.select(sqlalchemy.func.max(Prediction.prediction_date)).where(
@@ -217,26 +243,60 @@ def main(argv: list[str] | None = None) -> int:
                 Order.signal_date <= final_signal_date,
             )
         ).scalar()
+        first_execution_date = session.execute(
+            sqlalchemy.select(sqlalchemy.func.min(Order.execution_date)).where(
+                Order.run_id == run_id,
+                Order.signal_date <= final_signal_date,
+            )
+        ).scalar()
+        order_stock_rows = session.execute(
+            sqlalchemy.select(Order.stock_id)
+            .where(Order.run_id == run_id, Order.signal_date <= final_signal_date)
+            .distinct()
+        ).all()
     if last_execution_date is None:
         print(f"cannot materialize {run_id}: no orders", file=sys.stderr)
         return 1
     last_execution_date = str(last_execution_date)
-    try:
-        backtest_prices, valuation_end_date = _prices_through_oos_horizon(
-            prices, final_signal_date
+    first_execution_date = str(first_execution_date)
+    signal_period = pd.Period(pd.Timestamp(final_signal_date), freq="M")
+    valuation_period = signal_period + 1
+    valuation_month_start = valuation_period.start_time.strftime("%Y-%m-%d")
+    calendar_month_end = valuation_period.end_time.strftime("%Y-%m-%d")
+    calendar = load_calendar(engine)
+    if not any(day > calendar_month_end for day in calendar):
+        exc = ValueError(
+            f"price history does not prove the full valuation month through {calendar_month_end}; "
+            "load a later trading day first"
         )
-    except ValueError as exc:
         print(f"cannot materialize {run_id}: {exc}", file=sys.stderr)
         return 1
+    valuation_days = [
+        day for day in calendar if valuation_month_start <= day <= calendar_month_end
+    ]
+    if not valuation_days:
+        print(f"cannot materialize {run_id}: no trading day in {valuation_period}", file=sys.stderr)
+        return 1
+    valuation_end_date = max(valuation_days)
+    price_started = time.perf_counter()
+    backtest_prices = compact_backtest_prices(
+        engine,
+        [str(row[0]) for row in order_stock_rows],
+        start=first_execution_date,
+        end=valuation_end_date,
+    )
+    stages["price_slices"] = time.perf_counter() - price_started
     print(
         f"backtest price window ends {valuation_end_date} "
         f"(final execution {last_execution_date})",
         flush=True,
     )
     print("replaying backtest...", flush=True)
+    replay_started = time.perf_counter()
     result = store.replay_backtest(
         run_id, backtest_prices, signal_end_date=final_signal_date
     )
+    stages["replay"] = time.perf_counter() - replay_started
     print("backtest done", flush=True)
     # Dashboard metrics describe the active window (first execution onward):
     # the pre-trade flat-cash stretch would corrupt annualization and rates.
@@ -271,7 +331,15 @@ def main(argv: list[str] | None = None) -> int:
         pred_rows,
         columns=["prediction_date", "stock_id", "prediction_probability", "rank"],
     )
-    monthly_payload = build_selection_metrics(prediction_frame, prices)
+    selection_started = time.perf_counter()
+    prediction_prices = load_symbol_prices(
+        engine,
+        prediction_frame["stock_id"].astype(str).unique().tolist(),
+        start=str(prediction_frame["prediction_date"].min()),
+        end=valuation_end_date,
+        columns=("stock_id", "trade_date", "close_adj"),
+    )
+    monthly_payload = build_selection_metrics(prediction_frame, prediction_prices)
     monthly_rows = monthly_payload["monthly"]
     scores = pd.Series(dtype=float)
     month_ic = float("nan")
@@ -279,7 +347,7 @@ def main(argv: list[str] | None = None) -> int:
         if row["signal_date"] == as_of_str:
             scores = pd.Series(predictions_by_date[as_of_str], dtype=float)
             month_ic = row["continuous_rank_ic"]
-    panel = _close_panel(prices, as_of_str)
+    panel = _close_panel(prediction_prices, as_of_str)
     weeklies = _weekly_ics(scores, panel)
     monthly_ics = [
         float(row["continuous_rank_ic"])
@@ -298,6 +366,7 @@ def main(argv: list[str] | None = None) -> int:
             else None
         )
         icir_method = "weekly_forward_return_ic"
+    stages["selection_metrics"] = time.perf_counter() - selection_started
 
     # -- metrics ----------------------------------------------------------
     metrics_frame = calculate_metrics(result, rank_ic=run_rank_ic, icir=icir)
@@ -351,31 +420,68 @@ def main(argv: list[str] | None = None) -> int:
         },
     }
 
-    # -- features (mirror _execute, then persist) --------------------------
-    print("building universe...", flush=True)
-    universe = build_universe(prices, store.load_stocks(), as_of, settings, run_id)
-    print(f"universe: {len(universe.included_ids)} stocks", flush=True)
-    snapshot = build_pit_snapshot(
-        universe,
-        as_of,
-        store.load_financials_snapshot(),
-        store.load_institutional_snapshot(),
-        prices,
-        market_values=(
-            store.load_market_value_snapshot()
-            if is_pit_v3_feature_version(settings.features.feature_version)
-            else None
-        ),
-    )
-    raw = calculate_raw_features(
-        snapshot,
-        prices,
-        as_of,
-        store.load_financials_history(),
-        store.load_institutional_history(),
-    )
-    print("preprocessing features...", flush=True)
-    features = preprocess_features(raw, settings, run_id, as_of)
+    # -- final features/labels: reuse the exact panel that produced scores. --
+    feature_started = time.perf_counter()
+    panel_file = Path(args.panels) / f"{as_of_str[:7]}.pkl" if args.panels else None
+    fast_path = False
+    fallback_reason: str | None = None
+    labels = None
+    if panel_file and panel_file.is_file():
+        try:
+            with open(panel_file, "rb") as handle:
+                final_panel = pickle.load(handle)
+            if final_panel.get("feature_version") != summary["feature_version"]:
+                fallback_reason = "final panel feature_version mismatch"
+            elif not isinstance(final_panel.get("frame"), pd.DataFrame):
+                fallback_reason = "final panel has no feature frame"
+            else:
+                frame = final_panel["frame"].copy()
+                feature_columns = tuple(final_panel.get("feature_columns") or ())
+                coverage = {
+                    column: float(pd.to_numeric(frame[column], errors="coerce").notna().mean())
+                    for column in feature_columns
+                }
+                features = FeatureSet(
+                    run_id=run_id,
+                    as_of=as_of_str,
+                    feature_version=summary["feature_version"],
+                    frame=frame,
+                    feature_columns=feature_columns,
+                    coverage=coverage,
+                )
+                labels = final_panel.get("labels")
+                fast_path = isinstance(labels, pd.Series)
+                if not fast_path:
+                    fallback_reason = "final panel has no labels"
+        except (OSError, EOFError, pickle.UnpicklingError, KeyError, ValueError) as exc:
+            fallback_reason = f"invalid final panel: {exc}"
+    else:
+        fallback_reason = "final panel missing"
+    if not fast_path:
+        print(f"legacy feature fallback: {fallback_reason}", flush=True)
+        prices = store.load_prices()
+        universe = build_universe(prices, store.load_stocks(), as_of, settings, run_id)
+        snapshot = build_pit_snapshot(
+            universe,
+            as_of,
+            store.load_financials_snapshot(),
+            store.load_institutional_snapshot(),
+            prices,
+            market_values=(
+                store.load_market_value_snapshot()
+                if is_pit_v3_feature_version(settings.features.feature_version)
+                else None
+            ),
+        )
+        raw = calculate_raw_features(
+            snapshot,
+            prices,
+            as_of,
+            store.load_financials_history(),
+            store.load_institutional_history(),
+        )
+        features = preprocess_features(raw, settings, run_id, as_of)
+        labels = build_labels(prices, universe.included_ids, as_of, settings)
     print(f"features: {features.frame.shape}, kept={len(features.feature_columns)}", flush=True)
     _save_features(engine, features, as_of_str, summary["feature_version"])
 
@@ -390,11 +496,12 @@ def main(argv: list[str] | None = None) -> int:
     factor_rows.sort(key=lambda r: abs(r["ic"]), reverse=True)
     # -- proxy model: importance + SHAP --------------------------------------
     print("training proxy model...", flush=True)
-    labels = build_labels(prices, universe.included_ids, as_of, settings)
     explain_payload = _proxy_explain(features, labels, settings, summary, run_id, as_of_str)
+    stages["final_panel_proxy"] = time.perf_counter() - feature_started
 
     # -- sensitivity ----------------------------------------------------------
     print("running cost sensitivity...", flush=True)
+    sensitivity_started = time.perf_counter()
     sensitivity_payload = _sensitivity(
         store,
         engine,
@@ -403,13 +510,31 @@ def main(argv: list[str] | None = None) -> int:
         settings,
         signal_end_date=final_signal_date,
     )
+    stages["sensitivity"] = time.perf_counter() - sensitivity_started
 
+    artifact_started = time.perf_counter()
     with session_scope(engine) as session:
         artifacts_repo.save_artifact(session, run_id, "metrics", metrics_payload)
         artifacts_repo.save_artifact(session, run_id, "factor_ic", factor_rows)
         artifacts_repo.save_artifact(session, run_id, "monthly_ic", monthly_payload)
         artifacts_repo.save_artifact(session, run_id, "model_explain", explain_payload)
         artifacts_repo.save_artifact(session, run_id, "sensitivity", sensitivity_payload)
+    stages["artifact_write"] = time.perf_counter() - artifact_started
+    stages["total"] = time.perf_counter() - started
+    _write_profile(
+        args.profile_json,
+        {
+            "tool": "materialize_run",
+            "run_id": run_id,
+            "fast_path": fast_path,
+            "fallback_reason": fallback_reason,
+            "rows_loaded": {
+                "backtest": len(backtest_prices),
+                "selection": len(prediction_prices),
+            },
+            "stages_seconds": stages,
+        },
+    )
     print(
         f"saved: metrics={metrics} factors={len(factor_rows)} "
         f"shap={len(explain_payload['shap_top'])} "
