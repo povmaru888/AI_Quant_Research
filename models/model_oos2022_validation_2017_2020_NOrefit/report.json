@@ -1,0 +1,62 @@
+{
+ "model_version": "xgb_oos2022_b2_norefit",
+ "feature_version": "factor_adj_v2",
+ "train_months": [
+  "2017-01",
+  "2020-11",
+  47
+ ],
+ "purge_month": "2020-12",
+ "valid_months": [
+  "2021-01",
+  "2021-12",
+  12
+ ],
+ "common_features": [
+  "amihud_illiquidity",
+  "margin_balance_change",
+  "momentum_120d",
+  "momentum_20d",
+  "momentum_60d",
+  "operating_income_qoq",
+  "operating_margin",
+  "revenue_mom",
+  "revenue_yoy",
+  "roe",
+  "short_margin_ratio",
+  "volatility_60d",
+  "volume_ma20_ma60"
+ ],
+ "feature_selection": null,
+ "train_rows": 19985,
+ "valid_rows": 7749,
+ "best_params": {
+  "max_depth": 3,
+  "learning_rate": 0.03616119436314179,
+  "n_estimators": 102,
+  "subsample": 0.7033861603434535,
+  "colsample_bytree": 0.6011063461686903,
+  "min_child_weight": 5,
+  "reg_alpha": 8.311221770473534,
+  "reg_lambda": 7.504342768029315e-07,
+  "random_state": 42
+ },
+ "validation_rank_ic": 0.12002113019290557,
+ "validation_top_decile_spread": 0.1501588681213883,
+ "validation_monthly_ic": {
+  "2021-01": 0.17293506082442703,
+  "2021-02": 0.12627199843978787,
+  "2021-03": 0.14529829320164744,
+  "2021-04": 0.021932381522814973,
+  "2021-05": 0.32623394017015594,
+  "2021-06": 0.15152156512394196,
+  "2021-07": 0.07154117924022424,
+  "2021-08": 0.023845023747167245,
+  "2021-09": 0.2743460565329232,
+  "2021-10": 0.2069133575415173,
+  "2021-11": 0.16342057893687198,
+  "2021-12": -0.24400587296661216
+ },
+ "trials": 0,
+ "parameters_from": "models/model_b2/report.json"
+}

@@ -99,14 +99,14 @@ def load_calendar(
 
 
 def next_equity_dates(engine: Engine, signal_dates: Sequence[str]) -> dict[str, str]:
-    """Resolve each signal to the next session without scanning price history."""
+    """Resolve each signal to the next official TAIEX trading session."""
     with engine.connect() as connection:
         pairs = [
             (
                 signal_date,
                 connection.execute(
                     select(func.min(Price.trade_date)).where(
-                        Price.stock_id != TAIEX_ID, Price.trade_date > signal_date
+                        Price.stock_id == TAIEX_ID, Price.trade_date > signal_date
                     )
                 ).scalar_one_or_none(),
             )

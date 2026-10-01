@@ -615,7 +615,7 @@ class DbStore:
             day = session.execute(
                 select(func.min(Price.trade_date)).where(
                     Price.trade_date > as_of.isoformat(),
-                    Price.stock_id != TAIEX_ID,
+                    Price.stock_id == TAIEX_ID,
                 )
             ).scalar()
             if day is None:
@@ -856,9 +856,7 @@ class DbStore:
             session.execute(
                 delete(Signal).where(Signal.run_id == run_id, Signal.signal_date == as_of)
             )
-            session.execute(
-                delete(Order).where(Order.run_id == run_id, Order.signal_date == as_of)
-            )
+            session.execute(delete(Order).where(Order.run_id == run_id, Order.signal_date == as_of))
             prediction_count = research_repo.save_predictions(session, pred)
             if not signal_rows.empty:
                 trading_repo.save_signals(session, signal_rows)
@@ -1121,7 +1119,7 @@ class DbStore:
         )
         if prices is None:
             prices = self.load_prices()
-        prices = prices.loc[:, ["stock_id", "trade_date", "open", "close", "open_adj", "close_adj"]]
+        prices = prices.loc[:, ["stock_id", "trade_date", "open", "open_adj", "close_adj"]]
         return run_backtest(orders, prices, self._initial_capital, self._settings, run_id)
 
     def load_factor_ic(self, run_id: str) -> pd.DataFrame:
