@@ -27,7 +27,10 @@ SUCCEEDED = "succeeded"
 ALL_FILTER = "全部"
 UNKNOWN_FACTOR_VERSION = "未標示"
 METHODS: tuple[str, ...] = ("binary", "rank", "huber")
+SMOOTHING_ALPHAS: tuple[str, ...] = ("1.0", "0.8", "0.6", "0.4")
 _OOS_YEAR_RE = re.compile(r"(?:^|-)oos-(\d{4})(?:-|$)", re.IGNORECASE)
+_PARAM_ALPHA_RE = re.compile(r"(?:^|-)smooth-(0(?:\.\d+)?|1(?:\.0+)?)(?:-|$)", re.IGNORECASE)
+_RUN_ALPHA_RE = re.compile(r"(?:^|-)smooth(\d{2})(?:-|$)", re.IGNORECASE)
 
 
 class RunStore(Protocol):
@@ -95,11 +98,23 @@ def _run_method(row: dict) -> str:
     return "binary"
 
 
+def _smoothing_alpha(row: dict) -> str:
+    """Return the persisted monthly score-smoothing alpha; legacy runs use 1.0."""
+    parameter_version = str(row.get("parameter_version", ""))
+    if match := _PARAM_ALPHA_RE.search(parameter_version):
+        return f"{float(match.group(1)):.1f}"
+    run_id = str(row.get("run_id", ""))
+    if match := _RUN_ALPHA_RE.search(run_id):
+        return f"{int(match.group(1)) / 10:.1f}"
+    return "1.0"
+
+
 def _filter_run_rows(
     rows: list[dict],
     factor_version: str = ALL_FILTER,
     oos_year: str = ALL_FILTER,
     method: str = ALL_FILTER,
+    smoothing_alpha: str = ALL_FILTER,
 ) -> list[dict]:
     """Filter run rows while preserving the database display order."""
     return [
@@ -108,6 +123,7 @@ def _filter_run_rows(
         if (factor_version == ALL_FILTER or _factor_version(row) == factor_version)
         and (oos_year == ALL_FILTER or _oos_year(row) == oos_year)
         and (method == ALL_FILTER or _run_method(row) == method)
+        and (smoothing_alpha == ALL_FILTER or _smoothing_alpha(row) == smoothing_alpha)
     ]
 
 
@@ -202,8 +218,13 @@ def main(
         [ALL_FILTER, *METHODS],
         index=0,
     )
+    selected_alpha = st.sidebar.selectbox(
+        "依平滑係數 α 篩選",
+        [ALL_FILTER, *SMOOTHING_ALPHAS],
+        index=1,
+    )
     filtered_rows = _filter_run_rows(
-        run_rows, selected_factor, selected_year, selected_method
+        run_rows, selected_factor, selected_year, selected_method, selected_alpha
     )
     if not filtered_rows:
         st.info("目前篩選條件下沒有已完成的研究 run。")

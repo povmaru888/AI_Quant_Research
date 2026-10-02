@@ -16,6 +16,7 @@ from app import (
     _filter_run_rows,
     _oos_year,
     _run_method,
+    _smoothing_alpha,
     available_runs,
     main,
 )
@@ -164,6 +165,53 @@ def test_run_method_classifies_and_filters_binary_rank_and_huber() -> None:
     assert [row["run_id"] for row in _filter_run_rows(rows, method="huber")] == [
         "oos-2024-factor-v4-pseudohuber-NOrefit"
     ]
+
+
+def test_smoothing_alpha_classifies_parameter_run_name_and_legacy() -> None:
+    rows = [
+        {
+            "run_id": "oos-2024-factor-v4-pseudohuber-NOrefit",
+            "parameter_version": "manual-oos-b2-smooth-1",
+        },
+        {
+            "run_id": "oos-2024-factor-v4-pseudohuber-smooth06-NOrefit",
+            "parameter_version": "manual-oos-b2-smooth-0.6",
+        },
+        {"run_id": "oos-2024-factor-v4-pseudohuber-smooth08-NOrefit"},
+        {"run_id": "legacy-binary"},
+    ]
+    assert [_smoothing_alpha(row) for row in rows] == ["1.0", "0.6", "0.8", "1.0"]
+    assert [row["run_id"] for row in _filter_run_rows(rows, smoothing_alpha="0.6")] == [
+        "oos-2024-factor-v4-pseudohuber-smooth06-NOrefit"
+    ]
+
+
+def test_main_defaults_smoothing_alpha_filter_to_one() -> None:
+    st = FakeSt()
+    rows = [
+        {"run_id": "oos-2024-base", "status": "succeeded"},
+        {"run_id": "oos-2024-smooth06-NOrefit", "status": "succeeded"},
+    ]
+    main(
+        st=st,
+        store=FakeStore(rows),
+        load_settings_fn=lambda: object(),
+        loaders={"總覽": lambda _run_id, _as_of: "payload"},
+        pages={"總覽": lambda _st, _payload: None},
+    )
+    alpha_select = next(
+        call
+        for call in st.calls
+        if call[0] == "selectbox" and call[1] == "依平滑係數 α 篩選"
+    )
+    assert alpha_select[2] == ["全部", "1.0", "0.8", "0.6", "0.4"]
+    assert alpha_select[3]["index"] == 1
+    run_select = next(
+        call
+        for call in st.calls
+        if call[0] == "selectbox" and call[1] == "研究 run（僅顯示已完成）"
+    )
+    assert run_select[2] == ["oos-2024-base"]
 
 
 def test_main_happy_path_dispatches_first_page() -> None:
