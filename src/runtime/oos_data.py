@@ -128,10 +128,25 @@ def compact_backtest_prices(
     engine: Engine, stock_ids: Iterable[str], *, start: str, end: str
 ) -> pd.DataFrame:
     """Return traded quotes plus index-only rows that preserve the full calendar."""
-    quotes = load_symbol_prices(engine, stock_ids, start=start, end=end)
+    quote_columns = (*_QUOTE_COLUMNS, "volume", "traded_value")
+    quotes = load_symbol_prices(
+        engine, stock_ids, start=start, end=end, columns=quote_columns
+    )
+    # Some vendors emit zero-volume suspension placeholders with copied raw
+    # prices but no adjusted OHLC.  Treat those as absent bars so the backtest
+    # carries the last valid adjusted close, just as it does when no row was
+    # emitted for a suspended stock.  A traded row with missing adjusted data
+    # is retained and will still fail the strict backtest validation.
+    close_adj = pd.to_numeric(quotes["close_adj"], errors="coerce")
+    volume = pd.to_numeric(quotes["volume"], errors="coerce").fillna(0.0)
+    traded_value = pd.to_numeric(quotes["traded_value"], errors="coerce").fillna(0.0)
+    suspension_placeholder = close_adj.isna() & volume.eq(0.0) & traded_value.eq(0.0)
+    quotes = quotes.loc[~suspension_placeholder, list(_QUOTE_COLUMNS)]
     calendar = load_symbol_prices(
         engine, [TAIEX_ID], start=start, end=end, columns=_QUOTE_COLUMNS
     )
+    official_days = set(calendar["trade_date"].astype(str))
+    quotes = quotes.loc[quotes["trade_date"].astype(str).isin(official_days)]
     return pd.concat([calendar, quotes], ignore_index=True).sort_values(
         ["trade_date", "stock_id"], kind="mergesort", ignore_index=True
     )

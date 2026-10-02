@@ -14,7 +14,7 @@ import pytest
 from database import create_engine_from_settings
 from repositories import stocks as stocks_repo
 from runtime.db_store import DbStore
-from runtime.oos_data import PreparedOOSData, month_end_signal_dates
+from runtime.oos_data import PreparedOOSData, compact_backtest_prices, month_end_signal_dates
 
 
 def _migration(name: str):
@@ -93,4 +93,52 @@ def test_prepared_oos_data_matches_adjusted_returns_and_bounds_symbols(
     suspension_returns = suspended.returns.set_index("trade_date")["log_return"]
     assert suspension_returns.loc["2020-01-31"] == 0.0
     assert suspension_returns.loc["2020-02-03"] == pytest.approx(np.log(33.0 / 30.0))
+    engine.dispose()
+
+
+def test_compact_backtest_prices_ignores_only_suspension_placeholders(
+    settings, temp_db_path: Path
+) -> None:
+    connection = sqlite3.connect(temp_db_path)
+    try:
+        _migration("001_initial_schema").upgrade(connection)
+        _migration("003_price_adj").upgrade(connection)
+    finally:
+        connection.close()
+    db_settings = dataclasses.replace(
+        settings, data=dataclasses.replace(settings.data, database_url=f"sqlite:///{temp_db_path}")
+    )
+    engine = create_engine_from_settings(db_settings)
+    store = DbStore(engine, db_settings)
+    rows = pd.DataFrame(
+        [
+            {"trade_date": "2020-01-02", "stock_id": "A", "open": 10.0, "high": 10.0,
+             "low": 10.0, "close": 10.0, "open_adj": None, "high_adj": None,
+             "low_adj": None, "close_adj": None, "volume": 0.0, "traded_value": 0.0,
+             "source": "test"},
+            {"trade_date": "2020-01-03", "stock_id": "A", "open": 10.0, "high": 10.0,
+             "low": 10.0, "close": 10.0, "open_adj": None, "high_adj": None,
+             "low_adj": None, "close_adj": None, "volume": 1.0, "traded_value": 10.0,
+             "source": "test"},
+            {"trade_date": "2020-01-02", "stock_id": "TAIEX", "open": 100.0,
+             "high": 100.0, "low": 100.0, "close": 100.0, "open_adj": None,
+             "high_adj": None, "low_adj": None, "close_adj": None, "volume": 1.0,
+             "traded_value": 100.0, "source": "test"},
+            {"trade_date": "2020-01-03", "stock_id": "TAIEX", "open": 101.0,
+             "high": 101.0, "low": 101.0, "close": 101.0, "open_adj": None,
+             "high_adj": None, "low_adj": None, "close_adj": None, "volume": 1.0,
+             "traded_value": 101.0, "source": "test"},
+        ]
+    )
+    store.upsert_prices(rows)
+
+    compact = compact_backtest_prices(
+        engine, ["A"], start="2020-01-02", end="2020-01-03"
+    )
+    stock_rows = compact.loc[compact["stock_id"] == "A"]
+    assert stock_rows["trade_date"].tolist() == ["2020-01-03"]
+    assert compact.loc[compact["stock_id"] == "TAIEX", "trade_date"].tolist() == [
+        "2020-01-02",
+        "2020-01-03",
+    ]
     engine.dispose()
