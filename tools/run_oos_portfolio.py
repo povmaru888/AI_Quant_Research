@@ -73,6 +73,33 @@ def _write_profile(path: str | None, payload: dict) -> None:
     os.replace(temporary, destination)
 
 
+def _smooth_percentile_scores(
+    scored: pd.DataFrame, previous: dict[str, float], alpha: float
+) -> tuple[pd.DataFrame, dict[str, float]]:
+    """Blend current cross-sectional percentiles with last month's smoothed score."""
+    if not 0.0 < alpha <= 1.0:
+        raise ValueError(f"invalid score smoothing alpha: {alpha!r}")
+    required = {"stock_id", "probability", "rank"}
+    if missing := required - set(scored.columns):
+        raise ValueError(f"invalid scored frame: missing {sorted(missing)}")
+    out = scored.copy()
+    stock_ids = out["stock_id"].astype(str)
+    current = pd.to_numeric(out["probability"], errors="coerce")
+    if current.isna().any():
+        raise ValueError("invalid scored frame: non-numeric probability")
+    percentile = current.rank(method="average", pct=True).set_axis(stock_ids)
+    if alpha == 1.0:
+        return out, percentile.to_dict()
+    smoothed = percentile.copy()
+    for stock_id in smoothed.index:
+        prior = previous.get(stock_id)
+        if prior is not None:
+            smoothed.loc[stock_id] = alpha * percentile.loc[stock_id] + (1.0 - alpha) * prior
+    out["probability"] = smoothed.reindex(stock_ids).to_numpy(dtype=float)
+    out["rank"] = out["probability"].rank(ascending=False, method="first").astype(int)
+    return out, smoothed.to_dict()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Frozen-model OOS portfolio run.")
     parser.add_argument("--config", default="config.yaml")
@@ -84,7 +111,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run-id", default="oos-2024-b2")
     parser.add_argument("--panels", default="data/panels")
     parser.add_argument("--profile-json", default=None)
+    parser.add_argument("--score-smoothing-alpha", type=float, default=1.0)
     args = parser.parse_args(argv)
+    if not 0.0 < args.score_smoothing_alpha <= 1.0:
+        parser.error("--score-smoothing-alpha must be in (0, 1]")
     load_dotenv()
     try:
         settings = load_settings(args.config)
@@ -140,7 +170,7 @@ def main(argv: list[str] | None = None) -> int:
                 "run_id": args.run_id,
                 "data_end_date": signals[-1],
                 "feature_version": settings.features.feature_version,
-                "parameter_version": "manual-oos-b2",
+                "parameter_version": f"manual-oos-b2-smooth-{args.score_smoothing_alpha:g}",
                 "model_version": args.model_version,
             }
         )
@@ -177,12 +207,16 @@ def main(argv: list[str] | None = None) -> int:
     scored_by_date: dict[str, pd.DataFrame] = {}
     if fast_path:
         score_started = time.perf_counter()
+        previous_scores: dict[str, float] = {}
         for signal_str, features_frame in panel_frames.items():
             if any(column not in features_frame for column in columns):
                 fallback_reason = f"panel {signal_str[:7]} lacks model features"
                 fast_path = False
                 break
             scored = predict_xgb(artifact, features_frame[["stock_id", *columns]], booster)
+            scored, previous_scores = _smooth_percentile_scores(
+                scored, previous_scores, args.score_smoothing_alpha
+            )
             scored["prediction_date"] = signal_str
             scored_by_date[signal_str] = scored
         stages["predictions"] = time.perf_counter() - score_started
@@ -211,6 +245,7 @@ def main(argv: list[str] | None = None) -> int:
     all_orders: list[pd.DataFrame] = []
     monthly_seconds = 0.0
     write_seconds = 0.0
+    previous_scores = {}
     for signal_str in signals:
         month_started = time.perf_counter()
         as_of = date.fromisoformat(signal_str)
@@ -251,6 +286,9 @@ def main(argv: list[str] | None = None) -> int:
             continue
         if not fast_path:
             scored = predict_xgb(artifact, features_frame[["stock_id", *columns]], booster)
+            scored, previous_scores = _smooth_percentile_scores(
+                scored, previous_scores, args.score_smoothing_alpha
+            )
             scored["prediction_date"] = signal_str
         store._run_id = args.run_id  # noqa: SLF001 - saves bind to this run.
         store._as_of = signal_str  # noqa: SLF001 - snapshot loads bind here.
@@ -363,6 +401,7 @@ def main(argv: list[str] | None = None) -> int:
             "run_id": args.run_id,
             "fast_path": fast_path,
             "fallback_reason": fallback_reason,
+            "score_smoothing_alpha": args.score_smoothing_alpha,
             "rows_loaded": prepared.rows_loaded if prepared is not None else len(prices),
             "stages_seconds": stages,
         },
