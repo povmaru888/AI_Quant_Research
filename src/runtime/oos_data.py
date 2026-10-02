@@ -150,7 +150,7 @@ class PreparedOOSData:
     @classmethod
     def load(
         cls, engine: Engine, candidate_ids: Iterable[str], signal_dates: Sequence[str]
-    ) -> "PreparedOOSData":
+    ) -> PreparedOOSData:
         candidates = sorted({str(stock_id) for stock_id in candidate_ids})
         final_signal = max(signal_dates)
         history = load_symbol_prices(
@@ -162,15 +162,8 @@ class PreparedOOSData:
         history["close_adj"] = pd.to_numeric(history["close_adj"], errors="coerce")
         history.loc[history["close_adj"] <= 0, "close_adj"] = np.nan
         history = history.sort_values(["stock_id", "trade_date"], kind="mergesort")
-        history["log_return"] = history.groupby("stock_id", sort=False)[
-            "close_adj"
-        ].transform(lambda values: np.log(values / values.shift(1)))
-        returns = (
-            history[["stock_id", "trade_date", "log_return"]]
-            .dropna()
-            .reset_index(drop=True)
-        )
         taiex = load_taiex(engine, end=final_signal)
+        returns = _calendar_aligned_returns(history, taiex["trade_date"].astype(str).tolist())
 
         next_dates = next_equity_dates(engine, signal_dates)
         needed_dates = set(signal_dates) | set(next_dates.values())
@@ -206,3 +199,40 @@ class PreparedOOSData:
 
     def quote_lookup(self) -> pd.DataFrame:
         return self.quotes.set_index(["trade_date", "stock_id"])
+
+
+def _calendar_aligned_returns(history: pd.DataFrame, calendar: Sequence[str]) -> pd.DataFrame:
+    """Treat absent bars on official sessions as zero-return suspensions.
+
+    A stored row whose adjusted close is missing remains invalid and is not
+    bridged. Only a completely absent stock row is forward-filled, which
+    matches portfolio valuation while a listed stock is suspended.
+    """
+    calendar_index = pd.Index([str(day) for day in calendar], name="trade_date")
+    parts: list[pd.DataFrame] = []
+    for stock_id, group in history.groupby("stock_id", sort=False):
+        ordered = group.sort_values("trade_date", kind="mergesort")
+        original_dates = pd.Index(ordered["trade_date"].astype(str))
+        if original_dates.empty:
+            continue
+        days = calendar_index[
+            (calendar_index >= str(original_dates.min()))
+            & (calendar_index <= str(original_dates.max()))
+        ]
+        closes = ordered.set_index(ordered["trade_date"].astype(str))["close_adj"]
+        aligned = closes.reindex(days)
+        absent = ~days.isin(original_dates)
+        carried = aligned.ffill()
+        aligned.loc[absent] = carried.loc[absent]
+        log_return = np.log(aligned / aligned.shift(1))
+        part = pd.DataFrame(
+            {
+                "stock_id": str(stock_id),
+                "trade_date": days,
+                "log_return": log_return.to_numpy(dtype=float),
+            }
+        ).dropna(subset=["log_return"])
+        parts.append(part)
+    if not parts:
+        return pd.DataFrame(columns=["stock_id", "trade_date", "log_return"])
+    return pd.concat(parts, ignore_index=True)

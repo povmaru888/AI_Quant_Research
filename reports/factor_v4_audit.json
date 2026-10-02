@@ -7,19 +7,19 @@
   "eligible_count": {
     "min": 256,
     "max": 746,
-    "mean": 431.3
+    "mean": 431.34166666666664
   },
-  "minimum_raw_feature_coverage": 0.2917505030181087,
+  "minimum_raw_feature_coverage": 0.8109339407744874,
   "excluded_totals": {
     "market_cap:below_threshold": 113600,
     "no_price": 100875,
-    "avg_traded_value:below_threshold": 26270,
+    "avg_traded_value:below_threshold": 26269,
     "price:below_threshold": 19230,
     "market_cap:missing": 9337,
     "listing_age:missing_date": 3284,
     "financials:missing_equity": 2195,
     "listing_age:insufficient": 1423,
-    "adjusted_price:invalid_close_adj": 559,
+    "adjusted_price:invalid_close_adj": 555,
     "avg_traded_value:insufficient_history": 206,
     "adjusted_price:insufficient_history": 107,
     "label:missing_t_plus_horizon": 31,
@@ -28,7 +28,7 @@
   "comparison": {
     "months": 120,
     "mean_old_universe": 509.34166666666664,
-    "mean_v4_universe": 431.3,
+    "mean_v4_universe": 431.34166666666664,
     "monthly": {
       "2015-01": {
         "old": 391,
@@ -427,8 +427,8 @@
       },
       "2021-08": {
         "old": 629,
-        "v4": 537,
-        "delta": -92
+        "v4": 538,
+        "delta": -91
       },
       "2021-09": {
         "old": 590,
@@ -492,23 +492,23 @@
       },
       "2022-09": {
         "old": 524,
-        "v4": 443,
-        "delta": -81
+        "v4": 444,
+        "delta": -80
       },
       "2022-10": {
         "old": 477,
-        "v4": 403,
-        "delta": -74
+        "v4": 404,
+        "delta": -73
       },
       "2022-11": {
         "old": 544,
-        "v4": 453,
-        "delta": -91
+        "v4": 454,
+        "delta": -90
       },
       "2022-12": {
         "old": 529,
-        "v4": 448,
-        "delta": -81
+        "v4": 449,
+        "delta": -80
       },
       "2023-01": {
         "old": 519,

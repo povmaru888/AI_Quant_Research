@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from database import create_engine_from_settings
 from repositories import stocks as stocks_repo
@@ -44,10 +45,10 @@ def test_prepared_oos_data_matches_adjusted_returns_and_bounds_symbols(
             session,
             pd.DataFrame(
                 {
-                    "stock_id": ["A", "B", "TAIEX"],
-                    "stock_name": ["A", "B", "TAIEX"],
-                    "market": ["TWSE", "TWSE", "INDEX"],
-                    "listed_date": ["2019-01-01"] * 3,
+                    "stock_id": ["A", "B", "C", "TAIEX"],
+                    "stock_name": ["A", "B", "C", "TAIEX"],
+                    "market": ["TWSE", "TWSE", "TWSE", "INDEX"],
+                    "listed_date": ["2019-01-01"] * 4,
                 }
             ),
         )
@@ -61,11 +62,22 @@ def test_prepared_oos_data_matches_adjusted_returns_and_bounds_symbols(
                  "low_adj": raw, "close_adj": close, "volume": 1.0,
                  "traded_value": raw, "source": "test"}
             )
-    for day, close in zip(("2020-01-30", "2020-01-31", "2020-02-03"), (100.0, 101.0, 102.0), strict=True):
+    for day, close in zip(
+        ("2020-01-30", "2020-01-31", "2020-02-03", "2020-02-04"),
+        (100.0, 101.0, 102.0, 103.0),
+        strict=True,
+    ):
         rows.append(
             {"trade_date": day, "stock_id": "TAIEX", "open": close, "high": close,
              "low": close, "close": close, "open_adj": None, "high_adj": None,
              "low_adj": None, "close_adj": None, "volume": 1.0,
+             "traded_value": close, "source": "test"}
+        )
+    for day, close in (("2020-01-30", 30.0), ("2020-02-03", 33.0)):
+        rows.append(
+            {"trade_date": day, "stock_id": "C", "open": close, "high": close,
+             "low": close, "close": close, "open_adj": close, "high_adj": close,
+             "low_adj": close, "close_adj": close, "volume": 1.0,
              "traded_value": close, "source": "test"}
         )
     store.upsert_prices(pd.DataFrame(rows))
@@ -76,4 +88,9 @@ def test_prepared_oos_data_matches_adjusted_returns_and_bounds_symbols(
     assert prepared.returns.empty  # missing adjusted bar must not bridge the gap
     assert prepared.next_open("2020-01-31")["trade_date"].unique().tolist() == ["2020-02-03"]
     assert set(prepared.quotes["stock_id"]) == {"A"}
+
+    suspended = PreparedOOSData.load(engine, ["C"], ["2020-02-03"])
+    suspension_returns = suspended.returns.set_index("trade_date")["log_return"]
+    assert suspension_returns.loc["2020-01-31"] == 0.0
+    assert suspension_returns.loc["2020-02-03"] == pytest.approx(np.log(33.0 / 30.0))
     engine.dispose()

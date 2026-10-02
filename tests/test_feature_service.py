@@ -141,6 +141,28 @@ def test_zero_denominator_never_produces_inf() -> None:
     assert not np.isinf(out[list(FACTOR_COLUMNS)].to_numpy(dtype=float)).any()
 
 
+def test_amihud_skips_invalid_traded_value_with_at_least_50_observations() -> None:
+    prices = _full_prices()
+    stock = prices["stock_id"].eq("2330")
+    stock_indices = prices.index[stock][-60:]
+    prices.loc[stock_indices[:10], "traded_value"] = 0.0
+
+    out = calculate_raw_features(_snapshot(), prices, AS_OF)
+
+    assert np.isfinite(out.loc[0, "amihud_illiquidity"])
+
+
+def test_amihud_requires_50_valid_traded_value_observations() -> None:
+    prices = _full_prices()
+    stock = prices["stock_id"].eq("2330")
+    stock_indices = prices.index[stock][-60:]
+    prices.loc[stock_indices[:11], "traded_value"] = 0.0
+
+    out = calculate_raw_features(_snapshot(), prices, AS_OF)
+
+    assert pd.isna(out.loc[0, "amihud_illiquidity"])
+
+
 def test_negative_valuation_masked_with_flag() -> None:
     out = calculate_raw_features(_snapshot(net_income=-5_000_000_000.0), _full_prices(), AS_OF)
     row = out.iloc[0]

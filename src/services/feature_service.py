@@ -124,6 +124,7 @@ _PRICE_KEYS = (
     "traded_value",
 )
 _TRADING_DAYS_PER_YEAR = 252
+_AMIHUD_MIN_OBSERVATIONS = 50
 
 
 def _safe_div(numerator: object, denominator: object) -> float:
@@ -370,9 +371,10 @@ def _amihud(rets60: np.ndarray | None, traded: np.ndarray) -> float:
     if rets60 is None or len(traded) < 61:
         return float("nan")
     t60 = traded[-60:].astype(float)
-    if not np.all(np.isfinite(t60)) or np.any(t60 <= 0):
+    valid = np.isfinite(rets60) & np.isfinite(t60) & (t60 > 0)
+    if int(valid.sum()) < _AMIHUD_MIN_OBSERVATIONS:
         return float("nan")
-    impact = np.abs(rets60) / t60
+    impact = np.abs(rets60[valid]) / t60[valid]
     if not np.all(np.isfinite(impact)):
         return float("nan")
     return float(np.mean(impact))
