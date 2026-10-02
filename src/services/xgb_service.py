@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from xgboost import XGBClassifier
+from xgboost import XGBClassifier, XGBRanker
 
 from contracts import ModelArtifact
 
@@ -171,13 +171,20 @@ def train_xgb(
 
 
 def predict_xgb(
-    artifact: ModelArtifact, features: pd.DataFrame, booster: XGBClassifier
+    artifact: ModelArtifact, features: pd.DataFrame, booster: XGBClassifier | XGBRanker
 ) -> pd.DataFrame:
-    """Score one month; returns stock_id, probability, rank (1 = best)."""
+    """Score one month; probability is a classifier probability or ranker score."""
     if "stock_id" not in features.columns:
         raise ValueError("invalid features: missing 'stock_id'")
     matrix = _frame_inputs("features", features, artifact.feature_columns)
-    probability = booster.predict_proba(matrix)[:, 1]
+    if isinstance(booster, XGBRanker):
+        margin = booster.predict(matrix)
+        # LambdaMART emits unbounded ranking margins.  Persist a monotonic
+        # sigmoid transform so the existing 0..1 prediction contract remains
+        # valid without changing any cross-sectional ordering.
+        probability = 1.0 / (1.0 + np.exp(-np.clip(margin, -709.0, 709.0)))
+    else:
+        probability = booster.predict_proba(matrix)[:, 1]
     out = pd.DataFrame({"stock_id": features["stock_id"].tolist(), "probability": probability})
     out["rank"] = out["probability"].rank(ascending=False, method="first").astype(int)
     return out

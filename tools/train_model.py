@@ -33,6 +33,7 @@ from runtime.dotenv import load_dotenv  # noqa: E402
 from services.feature_selection_service import select_stable_training_features  # noqa: E402
 from services.feature_service import uses_training_coverage_selection  # noqa: E402
 from services.optimization_service import optimize_xgb  # noqa: E402
+from services.ranking_service import optimize_xgb_ranker, train_xgb_ranker  # noqa: E402
 from services.xgb_service import predict_xgb, rank_ic, train_xgb  # noqa: E402
 from settings import load_settings  # noqa: E402
 
@@ -83,6 +84,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--out", default="models/model_b1")
     parser.add_argument("--model-version", default="xgb_b1")
+    parser.add_argument(
+        "--objective",
+        choices=("binary:logistic", "rank:pairwise"),
+        default="binary:logistic",
+    )
     args = parser.parse_args(argv)
     load_dotenv()
     try:
@@ -112,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"common features: {len(columns)}")
 
     def assemble(month_list: list[str], source: dict[str, dict]):
-        frames, labels = [], []
+        frames, labels, groups = [], [], []
         for month in month_list:
             panel = source[month]
             frame = panel["frame"][["stock_id", *columns]].copy()
@@ -121,12 +127,13 @@ def main(argv: list[str] | None = None) -> int:
             keep = aligned.notna().to_numpy()
             frames.append(frame.loc[keep])
             labels.append(aligned.loc[keep].astype(int))
+            groups.append(int(keep.sum()))
         big_x = pd.concat(frames, ignore_index=True)
         big_y = pd.concat(labels, ignore_index=True).astype(int)
-        return big_x, big_y
+        return big_x, big_y, groups
 
-    train_frame, train_y = assemble(train_months, train_panels)
-    valid_frame, valid_y = assemble(valid_months, valid_panels)
+    train_frame, train_y, train_groups = assemble(train_months, train_panels)
+    valid_frame, valid_y, valid_groups = assemble(valid_months, valid_panels)
     print(f"train rows: {len(train_frame)}, valid rows: {len(valid_frame)}")
     print(f"train pos: {float(train_y.mean()):.3f}, valid pos: {float(valid_y.mean()):.3f}")
     train_x = train_frame[columns]
@@ -142,32 +149,32 @@ def main(argv: list[str] | None = None) -> int:
         params = params_report.get("best_params")
         if not isinstance(params, dict) or not params:
             raise ValueError(f"no best_params in {params_path}")
-        artifact, booster = train_xgb(
-            train_x,
-            train_y,
-            valid_x,
-            valid_y,
-            params,
-            args.model_version,
-            settings.features.feature_version,
-            f"fixed-{params_path.parent.name}",
-            run_id,
-        )
+        if args.objective == "rank:pairwise":
+            artifact, booster = train_xgb_ranker(
+                train_x, train_y, train_groups, valid_x, valid_y, valid_groups, params,
+                args.model_version, settings.features.feature_version,
+                f"fixed-{params_path.parent.name}", run_id,
+            )
+        else:
+            artifact, booster = train_xgb(
+                train_x, train_y, valid_x, valid_y, params, args.model_version,
+                settings.features.feature_version, f"fixed-{params_path.parent.name}", run_id,
+            )
         trials = pd.DataFrame()
         print(f"reused fixed parameters from {params_path}")
     else:
-        artifact, booster, trials = optimize_xgb(
-            train_x,
-            train_y,
-            valid_x,
-            valid_y,
-            settings,
-            args.model_version,
-            settings.features.feature_version,
-            f"manual-{run_id}",
-            run_id,
-            n_trials=args.trials,
-        )
+        if args.objective == "rank:pairwise":
+            artifact, booster, trials = optimize_xgb_ranker(
+                train_x, train_y, train_groups, valid_x, valid_y, valid_groups, settings,
+                args.model_version, settings.features.feature_version,
+                f"manual-{run_id}", run_id, n_trials=args.trials,
+            )
+        else:
+            artifact, booster, trials = optimize_xgb(
+                train_x, train_y, valid_x, valid_y, settings, args.model_version,
+                settings.features.feature_version, f"manual-{run_id}", run_id,
+                n_trials=args.trials,
+            )
     print(f"best params: {artifact.best_params}")
     month_ics, month_spreads = [], []
     for month in valid_months:
@@ -192,6 +199,7 @@ def main(argv: list[str] | None = None) -> int:
     spread = float(np.mean(month_spreads)) if month_spreads else float("nan")
     report = {
         "model_version": args.model_version,
+        "training_objective": args.objective,
         "feature_version": settings.features.feature_version,
         "train_months": [train_months[0], train_months[-1], len(train_months)],
         "purge_month": args.purge_month,

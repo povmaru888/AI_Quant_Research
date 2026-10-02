@@ -29,7 +29,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from xgboost import XGBClassifier  # noqa: E402
+from xgboost import XGBClassifier, XGBRanker  # noqa: E402
 
 from contracts import ModelArtifact, PortfolioTarget  # noqa: E402
 from runtime.db_store import (  # noqa: E402  # noqa: E402
@@ -104,7 +104,8 @@ def main(argv: list[str] | None = None) -> int:
     if not columns:
         print("model report has no feature columns", file=sys.stderr)
         return 1
-    booster = XGBClassifier()
+    objective = model_report.get("training_objective", "binary:logistic")
+    booster = XGBRanker() if objective == "rank:pairwise" else XGBClassifier()
     booster.load_model(str(Path(args.model) / "booster.ubj"))
     artifact = ModelArtifact(
         run_id=args.run_id,
