@@ -52,7 +52,11 @@ from runtime.oos_data import (  # noqa: E402
 )
 from services.backtest_service import run_backtest  # noqa: E402
 from services.feature_preprocess_service import preprocess_features  # noqa: E402
-from services.feature_service import calculate_raw_features, uses_pit_market_values  # noqa: E402
+from services.feature_service import (  # noqa: E402
+    calculate_raw_features,
+    is_factor_v4_feature_version,
+    uses_pit_market_values,
+)
 from services.label_service import build_labels  # noqa: E402
 from services.metrics_service import (
     calculate_metrics,  # noqa: E402
@@ -326,7 +330,11 @@ def main(argv: list[str] | None = None) -> int:
         engine,
         prediction_frame["stock_id"].astype(str).unique().tolist(),
         start=str(prediction_frame["prediction_date"].min()),
-        end=valuation_end_date,
+        # Selection metrics follow the label definition: each stock's exact
+        # 20th subsequent trading row.  The portfolio NAV still stops at the
+        # end of the next calendar month, but that date can contain fewer than
+        # 20 sessions (for example around Lunar New Year).
+        end=None,
         columns=("stock_id", "trade_date", "close_adj"),
     )
     monthly_payload = build_selection_metrics(prediction_frame, prediction_prices)
@@ -432,6 +440,11 @@ def main(argv: list[str] | None = None) -> int:
                     frame=frame,
                     feature_columns=feature_columns,
                     coverage=coverage,
+                    missing_flag_column=(
+                        None
+                        if is_factor_v4_feature_version(summary["feature_version"])
+                        else "missing_flag"
+                    ),
                 )
                 labels = final_panel.get("labels")
                 fast_path = isinstance(labels, pd.Series)

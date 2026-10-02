@@ -1,0 +1,15 @@
+{
+  "fallback_reason": null,
+  "fast_path": true,
+  "rows_loaded": 382252,
+  "run_id": "oos-2024-factor-v4-NOrefit",
+  "stages_seconds": {
+    "db_writes": 1.052144599845633,
+    "market_data": 4.040830200072378,
+    "monthly_risk_execution": 3.102251200005412,
+    "panels": 0.2550377999432385,
+    "predictions": 0.08246330008842051,
+    "total": 7.551610199967399
+  },
+  "tool": "run_oos_portfolio"
+}

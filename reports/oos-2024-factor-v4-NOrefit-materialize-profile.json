@@ -1,0 +1,19 @@
+{
+  "fallback_reason": null,
+  "fast_path": true,
+  "rows_loaded": {
+    "backtest": 20210,
+    "selection": 576778
+  },
+  "run_id": "oos-2024-factor-v4-NOrefit",
+  "stages_seconds": {
+    "artifact_write": 0.016823999932967126,
+    "final_panel_proxy": 1.4412078999448568,
+    "price_slices": 0.06790340004954487,
+    "replay": 0.12981740001123399,
+    "selection_metrics": 4.754422000027262,
+    "sensitivity": 1.2381359999999404,
+    "total": 7.840843599988148
+  },
+  "tool": "materialize_run"
+}
