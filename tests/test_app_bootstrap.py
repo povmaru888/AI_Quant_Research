@@ -10,7 +10,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import app
-from app import PAGES, available_runs, main
+from app import ALL_FILTER, PAGES, _filter_run_rows, _oos_year, available_runs, main
 
 
 class FakeSidebar:
@@ -20,6 +20,9 @@ class FakeSidebar:
     def selectbox(self, label, options, **kwargs):
         self._st.calls.append(("selectbox", label, list(options), kwargs))
         values = list(options)
+        selected = getattr(self._st, "selected_selectboxes", {}).get(label)
+        if selected in values:
+            return selected
         return values[kwargs.get("index", 0)]
 
     def text_input(self, label, value="", **kwargs):
@@ -36,6 +39,7 @@ class FakeSt:
     def __init__(self) -> None:
         self.calls: list = []
         self.sidebar = FakeSidebar(self)
+        self.selected_selectboxes: dict[str, str] = {}
 
     def title(self, text) -> None:
         self.calls.append(("title", text))
@@ -115,6 +119,24 @@ def test_available_runs_rejects_bad_rows() -> None:
         available_runs(FakeStore("nope"))  # type: ignore[arg-type]
 
 
+def test_run_filters_support_all_factor_version_and_oos_year() -> None:
+    rows = [
+        {"run_id": "oos-2024-a", "feature_version": "factor_v4"},
+        {"run_id": "oos-2023-b", "feature_version": "factor_v4"},
+        {"run_id": "oos-2024-c", "feature_version": "factor_adj_v2"},
+        {"run_id": "rebalance-live", "feature_version": "factor_v4"},
+    ]
+    assert _filter_run_rows(rows) == rows
+    assert [row["run_id"] for row in _filter_run_rows(rows, "factor_v4", "2024")] == [
+        "oos-2024-a"
+    ]
+    assert [row["run_id"] for row in _filter_run_rows(rows, ALL_FILTER, "2024")] == [
+        "oos-2024-a",
+        "oos-2024-c",
+    ]
+    assert _oos_year(rows[-1]) is None
+
+
 def test_main_happy_path_dispatches_first_page() -> None:
     st = FakeSt()
     store = FakeStore(_run_ids("succeeded", "failed", "succeeded"))
@@ -138,7 +160,9 @@ def test_main_happy_path_dispatches_first_page() -> None:
 
     main(st=st, store=store, load_settings_fn=lambda: object(), loaders=loaders, pages=pages)
 
-    selectbox = next(c for c in st.calls if c[0] == "selectbox")
+    selectbox = next(
+        c for c in st.calls if c[0] == "selectbox" and c[1] == "研究 run（僅顯示已完成）"
+    )
     assert selectbox[2] == ["run-00", "run-02"]
     assert ("load", "總覽", "run-00", "") in seen
     assert ("render", "總覽", "總覽") in seen
@@ -168,13 +192,46 @@ def test_main_labels_runs_with_their_feature_versions() -> None:
         pages={"總覽": lambda _st, _payload: None},
     )
 
-    selectbox = next(call for call in st.calls if call[0] == "selectbox")
+    selectbox = next(
+        call
+        for call in st.calls
+        if call[0] == "selectbox" and call[1] == "研究 run（僅顯示已完成）"
+    )
     format_func = selectbox[3]["format_func"]
     assert format_func("oos-2020-b2") == "oos-2020-b2 [factor_adj_v2]"
     assert format_func("oos-2020-b2-stable-schema") == (
         "oos-2020-b2-stable-schema [factor_adj_pit_v3_stable]"
     )
     assert seen == ["oos-2020-b2"]
+
+
+def test_main_filters_run_selector_by_factor_and_oos_year() -> None:
+    st = FakeSt()
+    st.selected_selectboxes = {
+        "依 Factor Version 篩選": "factor_v4",
+        "依 OOS 年份篩選": "2023",
+    }
+    rows = [
+        {"run_id": "oos-2024-v4", "status": "succeeded", "feature_version": "factor_v4"},
+        {"run_id": "oos-2023-v4", "status": "succeeded", "feature_version": "factor_v4"},
+        {"run_id": "oos-2023-v2", "status": "succeeded", "feature_version": "factor_adj_v2"},
+        {"run_id": "rebalance-live", "status": "succeeded", "feature_version": "factor_v4"},
+    ]
+    seen: list[str] = []
+    main(
+        st=st,
+        store=FakeStore(rows),
+        load_settings_fn=lambda: object(),
+        loaders={"總覽": lambda run_id, _as_of: seen.append(run_id) or "payload"},
+        pages={"總覽": lambda _st, _payload: None},
+    )
+    run_select = next(
+        call
+        for call in st.calls
+        if call[0] == "selectbox" and call[1] == "研究 run（僅顯示已完成）"
+    )
+    assert run_select[2] == ["oos-2023-v4"]
+    assert seen == ["oos-2023-v4"]
 
 
 def test_main_offers_month_selector_for_portfolio() -> None:

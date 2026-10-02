@@ -13,6 +13,7 @@ crashing, and with no store it tries the database first, reporting
 from __future__ import annotations
 
 import os
+import re
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -23,6 +24,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 PAGES: tuple[str, ...] = ("總覽", "投組", "模型", "風險", "研究比較")
 CONFIG_PATH = Path(__file__).resolve().parent / "config.yaml"
 SUCCEEDED = "succeeded"
+ALL_FILTER = "全部"
+UNKNOWN_FACTOR_VERSION = "未標示"
+_OOS_YEAR_RE = re.compile(r"(?:^|-)oos-(\d{4})(?:-|$)", re.IGNORECASE)
 
 
 class RunStore(Protocol):
@@ -68,6 +72,28 @@ def _run_label(row: dict) -> str:
     if isinstance(feature_version, str) and feature_version.strip():
         return f"{run_id} [{feature_version}]"
     return run_id
+
+
+def _factor_version(row: dict) -> str:
+    value = row.get("feature_version")
+    return value.strip() if isinstance(value, str) and value.strip() else UNKNOWN_FACTOR_VERSION
+
+
+def _oos_year(row: dict) -> str | None:
+    match = _OOS_YEAR_RE.search(str(row.get("run_id", "")))
+    return match.group(1) if match else None
+
+
+def _filter_run_rows(
+    rows: list[dict], factor_version: str = ALL_FILTER, oos_year: str = ALL_FILTER
+) -> list[dict]:
+    """Filter run rows while preserving the database display order."""
+    return [
+        row
+        for row in rows
+        if (factor_version == ALL_FILTER or _factor_version(row) == factor_version)
+        and (oos_year == ALL_FILTER or _oos_year(row) == oos_year)
+    ]
 
 
 def _default_load_settings():
@@ -124,7 +150,7 @@ def main(
         st = streamlit
     st.title("台股多因子量化交易")
     try:
-        settings = (load_settings_fn or _default_load_settings)()
+        (load_settings_fn or _default_load_settings)()
     except Exception as exc:
         st.error(f"設定載入失敗：{exc}")
         return
@@ -136,14 +162,32 @@ def main(
             return
     try:
         run_rows = _available_run_rows(store)
-        run_ids = [row["run_id"] for row in run_rows]
-        run_labels = {row["run_id"]: _run_label(row) for row in run_rows}
     except Exception as exc:
         st.error(f"讀取研究紀錄失敗：{exc}")
         return
-    if not run_ids:
+    if not run_rows:
         st.info("尚無已完成的研究 run：請先執行月度訊號 job。")
         return
+    factor_versions = sorted({_factor_version(row) for row in run_rows})
+    oos_years = sorted(
+        {year for row in run_rows if (year := _oos_year(row)) is not None}, reverse=True
+    )
+    selected_factor = st.sidebar.selectbox(
+        "依 Factor Version 篩選",
+        [ALL_FILTER, *factor_versions],
+        index=0,
+    )
+    selected_year = st.sidebar.selectbox(
+        "依 OOS 年份篩選",
+        [ALL_FILTER, *oos_years],
+        index=0,
+    )
+    filtered_rows = _filter_run_rows(run_rows, selected_factor, selected_year)
+    if not filtered_rows:
+        st.info("目前篩選條件下沒有已完成的研究 run。")
+        return
+    run_ids = [row["run_id"] for row in filtered_rows]
+    run_labels = {row["run_id"]: _run_label(row) for row in filtered_rows}
     run_id = st.sidebar.selectbox(
         "研究 run（僅顯示已完成）",
         run_ids,
