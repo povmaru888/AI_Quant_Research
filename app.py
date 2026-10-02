@@ -26,6 +26,7 @@ CONFIG_PATH = Path(__file__).resolve().parent / "config.yaml"
 SUCCEEDED = "succeeded"
 ALL_FILTER = "全部"
 UNKNOWN_FACTOR_VERSION = "未標示"
+METHODS: tuple[str, ...] = ("binary", "rank", "huber")
 _OOS_YEAR_RE = re.compile(r"(?:^|-)oos-(\d{4})(?:-|$)", re.IGNORECASE)
 
 
@@ -84,8 +85,21 @@ def _oos_year(row: dict) -> str | None:
     return match.group(1) if match else None
 
 
+def _run_method(row: dict) -> str:
+    """Classify persisted runs into the dashboard's research methods."""
+    marker = f"{row.get('model_version', '')} {row.get('run_id', '')}".lower()
+    if "pseudohuber" in marker or "pseudo-huber" in marker:
+        return "huber"
+    if "rank_pairwise" in marker or "rank-pairwise" in marker or "rank:pairwise" in marker:
+        return "rank"
+    return "binary"
+
+
 def _filter_run_rows(
-    rows: list[dict], factor_version: str = ALL_FILTER, oos_year: str = ALL_FILTER
+    rows: list[dict],
+    factor_version: str = ALL_FILTER,
+    oos_year: str = ALL_FILTER,
+    method: str = ALL_FILTER,
 ) -> list[dict]:
     """Filter run rows while preserving the database display order."""
     return [
@@ -93,6 +107,7 @@ def _filter_run_rows(
         for row in rows
         if (factor_version == ALL_FILTER or _factor_version(row) == factor_version)
         and (oos_year == ALL_FILTER or _oos_year(row) == oos_year)
+        and (method == ALL_FILTER or _run_method(row) == method)
     ]
 
 
@@ -182,7 +197,14 @@ def main(
         [ALL_FILTER, *oos_years],
         index=0,
     )
-    filtered_rows = _filter_run_rows(run_rows, selected_factor, selected_year)
+    selected_method = st.sidebar.selectbox(
+        "依 Method 篩選",
+        [ALL_FILTER, *METHODS],
+        index=0,
+    )
+    filtered_rows = _filter_run_rows(
+        run_rows, selected_factor, selected_year, selected_method
+    )
     if not filtered_rows:
         st.info("目前篩選條件下沒有已完成的研究 run。")
         return

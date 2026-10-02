@@ -29,11 +29,18 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from runtime.db_store import get_engine  # noqa: E402
 from runtime.dotenv import load_dotenv  # noqa: E402
+from runtime.oos_data import load_symbol_prices  # noqa: E402
 from services.feature_selection_service import select_stable_training_features  # noqa: E402
 from services.feature_service import uses_training_coverage_selection  # noqa: E402
 from services.optimization_service import optimize_xgb  # noqa: E402
 from services.ranking_service import optimize_xgb_ranker, train_xgb_ranker  # noqa: E402
+from services.regression_service import (  # noqa: E402
+    build_excess_return_labels_by_month,
+    optimize_xgb_regressor,
+    train_xgb_regressor,
+)
 from services.xgb_service import predict_xgb, rank_ic, train_xgb  # noqa: E402
 from settings import load_settings  # noqa: E402
 
@@ -86,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model-version", default="xgb_b1")
     parser.add_argument(
         "--objective",
-        choices=("binary:logistic", "rank:pairwise"),
+        choices=("binary:logistic", "rank:pairwise", "reg:pseudohubererror"),
         default="binary:logistic",
     )
     args = parser.parse_args(argv)
@@ -104,6 +111,24 @@ def main(argv: list[str] | None = None) -> int:
     print(f"valid months: {len(valid_months)} ({valid_months[0]}..{valid_months[-1]})")
     train_panels = _load_panels(panels, train_months, settings.features.feature_version)
     valid_panels = _load_panels(panels, valid_months, settings.features.feature_version)
+
+    continuous_labels: dict[str, pd.Series] | None = None
+    if args.objective == "reg:pseudohubererror":
+        all_panels = {**train_panels, **valid_panels}
+        stock_ids = {
+            str(stock_id)
+            for panel in all_panels.values()
+            for stock_id in panel["frame"]["stock_id"].tolist()
+        }
+        price_frame = load_symbol_prices(
+            get_engine(settings),
+            stock_ids,
+            start=min(str(panel["signal_date"]) for panel in all_panels.values()),
+            columns=("stock_id", "trade_date", "close_adj"),
+        )
+        continuous_labels = build_excess_return_labels_by_month(
+            all_panels, price_frame, settings.label.horizon_trading_days
+        )
 
     feature_selection = None
     if uses_training_coverage_selection(settings.features.feature_version):
@@ -123,19 +148,33 @@ def main(argv: list[str] | None = None) -> int:
             panel = source[month]
             frame = panel["frame"][["stock_id", *columns]].copy()
             frame["month"] = month
-            aligned = panel["labels"].reindex(frame["stock_id"])
+            source_labels = (
+                continuous_labels[month] if continuous_labels is not None else panel["labels"]
+            )
+            aligned = source_labels.reindex(frame["stock_id"])
             keep = aligned.notna().to_numpy()
             frames.append(frame.loc[keep])
-            labels.append(aligned.loc[keep].astype(int))
+            labels.append(
+                aligned.loc[keep].astype(float)
+                if continuous_labels is not None
+                else aligned.loc[keep].astype(int)
+            )
             groups.append(int(keep.sum()))
         big_x = pd.concat(frames, ignore_index=True)
-        big_y = pd.concat(labels, ignore_index=True).astype(int)
+        big_y = pd.concat(labels, ignore_index=True)
+        big_y = big_y.astype(float if continuous_labels is not None else int)
         return big_x, big_y, groups
 
     train_frame, train_y, train_groups = assemble(train_months, train_panels)
     valid_frame, valid_y, valid_groups = assemble(valid_months, valid_panels)
     print(f"train rows: {len(train_frame)}, valid rows: {len(valid_frame)}")
-    print(f"train pos: {float(train_y.mean()):.3f}, valid pos: {float(valid_y.mean()):.3f}")
+    if continuous_labels is not None:
+        print(
+            f"train target std: {float(train_y.std()):.4f}, "
+            f"valid target std: {float(valid_y.std()):.4f}"
+        )
+    else:
+        print(f"train pos: {float(train_y.mean()):.3f}, valid pos: {float(valid_y.mean()):.3f}")
     train_x = train_frame[columns]
     valid_x = valid_frame[columns]
 
@@ -149,7 +188,13 @@ def main(argv: list[str] | None = None) -> int:
         params = params_report.get("best_params")
         if not isinstance(params, dict) or not params:
             raise ValueError(f"no best_params in {params_path}")
-        if args.objective == "rank:pairwise":
+        if args.objective == "reg:pseudohubererror":
+            artifact, booster = train_xgb_regressor(
+                train_x, train_y, train_groups, valid_x, valid_y, valid_groups, params,
+                args.model_version, settings.features.feature_version,
+                f"fixed-{params_path.parent.name}", run_id,
+            )
+        elif args.objective == "rank:pairwise":
             artifact, booster = train_xgb_ranker(
                 train_x, train_y, train_groups, valid_x, valid_y, valid_groups, params,
                 args.model_version, settings.features.feature_version,
@@ -163,7 +208,13 @@ def main(argv: list[str] | None = None) -> int:
         trials = pd.DataFrame()
         print(f"reused fixed parameters from {params_path}")
     else:
-        if args.objective == "rank:pairwise":
+        if args.objective == "reg:pseudohubererror":
+            artifact, booster, trials = optimize_xgb_regressor(
+                train_x, train_y, train_groups, valid_x, valid_y, valid_groups, settings,
+                args.model_version, settings.features.feature_version,
+                f"manual-{run_id}", run_id, n_trials=args.trials,
+            )
+        elif args.objective == "rank:pairwise":
             artifact, booster, trials = optimize_xgb_ranker(
                 train_x, train_y, train_groups, valid_x, valid_y, valid_groups, settings,
                 args.model_version, settings.features.feature_version,
@@ -180,9 +231,13 @@ def main(argv: list[str] | None = None) -> int:
     for month in valid_months:
         panel = valid_panels[month]
         frame = panel["frame"][["stock_id", *columns]].copy()
-        aligned = panel["labels"].reindex(frame["stock_id"])
+        source_labels = (
+            continuous_labels[month] if continuous_labels is not None else panel["labels"]
+        )
+        aligned = source_labels.reindex(frame["stock_id"])
         keep = aligned.notna().to_numpy()
-        frame, truth_m = frame.loc[keep], aligned.loc[keep].astype(int)
+        frame = frame.loc[keep]
+        truth_m = aligned.loc[keep].astype(float if continuous_labels is not None else int)
         scored = predict_xgb(artifact, frame[["stock_id", *columns]], booster)
         probs = scored.set_index("stock_id")["probability"]
         truth_m = truth_m.set_axis(frame["stock_id"].to_numpy())
@@ -200,6 +255,11 @@ def main(argv: list[str] | None = None) -> int:
     report = {
         "model_version": args.model_version,
         "training_objective": args.objective,
+        "target_definition": (
+            "stock_simple_return_t_plus_20_minus_monthly_eligible_universe_mean"
+            if continuous_labels is not None
+            else "top_quantile_binary_relevance"
+        ),
         "feature_version": settings.features.feature_version,
         "train_months": [train_months[0], train_months[-1], len(train_months)],
         "purge_month": args.purge_month,

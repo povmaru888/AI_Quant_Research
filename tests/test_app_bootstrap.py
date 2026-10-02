@@ -10,7 +10,15 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import app
-from app import ALL_FILTER, PAGES, _filter_run_rows, _oos_year, available_runs, main
+from app import (
+    ALL_FILTER,
+    PAGES,
+    _filter_run_rows,
+    _oos_year,
+    _run_method,
+    available_runs,
+    main,
+)
 
 
 class FakeSidebar:
@@ -137,6 +145,27 @@ def test_run_filters_support_all_factor_version_and_oos_year() -> None:
     assert _oos_year(rows[-1]) is None
 
 
+def test_run_method_classifies_and_filters_binary_rank_and_huber() -> None:
+    rows = [
+        {"run_id": "oos-2024-factor-v4-NOrefit", "model_version": "xgb_binary"},
+        {
+            "run_id": "oos-2024-factor-v4-rank-pairwise-NOrefit",
+            "model_version": "xgb_rank_pairwise",
+        },
+        {
+            "run_id": "oos-2024-factor-v4-pseudohuber-NOrefit",
+            "model_version": "xgb_pseudohuber",
+        },
+    ]
+    assert [_run_method(row) for row in rows] == ["binary", "rank", "huber"]
+    assert [row["run_id"] for row in _filter_run_rows(rows, method="rank")] == [
+        "oos-2024-factor-v4-rank-pairwise-NOrefit"
+    ]
+    assert [row["run_id"] for row in _filter_run_rows(rows, method="huber")] == [
+        "oos-2024-factor-v4-pseudohuber-NOrefit"
+    ]
+
+
 def test_main_happy_path_dispatches_first_page() -> None:
     st = FakeSt()
     store = FakeStore(_run_ids("succeeded", "failed", "succeeded"))
@@ -210,10 +239,15 @@ def test_main_filters_run_selector_by_factor_and_oos_year() -> None:
     st.selected_selectboxes = {
         "依 Factor Version 篩選": "factor_v4",
         "依 OOS 年份篩選": "2023",
+        "依 Method 篩選": "rank",
     }
     rows = [
         {"run_id": "oos-2024-v4", "status": "succeeded", "feature_version": "factor_v4"},
-        {"run_id": "oos-2023-v4", "status": "succeeded", "feature_version": "factor_v4"},
+        {
+            "run_id": "oos-2023-v4-rank-pairwise",
+            "status": "succeeded",
+            "feature_version": "factor_v4",
+        },
         {"run_id": "oos-2023-v2", "status": "succeeded", "feature_version": "factor_adj_v2"},
         {"run_id": "rebalance-live", "status": "succeeded", "feature_version": "factor_v4"},
     ]
@@ -230,8 +264,8 @@ def test_main_filters_run_selector_by_factor_and_oos_year() -> None:
         for call in st.calls
         if call[0] == "selectbox" and call[1] == "研究 run（僅顯示已完成）"
     )
-    assert run_select[2] == ["oos-2023-v4"]
-    assert seen == ["oos-2023-v4"]
+    assert run_select[2] == ["oos-2023-v4-rank-pairwise"]
+    assert seen == ["oos-2023-v4-rank-pairwise"]
 
 
 def test_main_offers_month_selector_for_portfolio() -> None:
