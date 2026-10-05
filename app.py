@@ -26,7 +26,7 @@ CONFIG_PATH = Path(__file__).resolve().parent / "config.yaml"
 SUCCEEDED = "succeeded"
 ALL_FILTER = "全部"
 UNKNOWN_FACTOR_VERSION = "未標示"
-METHODS: tuple[str, ...] = ("binary", "rank", "huber")
+METHODS: tuple[str, ...] = ("binary", "logistic", "rank", "huber")
 SMOOTHING_ALPHAS: tuple[str, ...] = ("1.0", "0.8", "0.6", "0.4")
 _OOS_YEAR_RE = re.compile(r"(?:^|-)oos-(\d{4})(?:-|$)", re.IGNORECASE)
 _PARAM_ALPHA_RE = re.compile(r"(?:^|-)smooth-(0(?:\.\d+)?|1(?:\.0+)?)(?:-|$)", re.IGNORECASE)
@@ -91,6 +91,8 @@ def _oos_year(row: dict) -> str | None:
 def _run_method(row: dict) -> str:
     """Classify persisted runs into the dashboard's research methods."""
     marker = f"{row.get('model_version', '')} {row.get('run_id', '')}".lower()
+    if "logistic" in marker:
+        return "logistic"
     if "pseudohuber" in marker or "pseudo-huber" in marker:
         return "huber"
     if "rank_pairwise" in marker or "rank-pairwise" in marker or "rank:pairwise" in marker:

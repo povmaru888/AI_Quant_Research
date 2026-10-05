@@ -24,8 +24,10 @@ import pickle
 import sys
 from pathlib import Path
 
+import joblib
 import numpy as np
 import pandas as pd
+from sklearn.metrics import log_loss, roc_auc_score
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -34,6 +36,7 @@ from runtime.dotenv import load_dotenv  # noqa: E402
 from runtime.oos_data import load_symbol_prices  # noqa: E402
 from services.feature_selection_service import select_stable_training_features  # noqa: E402
 from services.feature_service import uses_training_coverage_selection  # noqa: E402
+from services.logistic_service import predict_logistic, train_logistic  # noqa: E402
 from services.optimization_service import optimize_xgb  # noqa: E402
 from services.ranking_service import optimize_xgb_ranker, train_xgb_ranker  # noqa: E402
 from services.regression_service import (  # noqa: E402
@@ -93,10 +96,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model-version", default="xgb_b1")
     parser.add_argument(
         "--objective",
-        choices=("binary:logistic", "rank:pairwise", "reg:pseudohubererror"),
+        choices=(
+            "binary:logistic",
+            "rank:pairwise",
+            "reg:pseudohubererror",
+            "logistic_regression",
+        ),
         default="binary:logistic",
     )
     args = parser.parse_args(argv)
+    if args.objective == "logistic_regression" and args.params_from:
+        parser.error("--params-from is not supported for fixed Logistic Regression")
     load_dotenv()
     try:
         settings = load_settings(args.config)
@@ -208,7 +218,19 @@ def main(argv: list[str] | None = None) -> int:
         trials = pd.DataFrame()
         print(f"reused fixed parameters from {params_path}")
     else:
-        if args.objective == "reg:pseudohubererror":
+        if args.objective == "logistic_regression":
+            artifact, booster = train_logistic(
+                train_x,
+                train_y,
+                valid_x,
+                valid_y,
+                args.model_version,
+                settings.features.feature_version,
+                f"fixed-{run_id}",
+                run_id,
+            )
+            trials = pd.DataFrame()
+        elif args.objective == "reg:pseudohubererror":
             artifact, booster, trials = optimize_xgb_regressor(
                 train_x, train_y, train_groups, valid_x, valid_y, valid_groups, settings,
                 args.model_version, settings.features.feature_version,
@@ -238,7 +260,11 @@ def main(argv: list[str] | None = None) -> int:
         keep = aligned.notna().to_numpy()
         frame = frame.loc[keep]
         truth_m = aligned.loc[keep].astype(float if continuous_labels is not None else int)
-        scored = predict_xgb(artifact, frame[["stock_id", *columns]], booster)
+        scored = (
+            predict_logistic(artifact, frame[["stock_id", *columns]], booster)
+            if args.objective == "logistic_regression"
+            else predict_xgb(artifact, frame[["stock_id", *columns]], booster)
+        )
         probs = scored.set_index("stock_id")["probability"]
         truth_m = truth_m.set_axis(frame["stock_id"].to_numpy())
         month_ics.append(rank_ic(probs, truth_m.loc[probs.index]))
@@ -278,11 +304,27 @@ def main(argv: list[str] | None = None) -> int:
         "trials": len(trials),
         "parameters_from": args.params_from,
     }
+    if args.objective == "logistic_regression":
+        validation_probability = booster.predict_proba(valid_x)[:, 1]
+        report.update(
+            {
+                "validation_roc_auc": float(roc_auc_score(valid_y, validation_probability)),
+                "validation_log_loss": float(log_loss(valid_y, validation_probability)),
+                "coefficients": {
+                    column: float(value)
+                    for column, value in zip(columns, booster.coef_[0], strict=True)
+                },
+                "intercept": float(booster.intercept_[0]),
+            }
+        )
     print(f"validation rank IC: {ic:.4f}, top-decile spread: {spread:.4f}")
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    booster.save_model(str(out / "booster.ubj"))
+    if args.objective == "logistic_regression":
+        joblib.dump(booster, out / "model.joblib")
+    else:
+        booster.save_model(str(out / "booster.ubj"))
     with open(out / "report.json", "w", encoding="utf-8") as handle:
         json.dump(report, handle, ensure_ascii=False, indent=1)
     with open(out / "trials.csv", "w", encoding="utf-8") as handle:

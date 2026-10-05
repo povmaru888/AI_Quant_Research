@@ -1,0 +1,351 @@
+{
+ "model_version": "logistic_oos2020_factor_v4_norefit",
+ "training_objective": "logistic_regression",
+ "target_definition": "top_quantile_binary_relevance",
+ "feature_version": "factor_v4",
+ "train_months": [
+  "2015-01",
+  "2018-11",
+  47
+ ],
+ "purge_month": "2018-12",
+ "valid_months": [
+  "2019-01",
+  "2019-12",
+  12
+ ],
+ "common_features": [
+  "momentum_20d",
+  "momentum_60d",
+  "momentum_120d",
+  "momentum_20d_ex_5d",
+  "ma20_ma60_gap",
+  "rsi14",
+  "price_ma20_gap",
+  "volume_ma20_ma60",
+  "earnings_yield",
+  "book_to_market",
+  "sales_yield",
+  "roe",
+  "revenue_yoy",
+  "revenue_mom",
+  "operating_income_qoq",
+  "volatility_60d",
+  "beta_60d",
+  "max_drawdown_120d",
+  "turnover_60d",
+  "foreign_net_buy_to_issued_shares",
+  "trust_net_buy_to_issued_shares",
+  "margin_balance_change",
+  "close_60d_high",
+  "log_market_cap",
+  "amihud_illiquidity",
+  "short_margin_ratio",
+  "operating_margin"
+ ],
+ "feature_selection": {
+  "momentum_20d": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "momentum_60d": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "momentum_120d": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "momentum_20d_ex_5d": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "ma20_ma60_gap": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "rsi14": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "price_ma20_gap": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "volume_ma20_ma60": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "earnings_yield": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.914542385078004,
+   "min_row_coverage": 0.8871951219512195,
+   "missing_indicator_included": false
+  },
+  "book_to_market": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.9141731544907293,
+   "min_row_coverage": 0.8841463414634146,
+   "missing_indicator_included": false
+  },
+  "sales_yield": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.9962240298403114,
+   "min_row_coverage": 0.9900332225913622,
+   "missing_indicator_included": false
+  },
+  "roe": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "revenue_yoy": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.992675885405684,
+   "min_row_coverage": 0.9758620689655172,
+   "missing_indicator_included": false
+  },
+  "revenue_mom": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.9960241233039071,
+   "min_row_coverage": 0.985663082437276,
+   "missing_indicator_included": false
+  },
+  "operating_income_qoq": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.9786067691795901,
+   "min_row_coverage": 0.96415770609319,
+   "missing_indicator_included": false
+  },
+  "volatility_60d": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "beta_60d": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "max_drawdown_120d": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "turnover_60d": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "foreign_net_buy_to_issued_shares": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "trust_net_buy_to_issued_shares": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "margin_balance_change": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.9723370273588028,
+   "min_row_coverage": 0.9620689655172414,
+   "missing_indicator_included": false
+  },
+  "close_60d_high": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "log_market_cap": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "amihud_illiquidity": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.999546276621493,
+   "min_row_coverage": 0.9965034965034965,
+   "missing_indicator_included": false
+  },
+  "short_margin_ratio": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.9728829904934994,
+   "min_row_coverage": 0.9620689655172414,
+   "missing_indicator_included": false
+  },
+  "operating_margin": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.9765534073361541,
+   "min_row_coverage": 0.9679144385026738,
+   "missing_indicator_included": false
+  }
+ },
+ "train_rows": 15191,
+ "valid_rows": 4123,
+ "best_params": {
+  "C": 1.0,
+  "penalty": "l2",
+  "solver": "lbfgs",
+  "max_iter": 2000,
+  "class_weight": null,
+  "random_state": 42
+ },
+ "validation_rank_ic": 0.15516471916707017,
+ "validation_top_decile_spread": 0.2120197949622392,
+ "validation_monthly_ic": {
+  "2019-01": 0.11088509990009081,
+  "2019-02": 0.19723071667979997,
+  "2019-03": 0.1399297174246632,
+  "2019-04": -0.23185371696582327,
+  "2019-05": 0.2552427004954006,
+  "2019-06": 0.307220122984407,
+  "2019-07": 0.2874418469776495,
+  "2019-08": 0.2257330939560363,
+  "2019-09": 0.3336146451778696,
+  "2019-10": 0.035449258029338175,
+  "2019-11": 0.20105020384605865,
+  "2019-12": 3.294149935157066e-05
+ },
+ "trials": 0,
+ "parameters_from": null,
+ "validation_roc_auc": 0.6111568864836677,
+ "validation_log_loss": 0.49003622466390345,
+ "coefficients": {
+  "momentum_20d": 0.03936591278298933,
+  "momentum_60d": -0.13681412322630315,
+  "momentum_120d": 0.14027529057760252,
+  "momentum_20d_ex_5d": 0.023981411863825516,
+  "ma20_ma60_gap": 0.04437239301747965,
+  "rsi14": 0.10276071723646353,
+  "price_ma20_gap": -0.06743955803525127,
+  "volume_ma20_ma60": -0.04640879639990804,
+  "earnings_yield": 0.03826036731021849,
+  "book_to_market": -0.045306132849020214,
+  "sales_yield": 0.08097805192380848,
+  "roe": -0.0436895223898596,
+  "revenue_yoy": 0.004261466357370441,
+  "revenue_mom": 0.020739879326820827,
+  "operating_income_qoq": -0.034357569437647846,
+  "volatility_60d": 0.14369578671737146,
+  "beta_60d": 0.00830590376152223,
+  "max_drawdown_120d": -0.10260237970915448,
+  "turnover_60d": 0.17265569453853047,
+  "foreign_net_buy_to_issued_shares": -0.021534555700257564,
+  "trust_net_buy_to_issued_shares": 0.007830272543646844,
+  "margin_balance_change": 0.04725278846556606,
+  "close_60d_high": 0.13628116907848317,
+  "log_market_cap": 0.1733063451681949,
+  "amihud_illiquidity": 0.14307676511772568,
+  "short_margin_ratio": 0.006282912342158692,
+  "operating_margin": 0.10304371169970977
+ },
+ "intercept": -1.4105050930384586
+}

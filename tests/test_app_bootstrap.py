@@ -146,9 +146,10 @@ def test_run_filters_support_all_factor_version_and_oos_year() -> None:
     assert _oos_year(rows[-1]) is None
 
 
-def test_run_method_classifies_and_filters_binary_rank_and_huber() -> None:
+def test_run_method_classifies_binary_logistic_rank_and_huber() -> None:
     rows = [
         {"run_id": "oos-2024-factor-v4-NOrefit", "model_version": "xgb_binary"},
+        {"run_id": "oos-2024-factor-v4-logistic-NOrefit", "model_version": "logistic"},
         {
             "run_id": "oos-2024-factor-v4-rank-pairwise-NOrefit",
             "model_version": "xgb_rank_pairwise",
@@ -158,7 +159,10 @@ def test_run_method_classifies_and_filters_binary_rank_and_huber() -> None:
             "model_version": "xgb_pseudohuber",
         },
     ]
-    assert [_run_method(row) for row in rows] == ["binary", "rank", "huber"]
+    assert [_run_method(row) for row in rows] == ["binary", "logistic", "rank", "huber"]
+    assert [row["run_id"] for row in _filter_run_rows(rows, method="logistic")] == [
+        "oos-2024-factor-v4-logistic-NOrefit"
+    ]
     assert [row["run_id"] for row in _filter_run_rows(rows, method="rank")] == [
         "oos-2024-factor-v4-rank-pairwise-NOrefit"
     ]
