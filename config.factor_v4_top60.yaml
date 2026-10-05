@@ -1,0 +1,53 @@
+project:
+  name: taiwan-quant-xgb
+  timezone: Asia/Taipei
+  random_state: 42
+
+data:
+  database_url: sqlite:///database/quant.db
+  finmind_token_env: FINMIND_TOKEN
+  price_start_date: "2014-06-01"
+  fallback_source: yfinance
+
+universe:
+  min_market_cap_twd: 5000000000
+  min_avg_traded_value_20d_twd: 20000000
+  min_price_twd: 10
+  excluded_flags: [KY, DISPOSAL, FULL_CASH_SETTLEMENT]
+  min_listing_age_trading_days: 252
+
+features:
+  winsor_lower_quantile: 0.01
+  winsor_upper_quantile: 0.99
+  correlation_threshold: 0.85
+  volatility_window: 60
+  feature_version: factor_v4
+  required_adjusted_price_rows: 121
+  required_financial_fields: [net_income, equity]
+
+label:
+  horizon_trading_days: 20
+  top_quantile: 0.20
+
+validation:
+  train_years: 4
+  validation_years: 1
+  test_years: 1
+  purge_trading_days: 20
+  optuna_trials: 50
+
+portfolio:
+  top_n: 15
+  hold_rank_threshold: 60
+  max_individual_weight: 0.10
+  target_annual_volatility: 0.15
+  max_equity_exposure: 1.00
+  taiex_ma_window: 60
+  reduced_exposure_below_ma: 0.50
+
+execution:
+  signal_time: month_end_close
+  execution_time: next_trading_day_open
+  broker_fee_rate: 0.001425
+  sell_tax_rate: 0.003
+  slippage_rate_per_side: 0.001
