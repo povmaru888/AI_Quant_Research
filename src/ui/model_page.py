@@ -15,8 +15,13 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+from ui.theme import DARK, DashboardTheme, active_theme, apply_plotly_theme
+
 SHAP_DISCLAIMER = "SHAP 反映特徵重要性，不是因子收益歸因。"
-SELECTION_DISCLAIMER = "以下指標只衡量模型選股排序，不代表實際持股或投資組合損益；報酬以訊號日收盤至第 20 個個股交易日的還原收盤價計算。"
+SELECTION_DISCLAIMER = (
+    "以下指標只衡量模型選股排序，不代表實際持股或投資組合損益；"
+    "報酬以訊號日收盤至第 20 個個股交易日的還原收盤價計算。"
+)
 
 _TOP_N = 10
 _SELECTION_SUMMARIES = (
@@ -87,9 +92,7 @@ def _monthly_records(payload: object) -> list[dict]:
             continue
         record = {
             "month": month,
-            "continuous_rank_ic": _clean_number(
-                row.get("continuous_rank_ic", row.get("ic"))
-            ),
+            "continuous_rank_ic": _clean_number(row.get("continuous_rank_ic", row.get("ic"))),
             "top15_actual_return": _clean_number(row.get("top15_actual_return")),
             "top15_excess_return": _clean_number(row.get("top15_excess_return")),
             "top_bottom_spread": _clean_number(row.get("top_bottom_spread")),
@@ -99,7 +102,7 @@ def _monthly_records(payload: object) -> list[dict]:
     return records
 
 
-def shap_figure(shap_top: object) -> go.Figure:
+def shap_figure(shap_top: object, theme: DashboardTheme = DARK) -> go.Figure:
     """Top-10 SHAP bar chart; corrupt rows skipped, capped at ten."""
     figure = go.Figure()
     cleaned = _clean_pairs(shap_top, "feature", "value")[:_TOP_N]
@@ -112,13 +115,15 @@ def shap_figure(shap_top: object) -> go.Figure:
             y=[name for name, _ in cleaned],
             orientation="h",
             name="SHAP",
+            marker_color=theme.primary,
+            hovertemplate="%{y}<br>mean |SHAP| %{x:.4f}<extra></extra>",
         )
     )
-    figure.update_layout(title="SHAP Top 10")
-    return figure
+    figure.update_layout(title="SHAP Top 10", yaxis={"autorange": "reversed"})
+    return apply_plotly_theme(figure, theme)
 
 
-def monthly_ic_figure(monthly_ic: object) -> go.Figure:
+def monthly_ic_figure(monthly_ic: object, theme: DashboardTheme = DARK) -> go.Figure:
     """Monthly IC curve; corrupt rows skipped."""
     figure = go.Figure()
     cleaned = [
@@ -135,22 +140,24 @@ def monthly_ic_figure(monthly_ic: object) -> go.Figure:
             y=[value for _, value in cleaned],
             mode="lines+markers",
             name="IC",
+            line={"color": theme.primary, "width": 2.5},
         )
     )
     figure.update_layout(title="Monthly IC")
-    return figure
+    figure.update_yaxes(zeroline=True, zerolinewidth=1.5, zerolinecolor=theme.border)
+    return apply_plotly_theme(figure, theme)
 
 
-def selection_metrics_figure(monthly_metrics: object) -> go.Figure:
+def selection_metrics_figure(monthly_metrics: object, theme: DashboardTheme = DARK) -> go.Figure:
     """Monthly model IC and realized-return diagnostics with separate axes."""
     rows = _monthly_records(monthly_metrics)
     figure = make_subplots(specs=[[{"secondary_y": True}]])
     series = (
-        ("continuous_rank_ic", "Continuous Rank IC", False),
-        ("top15_excess_return", "Top15 Excess Return", True),
-        ("top_bottom_spread", "Top-Bottom Spread", True),
+        ("continuous_rank_ic", "Continuous Rank IC", False, theme.benchmark),
+        ("top15_excess_return", "Top15 Excess Return", True, theme.primary),
+        ("top_bottom_spread", "Top-Bottom Spread", True, theme.warning),
     )
-    for field, name, secondary_y in series:
+    for field, name, secondary_y, color in series:
         valid = [row for row in rows if row[field] is not None]
         if valid:
             figure.add_trace(
@@ -159,16 +166,30 @@ def selection_metrics_figure(monthly_metrics: object) -> go.Figure:
                     y=[row[field] for row in valid],
                     mode="lines+markers",
                     name=name,
+                    line={"color": color, "width": 2.4},
+                    marker={"size": 6},
                 ),
                 secondary_y=secondary_y,
             )
     if not figure.data:
         figure.update_layout(title="Monthly model selection diagnostics (no data)")
         return figure
-    figure.update_layout(title="Monthly model selection diagnostics", legend_title_text="指標")
-    figure.update_yaxes(title_text="Rank IC", tickformat=".2f", secondary_y=False)
-    figure.update_yaxes(title_text="Simple return", tickformat=".1%", secondary_y=True)
-    return figure
+    figure.update_layout(title="月度選股能力", legend_title_text="指標", hovermode="x unified")
+    figure.update_yaxes(
+        title_text="Rank IC",
+        tickformat=".2f",
+        zeroline=True,
+        zerolinecolor=theme.border,
+        secondary_y=False,
+    )
+    figure.update_yaxes(
+        title_text="Simple return",
+        tickformat=".1%",
+        zeroline=True,
+        zerolinecolor=theme.border,
+        secondary_y=True,
+    )
+    return apply_plotly_theme(figure, theme)
 
 
 def _format_value(value: object, *, percentage: bool) -> str:
@@ -178,7 +199,7 @@ def _format_value(value: object, *, percentage: bool) -> str:
     return f"{number:.2%}" if percentage else f"{number:.4f}"
 
 
-def _render_selection_metrics(st, payload: object) -> None:
+def _render_selection_metrics(st, payload: object, theme: DashboardTheme) -> None:
     st.subheader("模型選股能力")
     st.caption(SELECTION_DISCLAIMER)
     summary = payload.get("summary") if isinstance(payload, dict) else None
@@ -197,9 +218,9 @@ def _render_selection_metrics(st, payload: object) -> None:
     if not rows:
         st.info("尚無完整的 20 交易日選股績效資料。")
         return
-    figure = selection_metrics_figure(payload)
+    figure = selection_metrics_figure(payload, theme)
     if figure.data:
-        st.plotly_chart(figure)
+        _show_chart(st, figure)
     table = pd.DataFrame(
         [
             {
@@ -212,19 +233,45 @@ def _render_selection_metrics(st, payload: object) -> None:
         ],
         columns=["月份", "Continuous IC", "Excess Return", "Top-Bottom Spread"],
     )
-    st.dataframe(table)
+    _show_dataframe(st, table)
 
 
-def prediction_dist_figure(prediction_dist: object) -> go.Figure:
+def prediction_dist_figure(prediction_dist: object, theme: DashboardTheme = DARK) -> go.Figure:
     """Prediction probability histogram; non-finite values skipped."""
     figure = go.Figure()
     cleaned = _clean_floats(prediction_dist)
     if not cleaned:
         figure.update_layout(title="Prediction distribution (no data)")
         return figure
-    figure.add_trace(go.Histogram(x=cleaned, name="probability"))
-    figure.update_layout(title="Prediction distribution")
-    return figure
+    median = float(pd.Series(cleaned).median())
+    figure.add_trace(
+        go.Histogram(
+            x=cleaned,
+            name="probability",
+            marker_color=theme.primary,
+            opacity=0.82,
+            hovertemplate="分數 %{x:.3f}<br>數量 %{y}<extra></extra>",
+        )
+    )
+    figure.add_vline(
+        x=median, line_color=theme.warning, line_dash="dash", annotation_text=f"中位數 {median:.3f}"
+    )
+    figure.update_layout(title="預測分數分布", bargap=0.05)
+    return apply_plotly_theme(figure, theme)
+
+
+def _show_chart(st, figure: go.Figure) -> None:
+    try:
+        st.plotly_chart(figure, use_container_width=True, config={"displaylogo": False})
+    except TypeError:
+        st.plotly_chart(figure)
+
+
+def _show_dataframe(st, frame: pd.DataFrame) -> None:
+    try:
+        st.dataframe(frame, use_container_width=True, hide_index=True)
+    except TypeError:
+        st.dataframe(frame)
 
 
 def render_model(model_data: dict, st=None) -> None:
@@ -237,18 +284,21 @@ def render_model(model_data: dict, st=None) -> None:
         raise ValueError("invalid model_data: must be a dict")
     st.header("模型")
     st.write(SHAP_DISCLAIMER)
-    _render_selection_metrics(st, model_data.get("monthly_ic"))
+    theme = active_theme(st)
+    _render_selection_metrics(st, model_data.get("monthly_ic"), theme)
     shap = _clean_pairs(model_data.get("shap_top"), "feature", "value")[:_TOP_N]
     if shap:
-        st.plotly_chart(shap_figure(model_data.get("shap_top")))
+        st.subheader("特徵解釋")
+        st.caption("SHAP 衡量個別預測的平均影響；Gain 衡量樹模型分裂時帶來的改善，兩者定義不同。")
+        _show_chart(st, shap_figure(model_data.get("shap_top"), theme))
     else:
         st.info("尚無 SHAP 資料。")
     importance = _clean_pairs(model_data.get("feature_importance"), "feature", "gain")
     if importance:
-        st.dataframe(pd.DataFrame(importance, columns=["feature", "gain"]))
+        _show_dataframe(st, pd.DataFrame(importance, columns=["feature", "gain"]))
     else:
         st.info("尚無特徵重要性資料。")
     if _clean_floats(model_data.get("prediction_dist")):
-        st.plotly_chart(prediction_dist_figure(model_data.get("prediction_dist")))
+        _show_chart(st, prediction_dist_figure(model_data.get("prediction_dist"), theme))
     else:
         st.info("尚無預測分布資料。")

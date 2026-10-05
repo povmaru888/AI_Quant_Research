@@ -63,7 +63,7 @@ from sqlalchemy.exc import OperationalError
 
 from database import create_engine_from_settings, session_scope
 from models.market import Financial, Institutional, MarketValue, MarketValueSyncDay, Price
-from models.research import Feature, Order, PipelineRun, Prediction, Signal
+from models.research import Feature, Order, PipelineRun, PortfolioDaily, Prediction, Signal
 from models.security import Stock
 from repositories import artifacts as artifacts_repo
 from repositories import fundamentals as fundamentals_repo
@@ -1006,17 +1006,32 @@ class DbStore:
     def load_risk(self, run_id: str) -> dict:
         self.load_run_summary(run_id)  # unknown run raises here.
         with self._scope() as session:
-            weights = list(
-                session.execute(select(Signal.target_weight).where(Signal.run_id == run_id))
-                .scalars()
-                .all()
-            )
+            exposure = session.execute(
+                select(PortfolioDaily.equity_exposure)
+                .where(PortfolioDaily.run_id == run_id)
+                .order_by(PortfolioDaily.trade_date.desc())
+                .limit(1)
+            ).scalar_one_or_none()
+            if exposure is None:
+                latest_signal_date = session.execute(
+                    select(func.max(Signal.signal_date)).where(Signal.run_id == run_id)
+                ).scalar_one_or_none()
+                exposure = (
+                    session.execute(
+                        select(func.sum(Signal.target_weight)).where(
+                            Signal.run_id == run_id,
+                            Signal.signal_date == latest_signal_date,
+                        )
+                    ).scalar_one_or_none()
+                    if latest_signal_date is not None
+                    else None
+                )
             taiex = session.execute(
                 select(Price.trade_date, Price.close)
                 .where(Price.stock_id == TAIEX_ID)
                 .order_by(Price.trade_date)
             ).all()
-        exposure = float(sum(float(w) for w in weights)) if weights else 0.0
+        exposure = float(exposure) if exposure is not None else 0.0
         regime = "unknown"
         closes = [float(c) for _, c in taiex if c is not None]
         window = self._settings.portfolio.taiex_ma_window

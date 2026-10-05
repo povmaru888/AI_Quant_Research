@@ -49,11 +49,50 @@ def render_portfolio(holdings: pd.DataFrame, st=None) -> None:
         return
     ordered = active.sort_values("rank", ignore_index=True)
     st.header("投組")
-    table = ordered.loc[:, list(REQUIRED_COLUMNS)].rename(columns={"stock_name": "股票名稱"})
-    st.dataframe(table)
     summary = summarize_holdings(ordered)
-    st.write(f"權重總和：{summary['total_weight']:.4f}")
-    st.write(f"股票數量：{summary['count']}")
+    columns_fn = getattr(st, "columns", None)
+    if callable(columns_fn):
+        metrics = (
+            ("持股數", str(summary["count"])),
+            ("權重總和", f"{summary['total_weight']:.2%}"),
+            ("平均 60D 波動", f"{ordered['volatility_60d'].astype(float).mean():.2%}"),
+            ("平均 Beta", f"{ordered['beta_60d'].astype(float).mean():.2f}"),
+        )
+        for col, (label, value) in zip(columns_fn(4), metrics, strict=False):
+            col.metric(label, value)
+    table = ordered.loc[:, list(REQUIRED_COLUMNS)].rename(
+        columns={
+            "stock_id": "股票代碼",
+            "stock_name": "股票名稱",
+            "rank": "排名",
+            "prediction_probability": "模型分數",
+            "weight": "權重",
+            "volatility_60d": "60D 波動",
+            "beta_60d": "60D Beta",
+        }
+    )
+    table["權重"] = table["權重"].astype(float) * 100
+    table["60D 波動"] = table["60D 波動"].astype(float) * 100
+    try:
+        st.dataframe(
+            table,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "排名": st.column_config.NumberColumn(format="%d"),
+                "模型分數": st.column_config.NumberColumn(format="%.4f"),
+                "權重": st.column_config.ProgressColumn(
+                    format="%.2f%%", min_value=0, max_value=100
+                ),
+                "60D 波動": st.column_config.NumberColumn(format="%.2f%%"),
+                "60D Beta": st.column_config.NumberColumn(format="%.2f"),
+            },
+        )
+    except (TypeError, AttributeError):
+        st.dataframe(table)
+    if not callable(columns_fn):
+        st.write(f"權重總和：{summary['total_weight']:.4f}")
+        st.write(f"股票數量：{summary['count']}")
 
 
 def _validate(holdings: pd.DataFrame) -> None:

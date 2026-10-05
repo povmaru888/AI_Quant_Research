@@ -51,8 +51,35 @@ def render_comparison(metrics: pd.DataFrame, st=None) -> None:
     if metrics.empty:
         st.info("尚無可比較的研究情境。")
         return
-    st.dataframe(metrics.reset_index(drop=True))
     stems = paired_metrics(list(metrics.columns))
+    columns_fn = getattr(st, "columns", None)
+    if stems and callable(columns_fn):
+        for _, row in metrics.iterrows():
+            st.subheader(str(row["scenario"]))
+            cols = columns_fn(min(4, len(stems)))
+            for col, stem in zip(cols, stems[:4], strict=False):
+                before_v, after_v = row[f"{stem}{_SUFFIX_BEFORE}"], row[f"{stem}{_SUFFIX_AFTER}"]
+                kind_percent = any(
+                    token in stem.lower() for token in ("cagr", "return", "drawdown", "mdd")
+                )
+                if _format(after_v) == "N/A":
+                    value, delta = "N/A", None
+                elif kind_percent:
+                    value = f"{after_v:.2%}"
+                    delta = f"{after_v - before_v:.2%}" if _format(before_v) != "N/A" else None
+                else:
+                    value = f"{after_v:.2f}"
+                    delta = f"{after_v - before_v:+.2f}" if _format(before_v) != "N/A" else None
+                col.metric(
+                    stem.replace("_", " ").title(),
+                    value,
+                    delta=delta,
+                    help=f"成本前：{before_v:.4f}" if _format(before_v) != "N/A" else "成本前：N/A",
+                )
+    try:
+        st.dataframe(metrics.reset_index(drop=True), use_container_width=True, hide_index=True)
+    except TypeError:
+        st.dataframe(metrics.reset_index(drop=True))
     if not stems:
         st.info("尚無成本前後對照資料。")
         return

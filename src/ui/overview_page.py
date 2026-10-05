@@ -13,6 +13,16 @@ import math
 
 import plotly.graph_objects as go
 
+from ui.theme import (
+    DARK,
+    DashboardTheme,
+    active_theme,
+    apply_plotly_theme,
+    comparison_kpi_html,
+    format_value,
+    value_class,
+)
+
 METRIC_LABELS: tuple[tuple[str, str], ...] = (
     ("cagr", "CAGR"),
     ("sharpe", "Sharpe"),
@@ -42,7 +52,9 @@ def _clean_points(points: object) -> list[tuple[str, float]]:
     return cleaned
 
 
-def equity_curve_figure(points: object, benchmark: object = None) -> go.Figure:
+def equity_curve_figure(
+    points: object, benchmark: object = None, theme: DashboardTheme = DARK
+) -> go.Figure:
     """Strategy and TAIEX NAV curves on the same starting capital."""
     cleaned = _clean_points(points)
     figure = go.Figure()
@@ -51,7 +63,16 @@ def equity_curve_figure(points: object, benchmark: object = None) -> go.Figure:
         return figure
     days = [day for day, _ in cleaned]
     navs = [nav for _, nav in cleaned]
-    figure.add_trace(go.Scatter(x=days, y=navs, mode="lines", name="策略 NAV"))
+    figure.add_trace(
+        go.Scatter(
+            x=days,
+            y=navs,
+            mode="lines",
+            name="策略 NAV",
+            line={"color": theme.primary, "width": 3},
+            hovertemplate="%{x}<br>策略 NAV %{y:.3f}<extra></extra>",
+        )
+    )
     market = _clean_points(benchmark)
     if market:
         figure.add_trace(
@@ -60,13 +81,17 @@ def equity_curve_figure(points: object, benchmark: object = None) -> go.Figure:
                 y=[nav for _, nav in market],
                 mode="lines",
                 name="TAIEX NAV",
+                line={"color": theme.benchmark, "width": 2, "dash": "dash"},
+                hovertemplate="%{x}<br>TAIEX NAV %{y:.3f}<extra></extra>",
             )
         )
-    figure.update_layout(title="NAV：策略 vs TAIEX")
-    return figure
+    figure.update_layout(title="NAV：策略 vs TAIEX", hovermode="x unified")
+    return apply_plotly_theme(figure, theme)
 
 
-def drawdown_figure(points: object, benchmark: object = None) -> go.Figure:
+def drawdown_figure(
+    points: object, benchmark: object = None, theme: DashboardTheme = DARK
+) -> go.Figure:
     """Strategy and TAIEX drawdowns recomputed from their NAV curves."""
     cleaned = _clean_points(points)
     figure = go.Figure()
@@ -79,7 +104,18 @@ def drawdown_figure(points: object, benchmark: object = None) -> go.Figure:
     for _, nav in cleaned:
         peak = max(peak, nav)
         drawdowns.append(nav / peak - 1.0)
-    figure.add_trace(go.Scatter(x=days, y=drawdowns, mode="lines", name="策略 Drawdown"))
+    figure.add_trace(
+        go.Scatter(
+            x=days,
+            y=drawdowns,
+            mode="lines",
+            name="策略 Drawdown",
+            line={"color": theme.negative, "width": 2},
+            fill="tozeroy",
+            fillcolor="rgba(255,98,117,.16)",
+            hovertemplate="%{x}<br>%{y:.2%}<extra></extra>",
+        )
+    )
     market = _clean_points(benchmark)
     if market:
         market_peak = 0.0
@@ -93,10 +129,13 @@ def drawdown_figure(points: object, benchmark: object = None) -> go.Figure:
                 y=market_drawdowns,
                 mode="lines",
                 name="TAIEX Drawdown",
+                line={"color": theme.benchmark, "width": 2, "dash": "dash"},
+                hovertemplate="%{x}<br>%{y:.2%}<extra></extra>",
             )
         )
-    figure.update_layout(title="Drawdown：策略 vs TAIEX")
-    return figure
+    figure.update_layout(title="Drawdown：策略 vs TAIEX", hovermode="x unified")
+    figure.update_yaxes(tickformat=".0%", zeroline=True)
+    return apply_plotly_theme(figure, theme)
 
 
 def _clean_monthly(monthly: object) -> list[tuple[str, float]]:
@@ -116,7 +155,9 @@ def _clean_monthly(monthly: object) -> list[tuple[str, float]]:
     return rows
 
 
-def monthly_heatmap_figure(monthly: object, benchmark: object = None) -> go.Figure:
+def monthly_heatmap_figure(
+    monthly: object, benchmark: object = None, theme: DashboardTheme = DARK
+) -> go.Figure:
     """Strategy and TAIEX monthly-return heatmap."""
     rows = _clean_monthly(monthly)
     figure = go.Figure()
@@ -130,16 +171,24 @@ def monthly_heatmap_figure(monthly: object, benchmark: object = None) -> go.Figu
     if market_by_month:
         z.append([market_by_month.get(month) for month in months])
         labels.append("TAIEX")
+    bound = max((abs(v) for row in z for v in row if v is not None), default=0.01)
     figure.add_trace(
         go.Heatmap(
             x=months,
             y=labels,
             z=z,
             name="Monthly returns",
+            zmin=-bound,
+            zmax=bound,
+            zmid=0,
+            colorscale=[[0, theme.negative], [0.5, theme.surface_alt], [1, theme.positive]],
+            texttemplate="%{z:.1%}",
+            hovertemplate="%{y} %{x}<br>%{z:.2%}<extra></extra>",
+            colorbar={"tickformat": ".0%", "title": "報酬"},
         )
     )
     figure.update_layout(title="每月報酬：策略 vs TAIEX")
-    return figure
+    return apply_plotly_theme(figure, theme)
 
 
 def _format_metric(value: object) -> str:
@@ -160,34 +209,71 @@ def render_overview(snapshot: dict, st=None) -> None:
         st = streamlit
     if not isinstance(snapshot, dict):
         raise ValueError("invalid snapshot: must be a dict")
-    run_id = snapshot.get("run_id", "n/a")
-    st.header(f"總覽（{run_id}）")
+    st.header("績效總覽")
     metrics = snapshot.get("metrics", {})
     if not isinstance(metrics, dict):
         metrics = {}
     benchmark_metrics = snapshot.get("benchmark_metrics", {})
     if not isinstance(benchmark_metrics, dict):
         benchmark_metrics = {}
-    for key, label in METRIC_LABELS:
-        strategy_value = _format_metric(metrics.get(key))
-        if key in BENCHMARK_METRICS:
-            market_value = _format_metric(benchmark_metrics.get(key))
-            st.write(f"{label}: 策略 {strategy_value}｜TAIEX {market_value}")
-        else:
-            st.write(f"{label}: {strategy_value}")
+    columns_fn = getattr(st, "columns", None)
+    kinds = {"cagr": "percent", "max_drawdown": "percent", "turnover": "multiple"}
+    if callable(columns_fn):
+        for start in range(0, len(METRIC_LABELS), 3):
+            cols = columns_fn(3)
+            for col, (key, label) in zip(cols, METRIC_LABELS[start : start + 3], strict=False):
+                value = metrics.get(key)
+                kind = kinds.get(key, "ratio")
+                delta = None
+                delta_value = None
+                benchmark_text = None
+                if key in BENCHMARK_METRICS:
+                    benchmark_value = benchmark_metrics.get(key)
+                    if isinstance(value, (int, float)) and isinstance(
+                        benchmark_value, (int, float)
+                    ):
+                        delta_value = value - benchmark_value
+                        delta = format_value(delta_value, kind)
+                    benchmark_text = format_value(benchmark_value, kind)
+                col.markdown(
+                    comparison_kpi_html(
+                        label,
+                        format_value(value, kind),
+                        benchmark_text,
+                        delta,
+                        value_class(delta_value),
+                    ),
+                    unsafe_allow_html=True,
+                )
+    else:
+        for key, label in METRIC_LABELS:
+            strategy_value = _format_metric(metrics.get(key))
+            if key in BENCHMARK_METRICS:
+                market_value = _format_metric(benchmark_metrics.get(key))
+                st.write(f"{label}: 策略 {strategy_value}｜TAIEX {market_value}")
+            else:
+                st.write(f"{label}: {strategy_value}")
+    theme = active_theme(st)
+
+    def show_chart(figure):
+        try:
+            st.plotly_chart(figure, use_container_width=True, config={"displaylogo": False})
+        except TypeError:
+            st.plotly_chart(figure)
+
     equity = snapshot.get("equity_curve")
     benchmark_equity = snapshot.get("benchmark_equity_curve")
     if _clean_points(equity):
-        st.plotly_chart(equity_curve_figure(equity, benchmark_equity))
-        st.plotly_chart(drawdown_figure(equity, benchmark_equity))
+        show_chart(equity_curve_figure(equity, benchmark_equity, theme))
+        show_chart(drawdown_figure(equity, benchmark_equity, theme))
     else:
         st.info("尚無淨值曲線資料。")
     monthly = snapshot.get("monthly_returns")
     rows = monthly if isinstance(monthly, list) and monthly else None
     if rows:
-        figure = monthly_heatmap_figure(rows, snapshot.get("benchmark_monthly_returns"))
+        figure = monthly_heatmap_figure(rows, snapshot.get("benchmark_monthly_returns"), theme)
         if figure.data:
-            st.plotly_chart(figure)
+            show_chart(figure)
         else:
             st.info("月報酬資料格式不正確。")
     else:

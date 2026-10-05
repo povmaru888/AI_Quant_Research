@@ -44,16 +44,16 @@ def test_render_shows_sorted_table_and_consistency() -> None:
     frame = _holdings()
     render_portfolio(frame, st=st)
     shown = next(c[1] for c in st.calls if c[0] == "dataframe")
-    assert shown["stock_id"].tolist() == ["2330", "2317", "2454"]
+    assert shown["股票代碼"].tolist() == ["2330", "2317", "2454"]
     assert shown["股票名稱"].tolist() == ["台積電", "鴻海", "聯發科"]
     assert list(shown.columns) == [
-        "stock_id",
+        "股票代碼",
         "股票名稱",
-        "rank",
-        "prediction_probability",
-        "weight",
-        "volatility_60d",
-        "beta_60d",
+        "排名",
+        "模型分數",
+        "權重",
+        "60D 波動",
+        "60D Beta",
     ]
     writes = [c[1] for c in st.calls if c[0] == "write"]
     assert f"權重總和：{frame['weight'].sum():.4f}" in writes
@@ -71,7 +71,7 @@ def test_render_hides_zero_weight_signal_rows() -> None:
     frame.loc[2, "weight"] = 0.0
     render_portfolio(frame, st=st)
     shown = next(c[1] for c in st.calls if c[0] == "dataframe")
-    assert shown["stock_id"].tolist() == ["2330", "2317"]
+    assert shown["股票代碼"].tolist() == ["2330", "2317"]
     assert ("write", "股票數量：2") in st.calls
 
 

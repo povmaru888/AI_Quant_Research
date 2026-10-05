@@ -22,6 +22,7 @@ from typing import Protocol
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 PAGES: tuple[str, ...] = ("總覽", "投組", "模型", "風險", "研究比較")
+PAGE_ICONS = {"總覽": "◉", "投組": "▦", "模型": "⌁", "風險": "△", "研究比較": "⇄"}
 CONFIG_PATH = Path(__file__).resolve().parent / "config.yaml"
 SUCCEEDED = "succeeded"
 ALL_FILTER = "全部"
@@ -181,7 +182,31 @@ def main(
         import streamlit as streamlit
 
         st = streamlit
-    st.title("台股多因子量化交易")
+        st.set_page_config(
+            page_title="台股多因子量化研究",
+            page_icon="📈",
+            layout="wide",
+            initial_sidebar_state="expanded",
+        )
+    from ui.theme import active_theme, dashboard_css, hero_html
+
+    session_state = getattr(st, "session_state", None)
+    if session_state is not None and "dashboard_theme" not in session_state:
+        session_state["dashboard_theme"] = "dark"
+    theme_toggle = getattr(st.sidebar, "toggle", None)
+    if callable(theme_toggle):
+        light_mode = theme_toggle(
+            "淺色模式",
+            value=(session_state.get("dashboard_theme") == "light"),
+            help="切換深色／淺色研究介面",
+        )
+        session_state["dashboard_theme"] = "light" if light_mode else "dark"
+    theme = active_theme(st)
+    markdown = getattr(st, "markdown", None)
+    if callable(markdown):
+        markdown(dashboard_css(theme), unsafe_allow_html=True)
+    else:
+        st.title("台股多因子量化交易")
     try:
         (load_settings_fn or _default_load_settings)()
     except Exception as exc:
@@ -205,22 +230,26 @@ def main(
     oos_years = sorted(
         {year for row in run_rows if (year := _oos_year(row)) is not None}, reverse=True
     )
-    selected_factor = st.sidebar.selectbox(
+    filter_panel = st.sidebar
+    expander = getattr(st.sidebar, "expander", None)
+    if callable(expander):
+        filter_panel = expander("研究篩選", expanded=True)
+    selected_factor = filter_panel.selectbox(
         "依 Factor Version 篩選",
         [ALL_FILTER, *factor_versions],
         index=0,
     )
-    selected_year = st.sidebar.selectbox(
+    selected_year = filter_panel.selectbox(
         "依 OOS 年份篩選",
         [ALL_FILTER, *oos_years],
         index=0,
     )
-    selected_method = st.sidebar.selectbox(
+    selected_method = filter_panel.selectbox(
         "依 Method 篩選",
         [ALL_FILTER, *METHODS],
         index=0,
     )
-    selected_alpha = st.sidebar.selectbox(
+    selected_alpha = filter_panel.selectbox(
         "依平滑係數 α 篩選",
         [ALL_FILTER, *SMOOTHING_ALPHAS],
         index=1,
@@ -233,12 +262,27 @@ def main(
         return
     run_ids = [row["run_id"] for row in filtered_rows]
     run_labels = {row["run_id"]: _run_label(row) for row in filtered_rows}
-    run_id = st.sidebar.selectbox(
+    run_id = filter_panel.selectbox(
         "研究 run（僅顯示已完成）",
         run_ids,
         format_func=lambda value: run_labels[value],
     )
-    page = st.sidebar.radio("頁面", list(PAGES))
+    page = st.sidebar.radio(
+        "頁面",
+        list(PAGES),
+        format_func=lambda value: f"{PAGE_ICONS[value]}  {value}",
+    )
+    selected_row = next(row for row in filtered_rows if row["run_id"] == run_id)
+    if callable(markdown):
+        markdown(
+            hero_html(
+                run_id,
+                _factor_version(selected_row),
+                _run_method(selected_row),
+                _oos_year(selected_row),
+            ),
+            unsafe_allow_html=True,
+        )
     try:
         if page == "投組" and callable(getattr(store, "list_holding_dates", None)):
             from services.dashboard_service import get_holding_months

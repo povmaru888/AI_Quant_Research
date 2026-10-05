@@ -350,8 +350,9 @@ def test_save_orders_derives_exact_quantities(store: DbStore, sample_prices: pd.
 def test_save_oos_month_replaces_scope_atomically(
     store: DbStore, sample_prices: pd.DataFrame
 ) -> None:
-    from models.research import Order, Prediction, Signal
     from sqlalchemy import func, select
+
+    from models.research import Order, Prediction, Signal
 
     _seed_market(store, sample_prices)
     store.start_run({"run_id": "oos", "job": "test", "data_end_date": AS_OF})
@@ -448,6 +449,78 @@ def test_dashboard_reads(store: DbStore, sample_prices: pd.DataFrame) -> None:
     assert list(factor_ic.columns) == ["factor", "ic"]
     model_data = store.load_model_data("rebalance-2020-02-05")
     assert set(model_data) == {"shap_top", "feature_importance", "monthly_ic", "prediction_dist"}
+
+
+def test_load_risk_uses_latest_daily_exposure_then_latest_signal_fallback(
+    store: DbStore, sample_prices: pd.DataFrame
+) -> None:
+    from models.research import PortfolioDaily, Signal
+
+    _seed_market(store, sample_prices)
+    run_id = "oos-risk-exposure"
+    store.start_run(
+        {
+            "run_id": run_id,
+            "data_end_date": "2024-02-29",
+            "feature_version": "factor_v4",
+            "parameter_version": "p1",
+        }
+    )
+    with store._scope() as session:  # noqa: SLF001 - test-only seeding hook.
+        session.add_all(
+            [
+                Signal(
+                    signal_date="2024-01-31",
+                    stock_id="2330",
+                    run_id=run_id,
+                    signal="BUY",
+                    rank=1,
+                    target_weight=0.6,
+                ),
+                Signal(
+                    signal_date="2024-02-29",
+                    stock_id="2330",
+                    run_id=run_id,
+                    signal="HOLD",
+                    rank=1,
+                    target_weight=0.7,
+                ),
+            ]
+        )
+
+    assert store.load_risk(run_id)["equity_exposure"] == pytest.approx(0.7)
+
+    with store._scope() as session:  # noqa: SLF001 - test-only seeding hook.
+        session.add_all(
+            [
+                PortfolioDaily(
+                    trade_date="2024-03-01",
+                    run_id=run_id,
+                    nav=1.0,
+                    equity_exposure=0.5,
+                    forecast_volatility=None,
+                    realized_volatility=None,
+                    drawdown=0.0,
+                    taiex_close=None,
+                    taiex_ma60=None,
+                    market_regime="above_ma60",
+                ),
+                PortfolioDaily(
+                    trade_date="2024-03-29",
+                    run_id=run_id,
+                    nav=1.02,
+                    equity_exposure=0.4,
+                    forecast_volatility=None,
+                    realized_volatility=None,
+                    drawdown=-0.01,
+                    taiex_close=None,
+                    taiex_ma60=None,
+                    market_regime="below_ma60",
+                ),
+            ]
+        )
+
+    assert store.load_risk(run_id)["equity_exposure"] == pytest.approx(0.4)
 
 
 def test_model_data_reads_versioned_monthly_selection_artifact(
@@ -843,9 +916,7 @@ def test_stable_db_store_reads_partial_pit_market_values(
     )
     regular_pit_settings = dataclasses.replace(
         stable_settings,
-        features=dataclasses.replace(
-            stable_settings.features, feature_version="factor_adj_pit_v3"
-        ),
+        features=dataclasses.replace(stable_settings.features, feature_version="factor_adj_pit_v3"),
     )
     stable_store = DbStore(store._engine, stable_settings)
     regular_pit_store = DbStore(store._engine, regular_pit_settings)
@@ -853,9 +924,7 @@ def test_stable_db_store_reads_partial_pit_market_values(
         upsert_partial_market_value_day(
             session,
             date.fromisoformat(AS_OF),
-            pd.DataFrame(
-                {"trade_date": [AS_OF], "stock_id": ["2330"], "market_value": [1234.0]}
-            ),
+            pd.DataFrame({"trade_date": [AS_OF], "stock_id": ["2330"], "market_value": [1234.0]}),
             source="test:verified-partial",
         )
 
@@ -942,9 +1011,7 @@ def test_replay_liquidates_full_sell_to_flat(store: DbStore, sample_prices: pd.D
     result = store.replay_backtest("r")
     # Executed prices already include slippage; the NAV subtracts the price
     # move plus fees/tax, without charging the slippage fields twice.
-    assert result.nav.iloc[-1] == pytest.approx(
-        INITIAL_CAPITAL - 71.32125 - 71.25 - 150.0 - 50.0
-    )
+    assert result.nav.iloc[-1] == pytest.approx(INITIAL_CAPITAL - 71.32125 - 71.25 - 150.0 - 50.0)
     tail = result.nav.loc[result.nav.index.astype(str) >= "2020-02-05"]
     assert (tail == tail.iloc[0]).all()
 
