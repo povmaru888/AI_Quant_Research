@@ -395,6 +395,52 @@ def test_main_oos_comparison_loads_second_overview_and_marks_payload() -> None:
     assert rendered[0]["comparison_metrics"] == {"cagr": 0.1}
 
 
+def test_comparison_filters_default_to_primary_filter_values() -> None:
+    st = FakeSt()
+    st.selected_selectboxes = {
+        "依 Factor Version 篩選": "factor_v4",
+        "依 OOS 年份篩選": "2024",
+        "依 Method 篩選": "huber",
+        "依平滑係數 α 篩選": "0.8",
+        "依 OOS 緩衝區篩選": "Hold60",
+    }
+    rows = [
+        {
+            "run_id": "oos-2024-factor-v4-pseudohuber-smooth08-top60-a",
+            "status": "succeeded",
+            "feature_version": "factor_v4",
+        },
+        {
+            "run_id": "oos-2024-factor-v4-pseudohuber-smooth08-top60-b",
+            "status": "succeeded",
+            "feature_version": "factor_v4",
+        },
+    ]
+    st.sidebar.toggle = lambda label, **_kwargs: label == "開啟 OOS 比較"
+    main(
+        st=st,
+        store=FakeStore(rows),
+        load_settings_fn=lambda: object(),
+        loaders={"總覽": lambda run_id, _as_of: {"run_id": run_id}},
+        pages={"總覽": lambda _st, _payload: None},
+    )
+    calls = {
+        call[1]: call
+        for call in st.calls
+        if call[0] == "selectbox" and call[1].startswith("比較：")
+    }
+    expected = {
+        "比較：依 Factor Version 篩選": "factor_v4",
+        "比較：依 OOS 年份篩選": "2024",
+        "比較：依 Method 篩選": "huber",
+        "比較：依平滑係數 α 篩選": "0.8",
+        "比較：依 OOS 緩衝區篩選": "Hold60",
+    }
+    for label, value in expected.items():
+        call = calls[label]
+        assert call[2][call[3]["index"]] == value
+
+
 @pytest.mark.parametrize("page", ["投組", "模型", "風險", "研究比較"])
 def test_main_oos_comparison_renders_both_payloads_on_other_pages(page) -> None:
     st = FakeSt()

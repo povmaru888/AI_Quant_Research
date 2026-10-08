@@ -303,20 +303,35 @@ def main(
             help="開啟後以另一個 OOS run 取代 TAIEX，並排比較績效指標與圖表。",
         )
     if comparison_enabled:
+        comparison_factor_options = [ALL_FILTER, *factor_versions]
+        comparison_year_options = [ALL_FILTER, *oos_years]
+        comparison_method_options = [ALL_FILTER, *METHODS]
+        comparison_alpha_options = [ALL_FILTER, *SMOOTHING_ALPHAS]
+        comparison_hold_options = list(HOLD_THRESHOLDS)
         comparison_factor = filter_panel.selectbox(
-            "比較：依 Factor Version 篩選", [ALL_FILTER, *factor_versions], index=0
+            "比較：依 Factor Version 篩選",
+            comparison_factor_options,
+            index=comparison_factor_options.index(selected_factor),
         )
         comparison_year = filter_panel.selectbox(
-            "比較：依 OOS 年份篩選", [ALL_FILTER, *oos_years], index=0
+            "比較：依 OOS 年份篩選",
+            comparison_year_options,
+            index=comparison_year_options.index(selected_year),
         )
         comparison_method = filter_panel.selectbox(
-            "比較：依 Method 篩選", [ALL_FILTER, *METHODS], index=0
+            "比較：依 Method 篩選",
+            comparison_method_options,
+            index=comparison_method_options.index(selected_method),
         )
         comparison_alpha = filter_panel.selectbox(
-            "比較：依平滑係數 α 篩選", [ALL_FILTER, *SMOOTHING_ALPHAS], index=1
+            "比較：依平滑係數 α 篩選",
+            comparison_alpha_options,
+            index=comparison_alpha_options.index(selected_alpha),
         )
         comparison_hold = filter_panel.selectbox(
-            "比較：依 OOS 緩衝區篩選", list(HOLD_THRESHOLDS), index=1
+            "比較：依 OOS 緩衝區篩選",
+            comparison_hold_options,
+            index=comparison_hold_options.index(selected_hold),
         )
         comparison_rows = _filter_run_rows(
             run_rows,
