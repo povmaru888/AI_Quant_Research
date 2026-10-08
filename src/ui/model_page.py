@@ -274,6 +274,118 @@ def _show_dataframe(st, frame: pd.DataFrame) -> None:
         st.dataframe(frame)
 
 
+def _render_model_comparison(model_data: dict, st, theme: DashboardTheme) -> None:
+    primary = model_data.get("primary")
+    comparison = model_data.get("comparison")
+    if not isinstance(primary, dict) or not isinstance(comparison, dict):
+        raise ValueError("invalid model comparison payload")
+    st.header("模型比較")
+    st.caption(
+        f"目前：{model_data.get('primary_run_id', '')}｜"
+        f"比較：{model_data.get('comparison_run_id', '')}"
+    )
+    st.write(SHAP_DISCLAIMER)
+    first_monthly, second_monthly = primary.get("monthly_ic"), comparison.get("monthly_ic")
+    first_summary = first_monthly.get("summary", {}) if isinstance(first_monthly, dict) else {}
+    second_summary = (
+        second_monthly.get("summary", {}) if isinstance(second_monthly, dict) else {}
+    )
+    for start in range(0, len(_SELECTION_SUMMARIES), 3):
+        cols = st.columns(3)
+        for col, (key, label, percentage) in zip(
+            cols, _SELECTION_SUMMARIES[start : start + 3], strict=False
+        ):
+            first = _clean_number(first_summary.get(key))
+            second = _clean_number(second_summary.get(key))
+            delta = first - second if first is not None and second is not None else None
+            col.metric(
+                label,
+                _format_value(first, percentage=percentage),
+                delta=(
+                    f"相差 {_format_value(delta, percentage=percentage)}"
+                    if delta is not None
+                    else None
+                ),
+                help=f"比較 OOS：{_format_value(second, percentage=percentage)}",
+            )
+
+    figure = make_subplots(specs=[[{"secondary_y": True}]])
+    series = (
+        ("continuous_rank_ic", "Continuous IC", False),
+        ("top15_excess_return", "Excess Return", True),
+        ("top_bottom_spread", "Top-Bottom Spread", True),
+    )
+    colors = (theme.primary, theme.benchmark)
+    for payload, prefix, color, dash in (
+        (first_monthly, "目前", colors[0], "solid"),
+        (second_monthly, "比較", colors[1], "dash"),
+    ):
+        rows = _monthly_records(payload)
+        for field, name, secondary in series:
+            valid = [row for row in rows if row[field] is not None]
+            if valid:
+                figure.add_trace(
+                    go.Scatter(
+                        x=[row["month"] for row in valid],
+                        y=[row[field] for row in valid],
+                        mode="lines+markers",
+                        name=f"{prefix} {name}",
+                        line={"color": color, "dash": dash},
+                    ),
+                    secondary_y=secondary,
+                )
+    figure.update_layout(title="月度選股能力比較", hovermode="x unified")
+    figure.update_yaxes(zeroline=True, secondary_y=False)
+    figure.update_yaxes(tickformat=".1%", zeroline=True, secondary_y=True)
+    _show_chart(st, apply_plotly_theme(figure, theme))
+
+    shap_first = dict(_clean_pairs(primary.get("shap_top"), "feature", "value"))
+    shap_second = dict(_clean_pairs(comparison.get("shap_top"), "feature", "value"))
+    shap_features = list(dict.fromkeys([*shap_first, *shap_second]))
+    if shap_features:
+        st.subheader("SHAP 比較")
+        _show_dataframe(
+            st,
+            pd.DataFrame(
+                {
+                    "feature": shap_features,
+                    "目前 OOS": [shap_first.get(name) for name in shap_features],
+                    "比較 OOS": [shap_second.get(name) for name in shap_features],
+                }
+            ),
+        )
+    gain_first = dict(_clean_pairs(primary.get("feature_importance"), "feature", "gain"))
+    gain_second = dict(
+        _clean_pairs(comparison.get("feature_importance"), "feature", "gain")
+    )
+    gain_features = list(dict.fromkeys([*gain_first, *gain_second]))
+    if gain_features:
+        st.subheader("Feature Gain 比較")
+        _show_dataframe(
+            st,
+            pd.DataFrame(
+                {
+                    "feature": gain_features,
+                    "目前 OOS": [gain_first.get(name) for name in gain_features],
+                    "比較 OOS": [gain_second.get(name) for name in gain_features],
+                }
+            ),
+        )
+    dist_figure = go.Figure()
+    for values, name, color in (
+        (primary.get("prediction_dist"), "目前 OOS", theme.primary),
+        (comparison.get("prediction_dist"), "比較 OOS", theme.benchmark),
+    ):
+        clean = _clean_floats(values)
+        if clean:
+            dist_figure.add_trace(
+                go.Histogram(x=clean, name=name, opacity=0.55, marker_color=color)
+            )
+    if dist_figure.data:
+        dist_figure.update_layout(title="預測分數分布比較", barmode="overlay")
+        _show_chart(st, apply_plotly_theme(dist_figure, theme))
+
+
 def render_model(model_data: dict, st=None) -> None:
     """Render the model explainability section."""
     if st is None:
@@ -282,9 +394,12 @@ def render_model(model_data: dict, st=None) -> None:
         st = streamlit
     if not isinstance(model_data, dict):
         raise ValueError("invalid model_data: must be a dict")
+    theme = active_theme(st)
+    if model_data.get("comparison_mode") is True:
+        _render_model_comparison(model_data, st, theme)
+        return
     st.header("模型")
     st.write(SHAP_DISCLAIMER)
-    theme = active_theme(st)
     _render_selection_metrics(st, model_data.get("monthly_ic"), theme)
     shap = _clean_pairs(model_data.get("shap_top"), "feature", "value")[:_TOP_N]
     if shap:

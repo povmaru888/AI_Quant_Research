@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import math
 
-from ui.theme import format_value, kpi_html, value_class
+from ui.theme import comparison_kpi_html, format_value, kpi_html, value_class
 
 BELOW_MA60 = "below_ma60"
 
@@ -46,6 +46,58 @@ def render_risk(risk_data: dict, st=None) -> None:
         st = streamlit
     if not isinstance(risk_data, dict):
         raise ValueError("invalid risk_data: must be a dict")
+    if risk_data.get("comparison_mode") is True:
+        primary = risk_data.get("primary")
+        comparison = risk_data.get("comparison")
+        if not isinstance(primary, dict) or not isinstance(comparison, dict):
+            raise ValueError("invalid risk comparison payload")
+        st.header("風險比較")
+        caption = getattr(st, "caption", None)
+        if callable(caption):
+            caption(
+                f"目前：{risk_data.get('primary_run_id', '')}｜"
+                f"比較：{risk_data.get('comparison_run_id', '')}"
+            )
+        cards = (
+            ("股票曝險", "equity_exposure", "percent"),
+            ("預測波動", "predicted_volatility", "percent"),
+            ("實際波動", "realized_volatility", "percent"),
+            ("最大回撤", "max_drawdown", "percent"),
+            ("Turnover", "turnover", "multiple"),
+        )
+        columns_fn = getattr(st, "columns", None)
+        if callable(columns_fn):
+            for col, (label, key, kind) in zip(columns_fn(5), cards, strict=False):
+                first, second = _number(primary.get(key)), _number(comparison.get(key))
+                delta = first - second if first is not None and second is not None else None
+                col.markdown(
+                    comparison_kpi_html(
+                        label,
+                        format_value(first, kind),
+                        format_value(second, kind),
+                        format_value(delta, kind) if delta is not None else None,
+                        value_class(delta),
+                        "比較 OOS",
+                    ),
+                    unsafe_allow_html=True,
+                )
+        else:
+            for label, key, kind in cards:
+                st.write(
+                    f"{label}：目前 {format_value(primary.get(key), kind)}｜"
+                    f"比較 {format_value(comparison.get(key), kind)}"
+                )
+        for label, payload in (("目前 OOS", primary), ("比較 OOS", comparison)):
+            verdict = check_ma60_exposure(
+                payload.get("market_regime"),
+                payload.get("equity_exposure"),
+                payload.get("exposure_cap"),
+            )
+            st.write(
+                f"{label}：市場狀態 {payload.get('market_regime') or 'N/A'}｜"
+                f"MA60 曝險限制 {verdict}"
+            )
+        return
     st.header("風險")
 
     def _line(label: str, value: object) -> None:

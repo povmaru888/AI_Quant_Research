@@ -37,12 +37,36 @@ def _format(value: object) -> str:
     return f"{value:.4f}"
 
 
-def render_comparison(metrics: pd.DataFrame, st=None) -> None:
+def render_comparison(metrics: pd.DataFrame | dict, st=None) -> None:
     """Render the scenario comparison table plus before/after deltas."""
     if st is None:
         import streamlit as streamlit
 
         st = streamlit
+    if isinstance(metrics, dict) and metrics.get("comparison_mode") is True:
+        primary, comparison = metrics.get("primary"), metrics.get("comparison")
+        if not isinstance(primary, pd.DataFrame) or not isinstance(comparison, pd.DataFrame):
+            raise ValueError("invalid research comparison payload")
+        if "scenario" not in primary.columns or "scenario" not in comparison.columns:
+            raise ValueError("invalid metrics: missing 'scenario' column")
+        st.header("研究情境 OOS 比較")
+        caption = getattr(st, "caption", None)
+        if callable(caption):
+            caption(
+                f"目前：{metrics.get('primary_run_id', '')}｜"
+                f"比較：{metrics.get('comparison_run_id', '')}"
+            )
+        merged = primary.merge(comparison, on="scenario", how="outer", suffixes=("_目前", "_比較"))
+        ordered = ["scenario"]
+        for column in primary.columns:
+            if column != "scenario":
+                ordered.extend([f"{column}_目前", f"{column}_比較"])
+        ordered.extend(column for column in merged.columns if column not in ordered)
+        try:
+            st.dataframe(merged.loc[:, ordered], use_container_width=True, hide_index=True)
+        except TypeError:
+            st.dataframe(merged.loc[:, ordered])
+        return
     if not isinstance(metrics, pd.DataFrame):
         raise ValueError("invalid metrics: must be a DataFrame")
     if "scenario" not in metrics.columns:

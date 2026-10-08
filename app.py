@@ -303,10 +303,31 @@ def main(
             help="開啟後以另一個 OOS run 取代 TAIEX，並排比較績效指標與圖表。",
         )
     if comparison_enabled:
+        comparison_factor = filter_panel.selectbox(
+            "比較：依 Factor Version 篩選", [ALL_FILTER, *factor_versions], index=0
+        )
+        comparison_year = filter_panel.selectbox(
+            "比較：依 OOS 年份篩選", [ALL_FILTER, *oos_years], index=0
+        )
+        comparison_method = filter_panel.selectbox(
+            "比較：依 Method 篩選", [ALL_FILTER, *METHODS], index=0
+        )
+        comparison_alpha = filter_panel.selectbox(
+            "比較：依平滑係數 α 篩選", [ALL_FILTER, *SMOOTHING_ALPHAS], index=1
+        )
+        comparison_hold = filter_panel.selectbox(
+            "比較：依 OOS 緩衝區篩選", list(HOLD_THRESHOLDS), index=1
+        )
+        comparison_rows = _filter_run_rows(
+            run_rows,
+            comparison_factor,
+            comparison_year,
+            comparison_method,
+            comparison_alpha,
+            comparison_hold,
+        )
         comparison_rows = [
-            row
-            for row in run_rows
-            if row["run_id"] != run_id and _oos_year(row) is not None
+            row for row in comparison_rows if row["run_id"] != run_id and _oos_year(row)
         ]
         if comparison_rows:
             comparison_ids = [row["run_id"] for row in comparison_rows]
@@ -377,20 +398,16 @@ def main(
             )
             active_pages[page](st, payload)
         elif comparison is not None:
-            caption = getattr(st, "caption", None)
-            divider = getattr(st, "divider", None)
-            if callable(caption):
-                caption(f"目前 OOS：{run_id}")
-            else:
-                st.write(f"目前 OOS：{run_id}")
-            active_pages[page](st, payload)
-            if callable(divider):
-                divider()
-            if callable(caption):
-                caption(f"比較 OOS：{comparison_run_id}")
-            else:
-                st.write(f"比較 OOS：{comparison_run_id}")
-            active_pages[page](st, comparison)
+            active_pages[page](
+                st,
+                {
+                    "comparison_mode": True,
+                    "primary": payload,
+                    "comparison": comparison,
+                    "primary_run_id": run_id,
+                    "comparison_run_id": comparison_run_id,
+                },
+            )
         else:
             active_pages[page](st, payload)
     except Exception as exc:

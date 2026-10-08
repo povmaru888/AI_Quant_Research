@@ -31,12 +31,22 @@ def summarize_holdings(holdings: pd.DataFrame) -> dict:
     return {"count": int(len(holdings)), "total_weight": float(sum(weights))}
 
 
-def render_portfolio(holdings: pd.DataFrame, st=None) -> None:
+def render_portfolio(holdings: pd.DataFrame | dict, st=None) -> None:
     """Render the holdings table plus weight/count consistency lines."""
     if st is None:
         import streamlit as streamlit
 
         st = streamlit
+    if isinstance(holdings, dict) and holdings.get("comparison_mode") is True:
+        st.header("投組比較")
+        st.subheader(f"目前 OOS：{holdings.get('primary_run_id', '')}")
+        render_portfolio(holdings.get("primary"), st)
+        divider = getattr(st, "divider", None)
+        if callable(divider):
+            divider()
+        st.subheader(f"比較 OOS：{holdings.get('comparison_run_id', '')}")
+        render_portfolio(holdings.get("comparison"), st)
+        return
     if not isinstance(holdings, pd.DataFrame):
         raise ValueError("invalid holdings: must be a DataFrame")
     if holdings.empty:

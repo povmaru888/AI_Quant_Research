@@ -409,7 +409,7 @@ def test_main_oos_comparison_renders_both_payloads_on_other_pages(page) -> None:
         return label == "開啟 OOS 比較"
 
     st.sidebar.toggle = toggle
-    rendered: list[str] = []
+    rendered: list[dict] = []
     main(
         st=st,
         store=FakeHoldingsStore(rows),
@@ -417,7 +417,18 @@ def test_main_oos_comparison_renders_both_payloads_on_other_pages(page) -> None:
         loaders={page: lambda run_id, _as_of: run_id},
         pages={page: lambda _st, payload: rendered.append(payload)},
     )
-    assert rendered == ["oos-2024-base", "oos-2024-compare"]
+    assert len(rendered) == 1
+    assert rendered[0]["comparison_mode"] is True
+    assert rendered[0]["primary"] == "oos-2024-base"
+    assert rendered[0]["comparison"] == "oos-2024-compare"
+    assert rendered[0]["primary_run_id"] == "oos-2024-base"
+    assert rendered[0]["comparison_run_id"] == "oos-2024-compare"
+    labels = [call[1] for call in st.calls if call[0] == "selectbox"]
+    assert "比較：依 Factor Version 篩選" in labels
+    assert "比較：依 OOS 年份篩選" in labels
+    assert "比較：依 Method 篩選" in labels
+    assert "比較：依平滑係數 α 篩選" in labels
+    assert "比較：依 OOS 緩衝區篩選" in labels
 
 
 def test_main_offers_month_selector_for_portfolio() -> None:
