@@ -176,8 +176,9 @@ def comparison_kpi_html(
     benchmark: str | None,
     delta: str | None,
     delta_tone: str = "neutral",
+    benchmark_label: str = "TAIEX",
 ) -> str:
-    detail = f"TAIEX {escape(benchmark)}" if benchmark is not None else ""
+    detail = f"{escape(benchmark_label)} {escape(benchmark)}" if benchmark is not None else ""
     if delta is not None:
         detail += f' <span class="{delta_tone}">｜差異 {escape(delta)}</span>'
     return (

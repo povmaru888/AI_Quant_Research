@@ -82,6 +82,35 @@ def test_render_full_snapshot() -> None:
     assert list(charts[2].data[0].y) == ["策略", "TAIEX"]
 
 
+def test_render_oos_comparison_replaces_taiex() -> None:
+    st = FakeSt()
+    snapshot = _snapshot(
+        comparison_mode=True,
+        comparison_run_id="oos-2024-compare",
+        comparison_metrics={
+            "cagr": 0.1,
+            "sharpe": 1.2,
+            "sortino": 1.3,
+            "max_drawdown": -0.12,
+            "turnover": 8.0,
+            "rank_ic": 0.03,
+        },
+        comparison_equity_curve=[
+            {"date": "2020-02-03", "nav": 1.0},
+            {"date": "2020-02-04", "nav": 1.01},
+        ],
+        comparison_monthly_returns=[{"month": "2020-02", "return": 0.02}],
+    )
+    render_overview(snapshot, st=st)
+    writes = [c[1] for c in st.calls if c[0] == "write"]
+    assert "CAGR: 目前 OOS 0.1234｜比較 OOS 0.1000" in writes
+    assert "Turnover: 目前 OOS N/A｜比較 OOS 8.0000" in writes
+    charts = [c[1] for c in st.calls if c[0] == "plotly_chart"]
+    assert [trace.name for trace in charts[0].data] == ["目前 OOS NAV", "比較 OOS NAV"]
+    assert all("TAIEX" not in trace.name for chart in charts for trace in chart.data)
+    assert list(charts[2].data[0].y) == ["目前 OOS", "比較 OOS"]
+
+
 def test_render_missing_values_degrade() -> None:
     st = FakeSt()
     render_overview({"run_id": "run-002"}, st=st)

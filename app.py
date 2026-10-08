@@ -212,10 +212,11 @@ def main(
     if callable(theme_toggle):
         light_mode = theme_toggle(
             "淺色模式",
-            value=(session_state.get("dashboard_theme") == "light"),
+            value=(session_state is not None and session_state.get("dashboard_theme") == "light"),
             help="切換深色／淺色研究介面",
         )
-        session_state["dashboard_theme"] = "light" if light_mode else "dark"
+        if session_state is not None:
+            session_state["dashboard_theme"] = "light" if light_mode else "dark"
     theme = active_theme(st)
     markdown = getattr(st, "markdown", None)
     if callable(markdown):
@@ -292,6 +293,32 @@ def main(
         run_ids,
         format_func=lambda value: run_labels[value],
     )
+    comparison_enabled = False
+    comparison_run_id = None
+    comparison_toggle = getattr(filter_panel, "toggle", None)
+    if callable(comparison_toggle):
+        comparison_enabled = comparison_toggle(
+            "開啟 OOS 比較",
+            value=False,
+            help="開啟後以另一個 OOS run 取代 TAIEX，並排比較績效指標與圖表。",
+        )
+    if comparison_enabled:
+        comparison_rows = [
+            row
+            for row in run_rows
+            if row["run_id"] != run_id and _oos_year(row) is not None
+        ]
+        if comparison_rows:
+            comparison_ids = [row["run_id"] for row in comparison_rows]
+            comparison_labels = {row["run_id"]: _run_label(row) for row in comparison_rows}
+            comparison_run_id = filter_panel.selectbox(
+                "比較對象 OOS",
+                comparison_ids,
+                format_func=lambda value: comparison_labels[value],
+            )
+        else:
+            st.info("目前沒有其他可比較的 OOS run。")
+            comparison_enabled = False
     page = st.sidebar.radio(
         "頁面",
         list(PAGES),
@@ -326,7 +353,46 @@ def main(
         active_loaders = loaders if loaders is not None else _default_loaders(store)
         active_pages = pages if pages is not None else _default_pages()
         payload = active_loaders[page](run_id, as_of)
-        active_pages[page](st, payload)
+        comparison = None
+        if comparison_enabled and comparison_run_id:
+            comparison_as_of = ""
+            if page == "投組":
+                comparison_as_of = as_of
+                if _oos_year(selected_row) != _oos_year(
+                    next(row for row in run_rows if row["run_id"] == comparison_run_id)
+                ):
+                    comparison_dates = store.list_holding_dates(comparison_run_id)
+                    comparison_as_of = comparison_dates[-1] if comparison_dates else ""
+            comparison = active_loaders[page](comparison_run_id, comparison_as_of)
+        if page == "總覽" and comparison is not None:
+            payload = dict(payload)
+            payload.update(
+                {
+                    "comparison_mode": True,
+                    "comparison_run_id": comparison_run_id,
+                    "comparison_metrics": comparison.get("metrics"),
+                    "comparison_equity_curve": comparison.get("equity_curve"),
+                    "comparison_monthly_returns": comparison.get("monthly_returns"),
+                }
+            )
+            active_pages[page](st, payload)
+        elif comparison is not None:
+            caption = getattr(st, "caption", None)
+            divider = getattr(st, "divider", None)
+            if callable(caption):
+                caption(f"目前 OOS：{run_id}")
+            else:
+                st.write(f"目前 OOS：{run_id}")
+            active_pages[page](st, payload)
+            if callable(divider):
+                divider()
+            if callable(caption):
+                caption(f"比較 OOS：{comparison_run_id}")
+            else:
+                st.write(f"比較 OOS：{comparison_run_id}")
+            active_pages[page](st, comparison)
+        else:
+            active_pages[page](st, payload)
     except Exception as exc:
         st.error(f"頁面載入失敗：{exc}")
 

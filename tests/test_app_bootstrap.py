@@ -60,6 +60,12 @@ class FakeSt:
     def error(self, text) -> None:
         self.calls.append(("error", text))
 
+    def caption(self, text) -> None:
+        self.calls.append(("caption", text))
+
+    def divider(self) -> None:
+        self.calls.append(("divider",))
+
 
 class FakeStore:
     def __init__(self, rows: list[dict], honor_status_arg: bool = True) -> None:
@@ -349,6 +355,69 @@ def test_main_filters_run_selector_by_factor_and_oos_year() -> None:
     )
     assert run_select[2] == ["oos-2023-v4-rank-pairwise"]
     assert seen == ["oos-2023-v4-rank-pairwise"]
+
+
+def test_main_oos_comparison_loads_second_overview_and_marks_payload() -> None:
+    st = FakeSt()
+    rows = [
+        {"run_id": "oos-2024-base", "status": "succeeded"},
+        {"run_id": "oos-2024-compare", "status": "succeeded"},
+    ]
+    st.selected_selectboxes = {"比較對象 OOS": "oos-2024-compare"}
+
+    def toggle(label, **_kwargs):
+        st.calls.append(("toggle", label))
+        return label == "開啟 OOS 比較"
+
+    st.sidebar.toggle = toggle
+    loaded: list[str] = []
+    rendered: list[dict] = []
+
+    def load(run_id, _as_of):
+        loaded.append(run_id)
+        return {
+            "run_id": run_id,
+            "metrics": {"cagr": 0.1},
+            "equity_curve": [{"date": "2024-01-01", "nav": 1.0}],
+            "monthly_returns": [{"month": "2024-01", "return": 0.01}],
+        }
+
+    main(
+        st=st,
+        store=FakeStore(rows),
+        load_settings_fn=lambda: object(),
+        loaders={"總覽": load},
+        pages={"總覽": lambda _st, payload: rendered.append(payload)},
+    )
+    assert loaded == ["oos-2024-base", "oos-2024-compare"]
+    assert rendered[0]["comparison_mode"] is True
+    assert rendered[0]["comparison_run_id"] == "oos-2024-compare"
+    assert rendered[0]["comparison_metrics"] == {"cagr": 0.1}
+
+
+@pytest.mark.parametrize("page", ["投組", "模型", "風險", "研究比較"])
+def test_main_oos_comparison_renders_both_payloads_on_other_pages(page) -> None:
+    st = FakeSt()
+    st.selected_page = page
+    st.selected_selectboxes = {"比較對象 OOS": "oos-2024-compare"}
+    rows = [
+        {"run_id": "oos-2024-base", "status": "succeeded"},
+        {"run_id": "oos-2024-compare", "status": "succeeded"},
+    ]
+
+    def toggle(label, **_kwargs):
+        return label == "開啟 OOS 比較"
+
+    st.sidebar.toggle = toggle
+    rendered: list[str] = []
+    main(
+        st=st,
+        store=FakeHoldingsStore(rows),
+        load_settings_fn=lambda: object(),
+        loaders={page: lambda run_id, _as_of: run_id},
+        pages={page: lambda _st, payload: rendered.append(payload)},
+    )
+    assert rendered == ["oos-2024-base", "oos-2024-compare"]
 
 
 def test_main_offers_month_selector_for_portfolio() -> None:
