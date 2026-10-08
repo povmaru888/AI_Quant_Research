@@ -14,6 +14,7 @@ from app import (
     ALL_FILTER,
     PAGES,
     _filter_run_rows,
+    _hold_threshold,
     _oos_year,
     _run_method,
     _smoothing_alpha,
@@ -190,6 +191,29 @@ def test_smoothing_alpha_classifies_parameter_run_name_and_legacy() -> None:
     ]
 
 
+def test_hold_threshold_classifies_buffer_run_names() -> None:
+    rows = [
+        {"run_id": "oos-2024-factor-v4-pseudohuber-NObuffer-NOrefit"},
+        {"run_id": "oos-2024-factor-v4-pseudohuber-NOrefit"},
+        {"run_id": "oos-2024-factor-v4-pseudohuber-top60-NOrefit"},
+        {"run_id": "oos-2024-factor-v4-pseudohuber-top30-hold60-NOrefit"},
+        {"run_id": "oos-2024-factor-v4-pseudohuber-top45-NOrefit"},
+    ]
+    assert [_hold_threshold(row) for row in rows] == [
+        "Hold15",
+        "Hold30",
+        "Hold60",
+        "Hold60",
+        "Hold45",
+    ]
+    assert [
+        row["run_id"] for row in _filter_run_rows(rows, hold_threshold="Hold60")
+    ] == [
+        "oos-2024-factor-v4-pseudohuber-top60-NOrefit",
+        "oos-2024-factor-v4-pseudohuber-top30-hold60-NOrefit",
+    ]
+
+
 def test_main_defaults_smoothing_alpha_filter_to_one() -> None:
     st = FakeSt()
     rows = [
@@ -210,6 +234,13 @@ def test_main_defaults_smoothing_alpha_filter_to_one() -> None:
     )
     assert alpha_select[2] == ["全部", "1.0", "0.8", "0.6", "0.4"]
     assert alpha_select[3]["index"] == 1
+    hold_select = next(
+        call
+        for call in st.calls
+        if call[0] == "selectbox" and call[1] == "依 OOS 緩衝區篩選"
+    )
+    assert hold_select[2] == ["Hold15", "Hold30", "Hold60"]
+    assert hold_select[3]["index"] == 1
     run_select = next(
         call
         for call in st.calls

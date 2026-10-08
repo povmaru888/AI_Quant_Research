@@ -29,6 +29,7 @@ ALL_FILTER = "全部"
 UNKNOWN_FACTOR_VERSION = "未標示"
 METHODS: tuple[str, ...] = ("binary", "logistic", "rank", "huber")
 SMOOTHING_ALPHAS: tuple[str, ...] = ("1.0", "0.8", "0.6", "0.4")
+HOLD_THRESHOLDS: tuple[str, ...] = ("Hold15", "Hold30", "Hold60")
 _OOS_YEAR_RE = re.compile(r"(?:^|-)oos-(\d{4})(?:-|$)", re.IGNORECASE)
 _PARAM_ALPHA_RE = re.compile(r"(?:^|-)smooth-(0(?:\.\d+)?|1(?:\.0+)?)(?:-|$)", re.IGNORECASE)
 _RUN_ALPHA_RE = re.compile(r"(?:^|-)smooth(\d{2})(?:-|$)", re.IGNORECASE)
@@ -112,12 +113,25 @@ def _smoothing_alpha(row: dict) -> str:
     return "1.0"
 
 
+def _hold_threshold(row: dict) -> str:
+    """Classify the portfolio exit threshold encoded by the OOS run name."""
+    run_id = str(row.get("run_id", "")).lower()
+    if "nobuffer" in run_id:
+        return "Hold15"
+    if "hold60" in run_id or re.search(r"(?:^|-)top60(?:-|$)", run_id):
+        return "Hold60"
+    if re.search(r"(?:^|-)top45(?:-|$)", run_id):
+        return "Hold45"
+    return "Hold30"
+
+
 def _filter_run_rows(
     rows: list[dict],
     factor_version: str = ALL_FILTER,
     oos_year: str = ALL_FILTER,
     method: str = ALL_FILTER,
     smoothing_alpha: str = ALL_FILTER,
+    hold_threshold: str = ALL_FILTER,
 ) -> list[dict]:
     """Filter run rows while preserving the database display order."""
     return [
@@ -127,6 +141,7 @@ def _filter_run_rows(
         and (oos_year == ALL_FILTER or _oos_year(row) == oos_year)
         and (method == ALL_FILTER or _run_method(row) == method)
         and (smoothing_alpha == ALL_FILTER or _smoothing_alpha(row) == smoothing_alpha)
+        and (hold_threshold == ALL_FILTER or _hold_threshold(row) == hold_threshold)
     ]
 
 
@@ -254,8 +269,18 @@ def main(
         [ALL_FILTER, *SMOOTHING_ALPHAS],
         index=1,
     )
+    selected_hold = filter_panel.selectbox(
+        "依 OOS 緩衝區篩選",
+        list(HOLD_THRESHOLDS),
+        index=1,
+    )
     filtered_rows = _filter_run_rows(
-        run_rows, selected_factor, selected_year, selected_method, selected_alpha
+        run_rows,
+        selected_factor,
+        selected_year,
+        selected_method,
+        selected_alpha,
+        selected_hold,
     )
     if not filtered_rows:
         st.info("目前篩選條件下沒有已完成的研究 run。")
