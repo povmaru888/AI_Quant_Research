@@ -20,6 +20,7 @@ from repositories.market_values import upsert_partial_market_value_day
 from runtime.db_store import (
     INITIAL_CAPITAL,
     DbStore,
+    _annualized_volatility_60d,
     build_store,
     default_shares_path,
     load_shares_cache,
@@ -37,6 +38,14 @@ MIGRATION_PATH = (
 MIGRATION_003_PATH = MIGRATION_PATH.with_name("003_price_adj.py")
 
 AS_OF = "2020-02-05"
+
+
+def test_annualized_volatility_60d_uses_adjusted_log_returns() -> None:
+    daily_log_returns = np.linspace(-0.03, 0.03, 60)
+    closes = 100.0 * np.exp(np.r_[0.0, np.cumsum(daily_log_returns)])
+    expected = float(np.std(daily_log_returns, ddof=1) * np.sqrt(252))
+    assert _annualized_volatility_60d(closes) == pytest.approx(expected)
+    assert np.isnan(_annualized_volatility_60d(closes[:-1]))
 
 
 def _load_migration():
@@ -608,7 +617,9 @@ def test_load_holdings_uses_run_feature_version(
 
     holdings = store.load_holdings(run_id, AS_OF).set_index("stock_id")
     assert len(holdings) == 2
-    assert holdings.loc["2330", "volatility_60d"] == pytest.approx(0.2)
+    # Dashboard volatility is recomputed from adjusted prices, never read from
+    # the cross-sectionally standardized model feature stored above.
+    assert pd.isna(holdings.loc["2330", "volatility_60d"])
     assert holdings.loc["2330", "beta_60d"] == pytest.approx(1.1)
     assert pd.isna(holdings.loc["0050", "volatility_60d"])
     assert pd.isna(holdings.loc["0050", "beta_60d"])
@@ -744,12 +755,12 @@ def test_load_holdings_scopes_signal_prediction_and_features_to_selected_month(
     assert january["stock_name"].tolist() == ["台積電"]
     assert january["rank"].tolist() == [1]
     assert january["prediction_probability"].tolist() == [pytest.approx(0.8)]
-    assert january["volatility_60d"].tolist() == [pytest.approx(0.11)]
+    assert january["volatility_60d"].isna().all()
     assert february["stock_id"].tolist() == ["0050"]
     assert february["stock_name"].tolist() == ["元大台灣50"]
     assert february["rank"].tolist() == [1]
     assert february["prediction_probability"].tolist() == [pytest.approx(0.9)]
-    assert february["volatility_60d"].tolist() == [pytest.approx(0.55)]
+    assert february["volatility_60d"].isna().all()
     assert store.load_holdings(run_id, "2024-03").empty
 
 

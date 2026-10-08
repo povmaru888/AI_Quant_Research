@@ -85,6 +85,7 @@ from settings import Settings
 TAIEX_ID = "TAIEX"
 UNKNOWN_MARKET = "UNKNOWN"
 INITIAL_CAPITAL = 30_000_000.0
+VOLATILITY_LOOKBACK_DAYS = 60
 
 _PRICE_LOAD_COLUMNS = (
     "stock_id",
@@ -108,6 +109,16 @@ _FIN_HISTORY_COLUMNS = (
     "revenue",
     "operating_income",
 )
+
+
+def _annualized_volatility_60d(closes: Collection[float]) -> float:
+    """Annualized standard deviation of 60 adjusted daily log returns."""
+    values = np.asarray(list(closes), dtype=float)
+    required = VOLATILITY_LOOKBACK_DAYS + 1
+    if len(values) != required or not np.all(np.isfinite(values)) or np.any(values <= 0):
+        return float("nan")
+    returns = np.diff(np.log(values))
+    return float(np.std(returns, ddof=1) * np.sqrt(252))
 
 _engine_cache: dict[str, Engine] = {}
 
@@ -934,6 +945,7 @@ class DbStore:
 
             if signal_date is None:
                 rows = []
+                raw_volatility: dict[str, float] = {}
             else:
                 statement = (
                     select(
@@ -972,12 +984,32 @@ class DbStore:
                     .order_by(Signal.rank, Signal.stock_id)
                 )
                 rows = session.execute(statement).all()
+                stock_ids = [str(row[0]) for row in rows]
+                raw_volatility = {}
+                if stock_ids:
+                    price_rows = session.execute(
+                        select(Price.stock_id, Price.trade_date, Price.close_adj)
+                        .where(
+                            Price.stock_id.in_(stock_ids),
+                            Price.trade_date <= signal_date,
+                        )
+                        .order_by(Price.stock_id, Price.trade_date.desc())
+                    ).all()
+                    histories: dict[str, list[tuple[str, float | None]]] = {}
+                    for stock_id, trade_date, close_adj in price_rows:
+                        history = histories.setdefault(str(stock_id), [])
+                        if len(history) < VOLATILITY_LOOKBACK_DAYS + 1:
+                            history.append((str(trade_date), close_adj))
+                    for stock_id, history in histories.items():
+                        ordered_closes = [close for _, close in reversed(history)]
+                        raw_volatility[stock_id] = _annualized_volatility_60d(ordered_closes)
 
         frame = pd.DataFrame(rows, columns=list(HOLDING_COLUMNS))
         if not frame.empty:
             frame["stock_id"] = frame["stock_id"].astype(str)
             frame["rank"] = pd.to_numeric(frame["rank"], errors="raise").astype(int)
             frame["weight"] = pd.to_numeric(frame["weight"], errors="raise").astype(float)
+            frame["volatility_60d"] = frame["stock_id"].map(raw_volatility)
         return frame.loc[:, list(HOLDING_COLUMNS)].reset_index(drop=True)
 
     def load_model_data(self, run_id: str) -> dict:
