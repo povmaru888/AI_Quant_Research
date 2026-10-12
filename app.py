@@ -30,6 +30,7 @@ UNKNOWN_FACTOR_VERSION = "未標示"
 METHODS: tuple[str, ...] = ("binary", "logistic", "rank", "huber")
 SMOOTHING_ALPHAS: tuple[str, ...] = ("1.0", "0.8", "0.6", "0.4")
 HOLD_THRESHOLDS: tuple[str, ...] = ("Hold15", "Hold30", "Hold60")
+WEIGHTING_METHODS: tuple[str, ...] = ("反波動", "等權")
 _OOS_YEAR_RE = re.compile(r"(?:^|-)oos-(\d{4})(?:-|$)", re.IGNORECASE)
 _PARAM_ALPHA_RE = re.compile(r"(?:^|-)smooth-(0(?:\.\d+)?|1(?:\.0+)?)(?:-|$)", re.IGNORECASE)
 _RUN_ALPHA_RE = re.compile(r"(?:^|-)smooth(\d{2})(?:-|$)", re.IGNORECASE)
@@ -125,6 +126,14 @@ def _hold_threshold(row: dict) -> str:
     return "Hold30"
 
 
+def _weighting_method(row: dict) -> str:
+    """Classify relative stock weighting; legacy runs used inverse volatility."""
+    marker = f"{row.get('parameter_version', '')} {row.get('run_id', '')}".lower()
+    if "weight-equal" in marker or "equalweight" in marker or "equal-weight" in marker:
+        return "等權"
+    return "反波動"
+
+
 def _filter_run_rows(
     rows: list[dict],
     factor_version: str = ALL_FILTER,
@@ -132,6 +141,7 @@ def _filter_run_rows(
     method: str = ALL_FILTER,
     smoothing_alpha: str = ALL_FILTER,
     hold_threshold: str = ALL_FILTER,
+    weighting_method: str = ALL_FILTER,
 ) -> list[dict]:
     """Filter run rows while preserving the database display order."""
     return [
@@ -142,6 +152,7 @@ def _filter_run_rows(
         and (method == ALL_FILTER or _run_method(row) == method)
         and (smoothing_alpha == ALL_FILTER or _smoothing_alpha(row) == smoothing_alpha)
         and (hold_threshold == ALL_FILTER or _hold_threshold(row) == hold_threshold)
+        and (weighting_method == ALL_FILTER or _weighting_method(row) == weighting_method)
     ]
 
 
@@ -275,6 +286,11 @@ def main(
         list(HOLD_THRESHOLDS),
         index=1,
     )
+    selected_weighting = filter_panel.selectbox(
+        "依權重方式篩選",
+        list(WEIGHTING_METHODS),
+        index=0,
+    )
     filtered_rows = _filter_run_rows(
         run_rows,
         selected_factor,
@@ -282,6 +298,7 @@ def main(
         selected_method,
         selected_alpha,
         selected_hold,
+        selected_weighting,
     )
     if not filtered_rows:
         st.info("目前篩選條件下沒有已完成的研究 run。")
@@ -308,6 +325,7 @@ def main(
         comparison_method_options = [ALL_FILTER, *METHODS]
         comparison_alpha_options = [ALL_FILTER, *SMOOTHING_ALPHAS]
         comparison_hold_options = list(HOLD_THRESHOLDS)
+        comparison_weighting_options = list(WEIGHTING_METHODS)
         comparison_factor = filter_panel.selectbox(
             "比較：依 Factor Version 篩選",
             comparison_factor_options,
@@ -333,6 +351,11 @@ def main(
             comparison_hold_options,
             index=comparison_hold_options.index(selected_hold),
         )
+        comparison_weighting = filter_panel.selectbox(
+            "比較：依權重方式篩選",
+            comparison_weighting_options,
+            index=comparison_weighting_options.index(selected_weighting),
+        )
         comparison_rows = _filter_run_rows(
             run_rows,
             comparison_factor,
@@ -340,6 +363,7 @@ def main(
             comparison_method,
             comparison_alpha,
             comparison_hold,
+            comparison_weighting,
         )
         comparison_rows = [
             row for row in comparison_rows if row["run_id"] != run_id and _oos_year(row)

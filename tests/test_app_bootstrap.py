@@ -18,6 +18,7 @@ from app import (
     _oos_year,
     _run_method,
     _smoothing_alpha,
+    _weighting_method,
     available_runs,
     main,
 )
@@ -220,6 +221,24 @@ def test_hold_threshold_classifies_buffer_run_names() -> None:
     ]
 
 
+def test_weighting_method_classifies_equal_and_legacy_inverse_runs() -> None:
+    rows = [
+        {"run_id": "oos-2024-factor-v4-pseudohuber-NOrefit"},
+        {"run_id": "oos-2024-factor-v4-pseudohuber-equalweight-NOrefit"},
+        {
+            "run_id": "custom-oos-2024",
+            "parameter_version": "manual-oos-b2-smooth-1-weight-equal",
+        },
+    ]
+    assert [_weighting_method(row) for row in rows] == ["反波動", "等權", "等權"]
+    assert [
+        row["run_id"] for row in _filter_run_rows(rows, weighting_method="等權")
+    ] == [
+        "oos-2024-factor-v4-pseudohuber-equalweight-NOrefit",
+        "custom-oos-2024",
+    ]
+
+
 def test_main_defaults_smoothing_alpha_filter_to_one() -> None:
     st = FakeSt()
     rows = [
@@ -247,6 +266,11 @@ def test_main_defaults_smoothing_alpha_filter_to_one() -> None:
     )
     assert hold_select[2] == ["Hold15", "Hold30", "Hold60"]
     assert hold_select[3]["index"] == 1
+    weighting_select = next(
+        call for call in st.calls if call[0] == "selectbox" and call[1] == "依權重方式篩選"
+    )
+    assert weighting_select[2] == ["反波動", "等權"]
+    assert weighting_select[3]["index"] == 0
     run_select = next(
         call
         for call in st.calls
@@ -403,17 +427,20 @@ def test_comparison_filters_default_to_primary_filter_values() -> None:
         "依 Method 篩選": "huber",
         "依平滑係數 α 篩選": "0.8",
         "依 OOS 緩衝區篩選": "Hold60",
+        "依權重方式篩選": "等權",
     }
     rows = [
         {
             "run_id": "oos-2024-factor-v4-pseudohuber-smooth08-top60-a",
             "status": "succeeded",
             "feature_version": "factor_v4",
+            "parameter_version": "manual-oos-b2-smooth-0.8-weight-equal",
         },
         {
             "run_id": "oos-2024-factor-v4-pseudohuber-smooth08-top60-b",
             "status": "succeeded",
             "feature_version": "factor_v4",
+            "parameter_version": "manual-oos-b2-smooth-0.8-weight-equal",
         },
     ]
     st.sidebar.toggle = lambda label, **_kwargs: label == "開啟 OOS 比較"
@@ -435,6 +462,7 @@ def test_comparison_filters_default_to_primary_filter_values() -> None:
         "比較：依 Method 篩選": "huber",
         "比較：依平滑係數 α 篩選": "0.8",
         "比較：依 OOS 緩衝區篩選": "Hold60",
+        "比較：依權重方式篩選": "等權",
     }
     for label, value in expected.items():
         call = calls[label]
@@ -475,6 +503,7 @@ def test_main_oos_comparison_renders_both_payloads_on_other_pages(page) -> None:
     assert "比較：依 Method 篩選" in labels
     assert "比較：依平滑係數 α 篩選" in labels
     assert "比較：依 OOS 緩衝區篩選" in labels
+    assert "比較：依權重方式篩選" in labels
 
 
 def test_main_offers_month_selector_for_portfolio() -> None:
