@@ -1,0 +1,18 @@
+{
+  "exposure_weighting_method": "inverse_volatility",
+  "fallback_reason": null,
+  "fast_path": true,
+  "rows_loaded": 544844,
+  "run_id": "oos-2024-factor-v4-pseudohuber-NOrefit",
+  "score_smoothing_alpha": 1.0,
+  "stages_seconds": {
+    "db_writes": 0.8667058999999426,
+    "market_data": 7.766806700034067,
+    "monthly_risk_execution": 2.2928311999421567,
+    "panels": 0.017079600016586483,
+    "predictions": 0.10311849997378886,
+    "total": 10.22994980000658
+  },
+  "tool": "run_oos_portfolio",
+  "weighting_method": "inverse_volatility"
+}

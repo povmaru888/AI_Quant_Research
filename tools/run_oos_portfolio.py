@@ -120,6 +120,12 @@ def main(argv: list[str] | None = None) -> int:
         default="inverse_volatility",
         help="Relative stock weighting before volatility, cap, and regime controls.",
     )
+    parser.add_argument(
+        "--exposure-weighting-method",
+        choices=("same", "inverse_volatility", "equal"),
+        default="same",
+        help="Weights used only to size total risk exposure; 'same' follows stock weighting.",
+    )
     args = parser.parse_args(argv)
     if not 0.0 < args.score_smoothing_alpha <= 1.0:
         parser.error("--score-smoothing-alpha must be in (0, 1]")
@@ -184,6 +190,7 @@ def main(argv: list[str] | None = None) -> int:
                 "parameter_version": (
                     f"manual-oos-b2-smooth-{args.score_smoothing_alpha:g}"
                     f"-weight-{args.weighting_method}"
+                    f"-exposure-{args.exposure_weighting_method}"
                 ),
                 "model_version": args.model_version,
             }
@@ -258,6 +265,7 @@ def main(argv: list[str] | None = None) -> int:
 
     positions: dict[str, int] = {}
     adjusted_units: dict[str, float] = {}
+    previous_target_stocks: set[str] = set()
     cash = float(args.capital)
     nav = float(args.capital)
     all_orders: list[pd.DataFrame] = []
@@ -316,9 +324,7 @@ def main(argv: list[str] | None = None) -> int:
         store._as_of = signal_str  # noqa: SLF001 - snapshot loads bind here.
         # Sold-out positions remain as zero-valued keys in the fill ledger;
         # never feed those names back into the rank-buffer holding set.
-        prev_positions = pd.DataFrame(
-            {"stock_id": [sid for sid, shares in positions.items() if shares > 0]}
-        )
+        prev_positions = pd.DataFrame({"stock_id": sorted(previous_target_stocks)})
         target: PortfolioTarget = build_target_holdings(
             scored, prev_positions, settings, args.run_id, as_of
         )
@@ -336,7 +342,13 @@ def main(argv: list[str] | None = None) -> int:
             as_of,
             settings,
             weighting_method=args.weighting_method,
+            exposure_weighting_method=(
+                None
+                if args.exposure_weighting_method == "same"
+                else args.exposure_weighting_method
+            ),
         )
+        previous_target_stocks = set(controlled.weights)
         next_open = (
             prepared.next_open(signal_str)
             if fast_path and prepared is not None
@@ -366,7 +378,9 @@ def main(argv: list[str] | None = None) -> int:
                 if fast_path and prepared is not None
                 else prices.set_index(["trade_date", "stock_id"])[["open", "open_adj"]]
             )
-            ledger = orders.sort_values(["execution_date", "order_id"])
+            from services.backtest_service import _ordered_fills  # noqa: E402,SLF001
+
+            ledger = _ordered_fills(orders)
             for record in ledger.to_dict("records"):
                 key = (str(record["execution_date"]), str(record["stock_id"]))
                 try:
@@ -426,6 +440,7 @@ def main(argv: list[str] | None = None) -> int:
             "fallback_reason": fallback_reason,
             "score_smoothing_alpha": args.score_smoothing_alpha,
             "weighting_method": args.weighting_method,
+            "exposure_weighting_method": args.exposure_weighting_method,
             "rows_loaded": prepared.rows_loaded if prepared is not None else len(prices),
             "stages_seconds": stages,
         },

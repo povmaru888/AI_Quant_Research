@@ -1,16 +1,17 @@
 {
+  "exposure_weighting_method": "inverse_volatility",
   "fallback_reason": null,
   "fast_path": true,
   "rows_loaded": 482505,
   "run_id": "oos-2022-factor-v4-pseudohuber-equalweight-NOrefit",
   "score_smoothing_alpha": 1.0,
   "stages_seconds": {
-    "db_writes": 0.8100202999776229,
-    "market_data": 9.149581799982116,
-    "monthly_risk_execution": 2.0452964000869542,
-    "panels": 0.2559700999991037,
-    "predictions": 0.11088029999518767,
-    "total": 11.620831399981398
+    "db_writes": 0.9958075998583809,
+    "market_data": 8.676741899980698,
+    "monthly_risk_execution": 2.669253400003072,
+    "panels": 0.015237900021020323,
+    "predictions": 0.09884489997057244,
+    "total": 11.506654799974058
   },
   "tool": "run_oos_portfolio",
   "weighting_method": "equal"

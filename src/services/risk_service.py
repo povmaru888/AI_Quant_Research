@@ -36,10 +36,15 @@ def apply_risk_controls(
     signal_date: date,
     settings: Settings,
     weighting_method: str = "inverse_volatility",
+    exposure_weighting_method: str | None = None,
 ) -> PortfolioTarget:
     """Reshape target weights under volatility, cap, and regime controls."""
-    if weighting_method not in {"inverse_volatility", "equal"}:
+    valid_weighting_methods = {"inverse_volatility", "equal"}
+    if weighting_method not in valid_weighting_methods:
         raise ValueError(f"invalid weighting_method: {weighting_method!r}")
+    exposure_method = exposure_weighting_method or weighting_method
+    if exposure_method not in valid_weighting_methods:
+        raise ValueError(f"invalid exposure_weighting_method: {exposure_method!r}")
     if not isinstance(signal_date, date):
         raise ValueError(f"invalid signal_date: must be a date, got {signal_date!r}")
     if signal_date.isoformat() != target.signal_date:
@@ -88,15 +93,10 @@ def apply_risk_controls(
             equity_exposure=0.0,
         )
 
-    raw = (
-        {s: 1.0 for s in active}
-        if weighting_method == "equal"
-        else {s: 1.0 / volatilities[s] for s in active}
-    )
-    total = sum(raw.values())
-    relative = {s: w / total for s, w in raw.items()}
+    relative = _relative_weights(active, volatilities, weighting_method)
+    exposure_relative = _relative_weights(active, volatilities, exposure_method)
     covariance = _covariance(active_returns, active, signal_day)
-    weights_vector = np.array([relative[s] for s in active])
+    weights_vector = np.array([exposure_relative[s] for s in active])
     portfolio_variance = float(weights_vector @ covariance @ weights_vector)
     if not np.isfinite(portfolio_variance) or portfolio_variance <= 0:
         raise RiskFailure("unusable covariance: non-positive portfolio variance")
@@ -118,6 +118,18 @@ def apply_risk_controls(
         cash_weight=1.0 - exposure,
         equity_exposure=exposure,
     )
+
+
+def _relative_weights(
+    active: list[str], volatilities: dict[str, float], weighting_method: str
+) -> dict[str, float]:
+    raw = (
+        {stock_id: 1.0 for stock_id in active}
+        if weighting_method == "equal"
+        else {stock_id: 1.0 / volatilities[stock_id] for stock_id in active}
+    )
+    total = sum(raw.values())
+    return {stock_id: weight / total for stock_id, weight in raw.items()}
 
 
 def _window(returns: pd.DataFrame, stock_id: str, signal_date: str) -> pd.Series | None:

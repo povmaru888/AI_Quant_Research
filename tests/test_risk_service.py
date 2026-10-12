@@ -88,6 +88,26 @@ def test_equal_weighting_ignores_relative_volatility(settings) -> None:
     assert sum(target.weights.values()) == pytest.approx(target.equity_exposure)
 
 
+def test_equal_allocation_can_share_inverse_volatility_exposure(settings) -> None:
+    settings = _wide_settings(settings)
+    returns = _returns({"A": rng.normal(0, 0.005, 60), "B": rng.normal(0, 0.03, 60)})
+    base = _target({"A": "BUY", "B": "BUY"})
+    inverse = apply_risk_controls(
+        base, returns, _taiex(100, 160), SIGNAL, settings
+    )
+    equal = apply_risk_controls(
+        base,
+        returns,
+        _taiex(100, 160),
+        SIGNAL,
+        settings,
+        weighting_method="equal",
+        exposure_weighting_method="inverse_volatility",
+    )
+    assert equal.equity_exposure == pytest.approx(inverse.equity_exposure)
+    assert equal.weights["A"] == pytest.approx(equal.weights["B"])
+
+
 def test_invalid_weighting_method_fails(settings) -> None:
     with pytest.raises(ValueError, match="invalid weighting_method"):
         apply_risk_controls(
@@ -97,6 +117,15 @@ def test_invalid_weighting_method_fails(settings) -> None:
             SIGNAL,
             settings,
             weighting_method="unknown",
+        )
+    with pytest.raises(ValueError, match="invalid exposure_weighting_method"):
+        apply_risk_controls(
+            _target({"A": "BUY"}),
+            _returns({"A": rng.normal(0, 0.01, 60)}),
+            _taiex(100, 160),
+            SIGNAL,
+            settings,
+            exposure_weighting_method="unknown",
         )
 
 

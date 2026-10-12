@@ -98,6 +98,12 @@ def create_orders(
     ).to_dict()
 
     cfg = settings.execution
+    # Size from raw opens but reserve the buy-side slippage and broker fee
+    # that will be paid at execution. This keeps a fully invested target
+    # from losing its last order merely because costs were omitted from sizing.
+    investable_value = portfolio_value / (
+        (1.0 + cfg.slippage_rate_per_side) * (1.0 + cfg.broker_fee_rate)
+    )
     orders: list[dict] = []
     for stock_id, action in target.actions.items():
         if action == "NONE":
@@ -106,7 +112,7 @@ def create_orders(
             weight = target.weights.get(stock_id, 0.0)
             if stock_id not in opens.index or not opens.loc[stock_id] > 0:
                 continue
-            target_shares = int(round(weight * portfolio_value / float(opens.loc[stock_id])))
+            target_shares = int(round(weight * investable_value / float(opens.loc[stock_id])))
             if action == "BUY":
                 if target_shares <= 0:
                     continue

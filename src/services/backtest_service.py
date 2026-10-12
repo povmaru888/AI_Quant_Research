@@ -64,7 +64,7 @@ def run_backtest(
     if not calendar:
         raise ValueError("invalid prices: no dated prices")
 
-    ledger = orders.sort_values(["execution_date", "order_id"]) if not orders.empty else orders
+    ledger = _ordered_fills(orders)
     cash = float(initial_cash)
     holdings: dict[str, int] = {}
     adjusted_units: dict[str, float] = {}
@@ -204,6 +204,17 @@ def _apply_fill(
         adjusted_units[stock_id] -= units_sold
         return cash + economic_proceeds - cash_cost, charged + cost
     raise ValueError(f"invalid side: {side!r}")
+
+
+def _ordered_fills(orders: pd.DataFrame) -> pd.DataFrame:
+    """Execute sells before buys on each date so rebalances release cash first."""
+    if orders.empty:
+        return orders
+    ledger = orders.copy()
+    ledger["_side_priority"] = ledger["side"].map({"SELL": 0, "BUY": 1}).fillna(2)
+    return ledger.sort_values(["execution_date", "_side_priority", "order_id"]).drop(
+        columns="_side_priority"
+    )
 
 
 def _positive_price(value: object) -> bool:

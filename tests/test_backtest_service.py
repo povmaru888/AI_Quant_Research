@@ -6,7 +6,17 @@ import pandas as pd
 import pytest
 
 from contracts import BacktestResult
-from services.backtest_service import run_backtest
+from services.backtest_service import _ordered_fills, run_backtest
+
+
+def test_rebalance_orders_sell_before_buy() -> None:
+    orders = pd.DataFrame(
+        [
+            {"execution_date": "2020-01-02", "order_id": "a-buy", "side": "BUY"},
+            {"execution_date": "2020-01-02", "order_id": "z-sell", "side": "SELL"},
+        ]
+    )
+    assert _ordered_fills(orders)["side"].tolist() == ["SELL", "BUY"]
 
 
 def _prices() -> pd.DataFrame:

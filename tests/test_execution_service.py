@@ -44,6 +44,13 @@ def _holdings() -> pd.DataFrame:
     return pd.DataFrame({"stock_id": ["B"], "shares": [100]})
 
 
+def _investable_value(portfolio_value: float, settings) -> float:
+    cfg = settings.execution
+    return portfolio_value / (
+        (1.0 + cfg.slippage_rate_per_side) * (1.0 + cfg.broker_fee_rate)
+    )
+
+
 def test_executed_price_and_cost_math(settings) -> None:
     assert executed_price(100.0, "BUY", 0.001) == pytest.approx(100.1)
     assert executed_price(100.0, "SELL", 0.001) == pytest.approx(99.9)
@@ -68,7 +75,7 @@ def test_create_orders_buy_and_sell(settings) -> None:
     buy = orders.loc[orders["stock_id"] == "A"].iloc[0]
     assert buy["side"] == "BUY"
     assert buy["execution_date"] == "2020-01-02"
-    assert buy["target_shares"] == round(0.6 * 1_000_000.0 / 100.0)
+    assert buy["target_shares"] == round(0.6 * _investable_value(1_000_000.0, settings) / 100.0)
     assert buy["executed_price"] == pytest.approx(100.0 * 1.001)
     assert buy["order_id"] == "run-001|2020-01-02|A|BUY"
     sell = orders.loc[orders["stock_id"] == "B"].iloc[0]
@@ -85,7 +92,7 @@ def test_create_orders_executes_at_raw_open_when_adjusted_differs(settings) -> N
         _target(), SIGNAL, opens, _holdings(), 1_000_000.0, settings, "run-001"
     )
     buy = orders.set_index("stock_id").loc["A"]
-    assert buy["target_shares"] == round(0.6 * 1_000_000.0 / 100.0)
+    assert buy["target_shares"] == round(0.6 * _investable_value(1_000_000.0, settings) / 100.0)
     assert buy["executed_price"] == pytest.approx(100.0 * 1.001)
 
 
@@ -99,7 +106,12 @@ def test_create_orders_hold_rebalance(settings) -> None:
         cash_weight=0.4,
         equity_exposure=0.6,
     )
-    steady = pd.DataFrame({"stock_id": ["A"], "shares": [round(0.6 * 1_000_000.0 / 100.0)]})
+    steady = pd.DataFrame(
+        {
+            "stock_id": ["A"],
+            "shares": [round(0.6 * _investable_value(1_000_000.0, settings) / 100.0)],
+        }
+    )
     assert create_orders(target, SIGNAL, _opens(), steady, 1_000_000.0, settings, "r").empty
     light = pd.DataFrame({"stock_id": ["A"], "shares": [100]})
     top_up = create_orders(target, SIGNAL, _opens(), light, 1_000_000.0, settings, "r")
