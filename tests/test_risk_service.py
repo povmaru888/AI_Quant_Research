@@ -73,6 +73,33 @@ def test_high_volatility_gets_less(settings) -> None:
     assert 2.0 < ratio < 4.0
 
 
+def test_equal_weighting_ignores_relative_volatility(settings) -> None:
+    settings = _wide_settings(settings)
+    returns = _returns({"A": rng.normal(0, 0.005, 60), "B": rng.normal(0, 0.03, 60)})
+    target = apply_risk_controls(
+        _target({"A": "BUY", "B": "BUY"}),
+        returns,
+        _taiex(100, 160),
+        SIGNAL,
+        settings,
+        weighting_method="equal",
+    )
+    assert target.weights["A"] == pytest.approx(target.weights["B"])
+    assert sum(target.weights.values()) == pytest.approx(target.equity_exposure)
+
+
+def test_invalid_weighting_method_fails(settings) -> None:
+    with pytest.raises(ValueError, match="invalid weighting_method"):
+        apply_risk_controls(
+            _target({"A": "BUY"}),
+            _returns({"A": rng.normal(0, 0.01, 60)}),
+            _taiex(100, 160),
+            SIGNAL,
+            settings,
+            weighting_method="unknown",
+        )
+
+
 def test_individual_cap_with_redistribution(settings) -> None:
     spec = {"STAR": rng.normal(0, 0.0005, 60)}
     for i in range(11):

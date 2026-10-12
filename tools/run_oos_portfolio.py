@@ -114,6 +114,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--panels", default="data/panels")
     parser.add_argument("--profile-json", default=None)
     parser.add_argument("--score-smoothing-alpha", type=float, default=1.0)
+    parser.add_argument(
+        "--weighting-method",
+        choices=("inverse_volatility", "equal"),
+        default="inverse_volatility",
+        help="Relative stock weighting before volatility, cap, and regime controls.",
+    )
     args = parser.parse_args(argv)
     if not 0.0 < args.score_smoothing_alpha <= 1.0:
         parser.error("--score-smoothing-alpha must be in (0, 1]")
@@ -175,7 +181,10 @@ def main(argv: list[str] | None = None) -> int:
                 "run_id": args.run_id,
                 "data_end_date": signals[-1],
                 "feature_version": settings.features.feature_version,
-                "parameter_version": f"manual-oos-b2-smooth-{args.score_smoothing_alpha:g}",
+                "parameter_version": (
+                    f"manual-oos-b2-smooth-{args.score_smoothing_alpha:g}"
+                    f"-weight-{args.weighting_method}"
+                ),
                 "model_version": args.model_version,
             }
         )
@@ -326,6 +335,7 @@ def main(argv: list[str] | None = None) -> int:
             prepared.taiex if fast_path and prepared is not None else monthly.load_taiex(),
             as_of,
             settings,
+            weighting_method=args.weighting_method,
         )
         next_open = (
             prepared.next_open(signal_str)
@@ -415,6 +425,7 @@ def main(argv: list[str] | None = None) -> int:
             "fast_path": fast_path,
             "fallback_reason": fallback_reason,
             "score_smoothing_alpha": args.score_smoothing_alpha,
+            "weighting_method": args.weighting_method,
             "rows_loaded": prepared.rows_loaded if prepared is not None else len(prices),
             "stages_seconds": stages,
         },

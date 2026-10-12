@@ -1,0 +1,17 @@
+{
+  "fallback_reason": null,
+  "fast_path": true,
+  "rows_loaded": 364123,
+  "run_id": "oos-2021-factor-v4-pseudohuber-equalweight-NOrefit",
+  "score_smoothing_alpha": 1.0,
+  "stages_seconds": {
+    "db_writes": 0.8399097000947222,
+    "market_data": 7.212652099959087,
+    "monthly_risk_execution": 1.9697888999944553,
+    "panels": 0.262644000002183,
+    "predictions": 0.10829730000114068,
+    "total": 9.616253799991682
+  },
+  "tool": "run_oos_portfolio",
+  "weighting_method": "equal"
+}

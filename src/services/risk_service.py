@@ -2,8 +2,8 @@
 
 Input stock log returns come from adjusted closes. TAIEX is an index and
 its regime moving average uses the index's unadjusted close.
-Inverse-volatility relative weights first; total exposure from the
-portfolio covariance and the volatility target; per-name cap with
+Configurable equal or inverse-volatility relative weights first; total
+exposure from the portfolio covariance and the volatility target; per-name cap with
 iterative redistribution; TAIEX MA60 regime filter last. Unmeasurable
 risk means no position: affected names flip to SELL. Unusable
 covariance raises RiskFailure (a ValueError) so the pipeline can fail
@@ -35,8 +35,11 @@ def apply_risk_controls(
     taiex: pd.DataFrame,
     signal_date: date,
     settings: Settings,
+    weighting_method: str = "inverse_volatility",
 ) -> PortfolioTarget:
     """Reshape target weights under volatility, cap, and regime controls."""
+    if weighting_method not in {"inverse_volatility", "equal"}:
+        raise ValueError(f"invalid weighting_method: {weighting_method!r}")
     if not isinstance(signal_date, date):
         raise ValueError(f"invalid signal_date: must be a date, got {signal_date!r}")
     if signal_date.isoformat() != target.signal_date:
@@ -85,7 +88,11 @@ def apply_risk_controls(
             equity_exposure=0.0,
         )
 
-    raw = {s: 1.0 / volatilities[s] for s in active}
+    raw = (
+        {s: 1.0 for s in active}
+        if weighting_method == "equal"
+        else {s: 1.0 / volatilities[s] for s in active}
+    )
     total = sum(raw.values())
     relative = {s: w / total for s, w in raw.items()}
     covariance = _covariance(active_returns, active, signal_day)
