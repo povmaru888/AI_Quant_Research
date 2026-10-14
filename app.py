@@ -27,7 +27,7 @@ CONFIG_PATH = Path(__file__).resolve().parent / "config.yaml"
 SUCCEEDED = "succeeded"
 ALL_FILTER = "全部"
 UNKNOWN_FACTOR_VERSION = "未標示"
-METHODS: tuple[str, ...] = ("binary", "logistic", "rank", "huber")
+METHODS: tuple[str, ...] = ("binary", "logistic", "rank", "huber", "LightGBM")
 SMOOTHING_ALPHAS: tuple[str, ...] = ("1.0", "0.8", "0.6", "0.4")
 HOLD_THRESHOLDS: tuple[str, ...] = ("Hold15", "Hold30", "Hold60")
 WEIGHTING_METHODS: tuple[str, ...] = ("反波動", "等權")
@@ -96,12 +96,9 @@ def _run_method(row: dict) -> str:
     marker = f"{row.get('model_version', '')} {row.get('run_id', '')}".lower()
     if "logistic" in marker:
         return "logistic"
-    if (
-        "pseudohuber" in marker
-        or "pseudo-huber" in marker
-        or "lightgbm-huber" in marker
-        or "lightgbm_huber" in marker
-    ):
+    if "lightgbm-huber" in marker or "lightgbm_huber" in marker or "lgbm_huber" in marker:
+        return "LightGBM"
+    if "pseudohuber" in marker or "pseudo-huber" in marker:
         return "huber"
     if "rank_pairwise" in marker or "rank-pairwise" in marker or "rank:pairwise" in marker:
         return "rank"
@@ -276,10 +273,12 @@ def main(
         [ALL_FILTER, *oos_years],
         index=0,
     )
+    method_options = [ALL_FILTER, *METHODS]
+    default_method = "huber" if any(_run_method(row) == "huber" for row in run_rows) else ALL_FILTER
     selected_method = filter_panel.selectbox(
         "依 Method 篩選",
-        [ALL_FILTER, *METHODS],
-        index=0,
+        method_options,
+        index=method_options.index(default_method),
     )
     selected_alpha = filter_panel.selectbox(
         "依平滑係數 α 篩選",
@@ -327,7 +326,7 @@ def main(
     if comparison_enabled:
         comparison_factor_options = [ALL_FILTER, *factor_versions]
         comparison_year_options = [ALL_FILTER, *oos_years]
-        comparison_method_options = [ALL_FILTER, *METHODS]
+        comparison_method_options = method_options
         comparison_alpha_options = [ALL_FILTER, *SMOOTHING_ALPHAS]
         comparison_hold_options = list(HOLD_THRESHOLDS)
         comparison_weighting_options = list(WEIGHTING_METHODS)

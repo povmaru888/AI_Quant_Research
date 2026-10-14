@@ -152,7 +152,7 @@ def test_run_filters_support_all_factor_version_and_oos_year() -> None:
     assert _oos_year(rows[-1]) is None
 
 
-def test_run_method_classifies_binary_logistic_rank_and_huber() -> None:
+def test_run_method_classifies_binary_logistic_rank_huber_and_lightgbm() -> None:
     rows = [
         {"run_id": "oos-2024-factor-v4-NOrefit", "model_version": "xgb_binary"},
         {"run_id": "oos-2024-factor-v4-logistic-NOrefit", "model_version": "logistic"},
@@ -169,7 +169,13 @@ def test_run_method_classifies_binary_logistic_rank_and_huber() -> None:
             "model_version": "lgbm_huber",
         },
     ]
-    assert [_run_method(row) for row in rows] == ["binary", "logistic", "rank", "huber", "huber"]
+    assert [_run_method(row) for row in rows] == [
+        "binary",
+        "logistic",
+        "rank",
+        "huber",
+        "LightGBM",
+    ]
     assert [row["run_id"] for row in _filter_run_rows(rows, method="logistic")] == [
         "oos-2024-factor-v4-logistic-NOrefit"
     ]
@@ -177,7 +183,9 @@ def test_run_method_classifies_binary_logistic_rank_and_huber() -> None:
         "oos-2024-factor-v4-rank-pairwise-NOrefit"
     ]
     assert [row["run_id"] for row in _filter_run_rows(rows, method="huber")] == [
-        "oos-2024-factor-v4-pseudohuber-NOrefit",
+        "oos-2024-factor-v4-pseudohuber-NOrefit"
+    ]
+    assert [row["run_id"] for row in _filter_run_rows(rows, method="LightGBM")] == [
         "oos-2024-factor-v4-lightgbm-huber-NOrefit",
     ]
 
@@ -241,8 +249,8 @@ def test_weighting_method_classifies_equal_and_legacy_inverse_runs() -> None:
 def test_main_defaults_smoothing_alpha_filter_to_one() -> None:
     st = FakeSt()
     rows = [
-        {"run_id": "oos-2024-base", "status": "succeeded"},
-        {"run_id": "oos-2024-smooth06-NOrefit", "status": "succeeded"},
+        {"run_id": "oos-2024-factor-v4-pseudohuber-NOrefit", "status": "succeeded"},
+        {"run_id": "oos-2024-factor-v4-lightgbm-huber-NOrefit", "status": "succeeded"},
     ]
     main(
         st=st,
@@ -266,12 +274,17 @@ def test_main_defaults_smoothing_alpha_filter_to_one() -> None:
     )
     assert weighting_select[2] == ["反波動", "等權"]
     assert weighting_select[3]["index"] == 0
+    method_select = next(
+        call for call in st.calls if call[0] == "selectbox" and call[1] == "依 Method 篩選"
+    )
+    assert method_select[2] == ["全部", "binary", "logistic", "rank", "huber", "LightGBM"]
+    assert method_select[2][method_select[3]["index"]] == "huber"
     run_select = next(
         call
         for call in st.calls
         if call[0] == "selectbox" and call[1] == "研究 run（僅顯示已完成）"
     )
-    assert run_select[2] == ["oos-2024-base"]
+    assert run_select[2] == ["oos-2024-factor-v4-pseudohuber-NOrefit"]
 
 
 def test_main_happy_path_dispatches_first_page() -> None:
@@ -462,6 +475,14 @@ def test_comparison_filters_default_to_primary_filter_values() -> None:
     for label, value in expected.items():
         call = calls[label]
         assert call[2][call[3]["index"]] == value
+    assert calls["比較：依 Method 篩選"][2] == [
+        "全部",
+        "binary",
+        "logistic",
+        "rank",
+        "huber",
+        "LightGBM",
+    ]
 
 
 @pytest.mark.parametrize("page", ["投組", "模型", "風險", "研究比較"])
