@@ -1,0 +1,18 @@
+{
+  "exposure_weighting_method": "same",
+  "fallback_reason": null,
+  "fast_path": true,
+  "rows_loaded": 488743,
+  "run_id": "oos-2024-factor-v4-pseudohuber-midmonth-augmented-NOrefit",
+  "score_smoothing_alpha": 1.0,
+  "stages_seconds": {
+    "db_writes": 1.1577933999942616,
+    "market_data": 8.074516599997878,
+    "monthly_risk_execution": 3.1587783000431955,
+    "panels": 0.01623369997832924,
+    "predictions": 0.09673079999629408,
+    "total": 11.398137500043958
+  },
+  "tool": "run_oos_portfolio",
+  "weighting_method": "inverse_volatility"
+}

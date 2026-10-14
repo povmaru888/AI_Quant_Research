@@ -223,6 +223,32 @@ class PreparedPanelData:
                 by_month[month] = trade_day
         return [by_month[month] for month in sorted(by_month)]
 
+    def midmonth_signal_dates(self, day_of_month: int = 15) -> list[str]:
+        """Return each month's last trading date on or before ``day_of_month``."""
+        if isinstance(day_of_month, bool) or not isinstance(day_of_month, int):
+            raise ValueError("day_of_month must be an integer from 1 through 28")
+        if not 1 <= day_of_month <= 28:
+            raise ValueError("day_of_month must be an integer from 1 through 28")
+        start_date = self.start + "-01"
+        end_month = date.fromisoformat(self.end + "-01")
+        if end_month.month == 12:
+            next_month = date(end_month.year + 1, 1, 1)
+        else:
+            next_month = date(end_month.year, end_month.month + 1, 1)
+        end_date = (next_month.fromordinal(next_month.toordinal() - 1)).isoformat()
+        rows = self.conn.execute(
+            "SELECT DISTINCT trade_date FROM prices "
+            "WHERE stock_id != ? AND trade_date >= ? AND trade_date <= ? "
+            "ORDER BY trade_date",
+            (_TAIEX_ID, start_date, end_date),
+        ).fetchall()
+        by_month: dict[str, str] = {}
+        for (trade_day,) in rows:
+            month = trade_day[:7]
+            if self.start <= month <= self.end and int(trade_day[8:10]) <= day_of_month:
+                by_month[month] = trade_day
+        return [by_month[month] for month in sorted(by_month)]
+
     def _load_stocks(self) -> pd.DataFrame:
         rows = self.conn.execute(
             "SELECT stock_id, stock_name, market, listed_date, delisted_date, industry "

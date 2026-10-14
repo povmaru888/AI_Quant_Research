@@ -195,6 +195,18 @@ python tools/build_panels.py \
 
 The panel builder uses fingerprints and atomic writes. Valid cached months are reused unless `--force` is supplied.
 
+For a training-only midmonth snapshot, use a separate output directory. A non-trading
+15th resolves to the latest trading day on or before it:
+
+```bash
+python tools/build_panels.py \
+  --config config.factor_v4.yaml \
+  --start 2019-01 \
+  --end 2022-11 \
+  --schedule midmonth \
+  --out data/panels_v4_midmonth
+```
+
 ### 5. Train and validate a model
 
 Pseudo-Huber example for an OOS 2024 study:
@@ -214,6 +226,25 @@ python tools/train_model.py \
 ```
 
 Use `--params-from <prior-report.json>` to reuse previously selected XGBoost parameters and skip Optuna. Logistic Regression uses its fixed baseline specification and does not run Optuna.
+
+Controlled data-augmentation studies can add one extra training snapshot per month
+while leaving validation unchanged. This mode requires `--params-from` and freezes
+the baseline report's feature order and hyperparameters:
+
+```bash
+python tools/train_model.py \
+  --config config.factor_v4.yaml \
+  --panels data/panels_v4 \
+  --extra-train-panels data/panels_v4_midmonth \
+  --train-start 2019-01 \
+  --train-end 2022-11 \
+  --purge-month 2022-12 \
+  --valid-start 2023-01 \
+  --valid-end 2023-12 \
+  --params-from models/model_oos2024_validation_2019_2022_v4_pseudohuber_NOrefit/report.json \
+  --objective reg:pseudohubererror \
+  --out models/model_oos2024_validation_2019_2022_v4_pseudohuber_midmonth_augmented_NOrefit
+```
 
 ### 6. Run a frozen-model OOS portfolio simulation
 

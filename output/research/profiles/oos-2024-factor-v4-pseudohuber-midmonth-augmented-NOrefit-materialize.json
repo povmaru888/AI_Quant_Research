@@ -1,0 +1,19 @@
+{
+  "fallback_reason": null,
+  "fast_path": true,
+  "rows_loaded": {
+    "backtest": 27958,
+    "selection": 582186
+  },
+  "run_id": "oos-2024-factor-v4-pseudohuber-midmonth-augmented-NOrefit",
+  "stages_seconds": {
+    "artifact_write": 0.008157799951732159,
+    "final_panel_explain": 0.7238538999808952,
+    "price_slices": 0.15586349996738136,
+    "replay": 0.16004620003513992,
+    "selection_metrics": 2.0572864999994636,
+    "sensitivity": 1.3588775999378413,
+    "total": 4.6013483999995515
+  },
+  "tool": "materialize_run"
+}

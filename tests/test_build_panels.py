@@ -8,8 +8,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from tools import build_panels
 from runtime.panel_data import PANEL_FORMAT_VERSION, canonical_panel_hash
+from tools import build_panels
 
 
 def _panel() -> dict:
@@ -38,6 +38,20 @@ def test_valid_panel_cache_requires_schema_fingerprints_and_content_hash(tmp_pat
     build_panels._write_panel(path, panel)
     assert build_panels._read_valid_panel(
         path, "factor_adj_v2", "build-fingerprint", "source-fingerprint"
+    )
+    assert build_panels._read_valid_panel(
+        path,
+        "factor_adj_v2",
+        "build-fingerprint",
+        "source-fingerprint",
+        expected_signal_date="2024-12-31",
+    )
+    assert not build_panels._read_valid_panel(
+        path,
+        "factor_adj_v2",
+        "build-fingerprint",
+        "source-fingerprint",
+        expected_signal_date="2024-12-13",
     )
     assert not build_panels._read_valid_panel(
         path, "factor_adj_v2", "wrong-build", "source-fingerprint"

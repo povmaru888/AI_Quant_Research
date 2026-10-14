@@ -1,0 +1,310 @@
+{
+  "cpu_seconds": 379.28125,
+  "end": "2022-11",
+  "feature_version": "factor_v4",
+  "months": {
+    "2019-01-15": {
+      "n_labels": 271,
+      "n_universe": 271,
+      "seconds": 3.6102569999638945,
+      "status": "succeeded"
+    },
+    "2019-02-15": {
+      "n_labels": 302,
+      "n_universe": 302,
+      "seconds": 3.657900399994105,
+      "status": "succeeded"
+    },
+    "2019-03-15": {
+      "n_labels": 331,
+      "n_universe": 331,
+      "seconds": 3.8566357999807224,
+      "status": "succeeded"
+    },
+    "2019-04-15": {
+      "n_labels": 353,
+      "n_universe": 353,
+      "seconds": 4.187967599951662,
+      "status": "succeeded"
+    },
+    "2019-05-15": {
+      "n_labels": 340,
+      "n_universe": 340,
+      "seconds": 3.8179404999827966,
+      "status": "succeeded"
+    },
+    "2019-06-14": {
+      "n_labels": 317,
+      "n_universe": 317,
+      "seconds": 3.892294600023888,
+      "status": "succeeded"
+    },
+    "2019-07-15": {
+      "n_labels": 362,
+      "n_universe": 362,
+      "seconds": 4.104912800015882,
+      "status": "succeeded"
+    },
+    "2019-08-15": {
+      "n_labels": 351,
+      "n_universe": 351,
+      "seconds": 4.435390200000256,
+      "status": "succeeded"
+    },
+    "2019-09-12": {
+      "n_labels": 355,
+      "n_universe": 355,
+      "seconds": 4.370990599971265,
+      "status": "succeeded"
+    },
+    "2019-10-15": {
+      "n_labels": 341,
+      "n_universe": 341,
+      "seconds": 3.8993310999358073,
+      "status": "succeeded"
+    },
+    "2019-11-15": {
+      "n_labels": 365,
+      "n_universe": 365,
+      "seconds": 4.325492899981327,
+      "status": "succeeded"
+    },
+    "2019-12-13": {
+      "n_labels": 360,
+      "n_universe": 360,
+      "seconds": 4.082708499976434,
+      "status": "succeeded"
+    },
+    "2020-01-15": {
+      "n_labels": 373,
+      "n_universe": 373,
+      "seconds": 4.357447499991395,
+      "status": "succeeded"
+    },
+    "2020-02-14": {
+      "n_labels": 374,
+      "n_universe": 374,
+      "seconds": 4.34180389996618,
+      "status": "succeeded"
+    },
+    "2020-03-13": {
+      "n_labels": 339,
+      "n_universe": 339,
+      "seconds": 3.8924296000041068,
+      "status": "succeeded"
+    },
+    "2020-04-15": {
+      "n_labels": 372,
+      "n_universe": 372,
+      "seconds": 4.240698599955067,
+      "status": "succeeded"
+    },
+    "2020-05-15": {
+      "n_labels": 384,
+      "n_universe": 384,
+      "seconds": 4.434671800001524,
+      "status": "succeeded"
+    },
+    "2020-06-15": {
+      "n_labels": 415,
+      "n_universe": 415,
+      "seconds": 4.665335800033063,
+      "status": "succeeded"
+    },
+    "2020-07-15": {
+      "n_labels": 445,
+      "n_universe": 445,
+      "seconds": 4.3921491000801325,
+      "status": "succeeded"
+    },
+    "2020-08-14": {
+      "n_labels": 456,
+      "n_universe": 456,
+      "seconds": 4.664233700023033,
+      "status": "succeeded"
+    },
+    "2020-09-15": {
+      "n_labels": 471,
+      "n_universe": 471,
+      "seconds": 4.7886684000259265,
+      "status": "succeeded"
+    },
+    "2020-10-15": {
+      "n_labels": 442,
+      "n_universe": 442,
+      "seconds": 4.743099099956453,
+      "status": "succeeded"
+    },
+    "2020-11-13": {
+      "n_labels": 461,
+      "n_universe": 461,
+      "seconds": 4.647898000082932,
+      "status": "succeeded"
+    },
+    "2020-12-15": {
+      "n_labels": 491,
+      "n_universe": 491,
+      "seconds": 4.967186899972148,
+      "status": "succeeded"
+    },
+    "2021-01-15": {
+      "n_labels": 509,
+      "n_universe": 509,
+      "seconds": 5.413245199946687,
+      "status": "succeeded"
+    },
+    "2021-02-05": {
+      "n_labels": 483,
+      "n_universe": 483,
+      "seconds": 5.465487700072117,
+      "status": "succeeded"
+    },
+    "2021-03-15": {
+      "n_labels": 539,
+      "n_universe": 539,
+      "seconds": 5.584063999936916,
+      "status": "succeeded"
+    },
+    "2021-04-15": {
+      "n_labels": 607,
+      "n_universe": 607,
+      "seconds": 5.551108799991198,
+      "status": "succeeded"
+    },
+    "2021-05-14": {
+      "n_labels": 583,
+      "n_universe": 583,
+      "seconds": 5.728110799915157,
+      "status": "succeeded"
+    },
+    "2021-06-15": {
+      "n_labels": 555,
+      "n_universe": 555,
+      "seconds": 5.3554393000667915,
+      "status": "succeeded"
+    },
+    "2021-07-15": {
+      "n_labels": 593,
+      "n_universe": 593,
+      "seconds": 5.768139899941161,
+      "status": "succeeded"
+    },
+    "2021-08-13": {
+      "n_labels": 548,
+      "n_universe": 548,
+      "seconds": 5.319583800039254,
+      "status": "succeeded"
+    },
+    "2021-09-15": {
+      "n_labels": 511,
+      "n_universe": 511,
+      "seconds": 5.332383400062099,
+      "status": "succeeded"
+    },
+    "2021-10-15": {
+      "n_labels": 482,
+      "n_universe": 482,
+      "seconds": 5.1183400000445545,
+      "status": "succeeded"
+    },
+    "2021-11-15": {
+      "n_labels": 524,
+      "n_universe": 524,
+      "seconds": 5.189895400078967,
+      "status": "succeeded"
+    },
+    "2021-12-15": {
+      "n_labels": 522,
+      "n_universe": 522,
+      "seconds": 5.21125499997288,
+      "status": "succeeded"
+    },
+    "2022-01-14": {
+      "n_labels": 526,
+      "n_universe": 526,
+      "seconds": 5.6261614001123235,
+      "status": "succeeded"
+    },
+    "2022-02-15": {
+      "n_labels": 525,
+      "n_universe": 525,
+      "seconds": 5.55497150006704,
+      "status": "succeeded"
+    },
+    "2022-03-15": {
+      "n_labels": 520,
+      "n_universe": 520,
+      "seconds": 5.456680900068022,
+      "status": "succeeded"
+    },
+    "2022-04-15": {
+      "n_labels": 529,
+      "n_universe": 529,
+      "seconds": 5.310943600023165,
+      "status": "succeeded"
+    },
+    "2022-05-13": {
+      "n_labels": 486,
+      "n_universe": 486,
+      "seconds": 5.609827399952337,
+      "status": "succeeded"
+    },
+    "2022-06-15": {
+      "n_labels": 470,
+      "n_universe": 470,
+      "seconds": 5.333880600053817,
+      "status": "succeeded"
+    },
+    "2022-07-15": {
+      "n_labels": 466,
+      "n_universe": 466,
+      "seconds": 5.035391699988395,
+      "status": "succeeded"
+    },
+    "2022-08-15": {
+      "n_labels": 455,
+      "n_universe": 455,
+      "seconds": 4.738126400043257,
+      "status": "succeeded"
+    },
+    "2022-09-15": {
+      "n_labels": 477,
+      "n_universe": 477,
+      "seconds": 5.367137600085698,
+      "status": "succeeded"
+    },
+    "2022-10-14": {
+      "n_labels": 435,
+      "n_universe": 435,
+      "seconds": 4.7850734000094235,
+      "status": "succeeded"
+    },
+    "2022-11-15": {
+      "n_labels": 428,
+      "n_universe": 428,
+      "seconds": 4.917655700002797,
+      "status": "succeeded"
+    }
+  },
+  "months_cache_hit": 0,
+  "months_pending": 47,
+  "months_requested": 47,
+  "peak_working_set_bytes": 594972672,
+  "rows_loaded": {
+    "financials": 95274,
+    "institutional_retained": 497512,
+    "institutional_scanned": 1714528,
+    "market_values": 91668,
+    "prices": 2255760,
+    "stocks": 3071
+  },
+  "schedule": "midmonth",
+  "stages_seconds": {
+    "financials": 0.44343639991711825,
+    "institutional": 5.680835800012574,
+    "market_values_and_universes": 98.03940770006739,
+    "prices": 51.684431699919514
+  },
+  "start": "2019-01",
+  "wall_seconds": 381.3534525000723
+}

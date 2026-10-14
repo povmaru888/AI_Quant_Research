@@ -111,7 +111,13 @@ def _lock(out: Path) -> Path:
     return path
 
 
-def _read_valid_panel(path: Path, feature_version: str, build_fp: str, source_fp: str) -> bool:
+def _read_valid_panel(
+    path: Path,
+    feature_version: str,
+    build_fp: str,
+    source_fp: str,
+    expected_signal_date: str | None = None,
+) -> bool:
     try:
         with path.open("rb") as handle:
             panel = pickle.load(handle)
@@ -127,6 +133,8 @@ def _read_valid_panel(path: Path, feature_version: str, build_fp: str, source_fp
         or not isinstance(panel.get("frame"), pd.DataFrame)
         or not isinstance(panel.get("labels"), pd.Series)
     ):
+        return False
+    if expected_signal_date is not None and panel.get("signal_date") != expected_signal_date:
         return False
     try:
         return panel.get("content_hash") == canonical_panel_hash(panel)
@@ -228,6 +236,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", default="data/panels")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--profile-json", default=None)
+    parser.add_argument(
+        "--schedule",
+        choices=("month_end", "midmonth"),
+        default="month_end",
+        help="Signal schedule; midmonth uses the last trading day on or before the 15th.",
+    )
     args = parser.parse_args(argv)
     load_dotenv()
     try:
@@ -245,6 +259,7 @@ def main(argv: list[str] | None = None) -> int:
         "start": args.start,
         "end": args.end,
         "feature_version": settings.features.feature_version,
+        "schedule": args.schedule,
         "stages_seconds": {},
         "months": {},
         "rows_loaded": {},
@@ -258,9 +273,13 @@ def main(argv: list[str] | None = None) -> int:
         run_id = f"panels-{args.start}-{args.end}"
         data = PreparedPanelData(settings, args.start, args.end, run_id)
         try:
-            months = data.month_ends()
+            months = (
+                data.month_ends()
+                if args.schedule == "month_end"
+                else data.midmonth_signal_dates()
+            )
             if not months:
-                print("no month-ends in range", file=sys.stderr)
+                print(f"no {args.schedule} signal dates in range", file=sys.stderr)
                 return 1
             profile["months_requested"] = len(months)
             print(f"{len(months)} months: {months[0]}..{months[-1]}", flush=True)
@@ -268,7 +287,11 @@ def main(argv: list[str] | None = None) -> int:
             for signal_day in months:
                 dest = out / f"{signal_day[:7]}.pkl"
                 if not args.force and _read_valid_panel(
-                    dest, settings.features.feature_version, build_fp, source_fp
+                    dest,
+                    settings.features.feature_version,
+                    build_fp,
+                    source_fp,
+                    expected_signal_date=signal_day,
                 ):
                     continue
                 pending.append(signal_day)
@@ -362,6 +385,7 @@ def main(argv: list[str] | None = None) -> int:
                         "panel_format_version": PANEL_FORMAT_VERSION,
                         "build_fingerprint": build_fp,
                         "source_fingerprint": source_fp,
+                        "schedule": args.schedule,
                         "months": merged_months,
                         "month_sources": month_sources,
                         "updated_at": datetime.now(timezone.utc).isoformat(),

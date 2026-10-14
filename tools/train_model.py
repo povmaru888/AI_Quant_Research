@@ -84,6 +84,20 @@ def _months(start: str, end: str) -> list[str]:
     return months
 
 
+def _report_path(value: str) -> Path:
+    path = Path(value)
+    return path / "report.json" if path.is_dir() else path
+
+
+def _load_parameter_report(value: str) -> tuple[Path, dict]:
+    path = _report_path(value)
+    with path.open(encoding="utf-8") as handle:
+        report = json.load(handle)
+    if not isinstance(report, dict):
+        raise ValueError(f"invalid model report: {path}")
+    return path, report
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Train once, validate once.")
     parser.add_argument("--config", default="config.yaml")
@@ -98,6 +112,11 @@ def main(argv: list[str] | None = None) -> int:
         "--params-from",
         default=None,
         help="Reuse best_params from a prior report.json (skips Optuna).",
+    )
+    parser.add_argument(
+        "--extra-train-panels",
+        default=None,
+        help="Add a second panel snapshot for each training month only.",
     )
     parser.add_argument("--out", default="models/model_b1")
     parser.add_argument("--model-version", default="xgb_b1")
@@ -115,6 +134,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.objective == "logistic_regression" and args.params_from:
         parser.error("--params-from is not supported for fixed Logistic Regression")
+    if args.extra_train_panels and not args.params_from:
+        parser.error("--extra-train-panels requires --params-from for a controlled experiment")
     load_dotenv()
     try:
         settings = load_settings(args.config)
@@ -129,10 +150,34 @@ def main(argv: list[str] | None = None) -> int:
     print(f"valid months: {len(valid_months)} ({valid_months[0]}..{valid_months[-1]})")
     train_panels = _load_panels(panels, train_months, settings.features.feature_version)
     valid_panels = _load_panels(panels, valid_months, settings.features.feature_version)
+    extra_train_panels = (
+        _load_panels(
+            Path(args.extra_train_panels), train_months, settings.features.feature_version
+        )
+        if args.extra_train_panels
+        else {}
+    )
+    params_path: Path | None = None
+    params_report: dict | None = None
+    if args.params_from:
+        params_path, params_report = _load_parameter_report(args.params_from)
+        if params_report.get("feature_version") != settings.features.feature_version:
+            raise ValueError(
+                f"parameter report feature_version {params_report.get('feature_version')!r}; "
+                f"expected {settings.features.feature_version!r}"
+            )
+        if params_report.get("training_objective") not in (None, args.objective):
+            raise ValueError(
+                f"parameter report objective {params_report.get('training_objective')!r}; "
+                f"expected {args.objective!r}"
+            )
 
     continuous_labels: dict[str, pd.Series] | None = None
     if args.objective in {"reg:pseudohubererror", "lightgbm:huber"}:
         all_panels = {**train_panels, **valid_panels}
+        all_panels.update(
+            {f"{month}@extra": panel for month, panel in extra_train_panels.items()}
+        )
         stock_ids = {
             str(stock_id)
             for panel in all_panels.values()
@@ -149,7 +194,25 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     feature_selection = None
-    if uses_training_coverage_selection(settings.features.feature_version):
+    feature_schema_from = None
+    if extra_train_panels:
+        assert params_report is not None and params_path is not None
+        columns = params_report.get("common_features")
+        if not isinstance(columns, list) or not columns or not all(
+            isinstance(column, str) and column for column in columns
+        ):
+            raise ValueError(f"no valid common_features in {params_path}")
+        feature_schema_from = str(params_path)
+        feature_selection = params_report.get("feature_selection")
+        for snapshot, panel in [
+            *((f"{month}@month_end", train_panels[month]) for month in train_months),
+            *((f"{month}@extra", extra_train_panels[month]) for month in train_months),
+            *((f"{month}@validation", valid_panels[month]) for month in valid_months),
+        ]:
+            missing_columns = [column for column in columns if column not in panel["frame"]]
+            if missing_columns:
+                raise ValueError(f"{snapshot} is missing fixed features {missing_columns}")
+    elif uses_training_coverage_selection(settings.features.feature_version):
         columns, feature_selection = select_stable_training_features(train_panels, train_months)
     else:
         common = set(train_panels[train_months[0]]["feature_columns"])
@@ -160,14 +223,15 @@ def main(argv: list[str] | None = None) -> int:
         columns = sorted(common)
     print(f"common features: {len(columns)}")
 
-    def assemble(month_list: list[str], source: dict[str, dict]):
+    def assemble(snapshots: list[tuple[str, dict]]):
         frames, labels, groups = [], [], []
-        for month in month_list:
-            panel = source[month]
+        for snapshot_key, panel in snapshots:
             frame = panel["frame"][["stock_id", *columns]].copy()
-            frame["month"] = month
+            frame["month"] = snapshot_key
             source_labels = (
-                continuous_labels[month] if continuous_labels is not None else panel["labels"]
+                continuous_labels[snapshot_key]
+                if continuous_labels is not None
+                else panel["labels"]
             )
             aligned = source_labels.reindex(frame["stock_id"])
             keep = aligned.notna().to_numpy()
@@ -183,8 +247,13 @@ def main(argv: list[str] | None = None) -> int:
         big_y = big_y.astype(float if continuous_labels is not None else int)
         return big_x, big_y, groups
 
-    train_frame, train_y, train_groups = assemble(train_months, train_panels)
-    valid_frame, valid_y, valid_groups = assemble(valid_months, valid_panels)
+    train_snapshots = [(month, train_panels[month]) for month in train_months]
+    train_snapshots.extend(
+        (f"{month}@extra", extra_train_panels[month]) for month in train_months
+    )
+    valid_snapshots = [(month, valid_panels[month]) for month in valid_months]
+    train_frame, train_y, train_groups = assemble(train_snapshots)
+    valid_frame, valid_y, valid_groups = assemble(valid_snapshots)
     print(f"train rows: {len(train_frame)}, valid rows: {len(valid_frame)}")
     if continuous_labels is not None:
         print(
@@ -199,11 +268,7 @@ def main(argv: list[str] | None = None) -> int:
     run_id = f"train-{args.train_start}-{args.train_end}"
     training_started = time.perf_counter()
     if args.params_from:
-        params_path = Path(args.params_from)
-        if params_path.is_dir():
-            params_path = params_path / "report.json"
-        with params_path.open(encoding="utf-8") as handle:
-            params_report = json.load(handle)
+        assert params_path is not None and params_report is not None
         params = params_report.get("best_params")
         if not isinstance(params, dict) or not params:
             raise ValueError(f"no best_params in {params_path}")
@@ -387,7 +452,16 @@ def main(argv: list[str] | None = None) -> int:
         "valid_months": [valid_months[0], valid_months[-1], len(valid_months)],
         "common_features": columns,
         "feature_selection": feature_selection,
+        "feature_schema_from": feature_schema_from,
         "train_rows": len(train_frame),
+        "train_snapshot_count": len(train_snapshots),
+        "month_end_train_rows": int(
+            train_frame.loc[~train_frame["month"].str.endswith("@extra")].shape[0]
+        ),
+        "extra_train_rows": int(
+            train_frame.loc[train_frame["month"].str.endswith("@extra")].shape[0]
+        ),
+        "extra_train_panels": args.extra_train_panels,
         "valid_rows": len(valid_frame),
         "best_params": artifact.best_params,
         "validation_rank_ic": float(ic),
