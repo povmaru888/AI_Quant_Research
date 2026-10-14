@@ -22,9 +22,11 @@ import argparse
 import json
 import pickle
 import sys
+import time
 from pathlib import Path
 
 import joblib
+import lightgbm
 import numpy as np
 import pandas as pd
 from sklearn.metrics import log_loss, roc_auc_score
@@ -36,6 +38,11 @@ from runtime.dotenv import load_dotenv  # noqa: E402
 from runtime.oos_data import load_symbol_prices  # noqa: E402
 from services.feature_selection_service import select_stable_training_features  # noqa: E402
 from services.feature_service import uses_training_coverage_selection  # noqa: E402
+from services.lightgbm_regression_service import (  # noqa: E402
+    optimize_lightgbm_regressor,
+    predict_lightgbm,
+    train_lightgbm_regressor,
+)
 from services.logistic_service import predict_logistic, train_logistic  # noqa: E402
 from services.optimization_service import optimize_xgb  # noqa: E402
 from services.ranking_service import optimize_xgb_ranker, train_xgb_ranker  # noqa: E402
@@ -100,6 +107,7 @@ def main(argv: list[str] | None = None) -> int:
             "binary:logistic",
             "rank:pairwise",
             "reg:pseudohubererror",
+            "lightgbm:huber",
             "logistic_regression",
         ),
         default="binary:logistic",
@@ -123,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
     valid_panels = _load_panels(panels, valid_months, settings.features.feature_version)
 
     continuous_labels: dict[str, pd.Series] | None = None
-    if args.objective == "reg:pseudohubererror":
+    if args.objective in {"reg:pseudohubererror", "lightgbm:huber"}:
         all_panels = {**train_panels, **valid_panels}
         stock_ids = {
             str(stock_id)
@@ -189,6 +197,7 @@ def main(argv: list[str] | None = None) -> int:
     valid_x = valid_frame[columns]
 
     run_id = f"train-{args.train_start}-{args.train_end}"
+    training_started = time.perf_counter()
     if args.params_from:
         params_path = Path(args.params_from)
         if params_path.is_dir():
@@ -198,22 +207,59 @@ def main(argv: list[str] | None = None) -> int:
         params = params_report.get("best_params")
         if not isinstance(params, dict) or not params:
             raise ValueError(f"no best_params in {params_path}")
-        if args.objective == "reg:pseudohubererror":
+        if args.objective == "lightgbm:huber":
+            artifact, booster = train_lightgbm_regressor(
+                train_x,
+                train_y,
+                train_groups,
+                valid_x,
+                valid_y,
+                valid_groups,
+                params,
+                args.model_version,
+                settings.features.feature_version,
+                f"fixed-{params_path.parent.name}",
+                run_id,
+            )
+        elif args.objective == "reg:pseudohubererror":
             artifact, booster = train_xgb_regressor(
-                train_x, train_y, train_groups, valid_x, valid_y, valid_groups, params,
-                args.model_version, settings.features.feature_version,
-                f"fixed-{params_path.parent.name}", run_id,
+                train_x,
+                train_y,
+                train_groups,
+                valid_x,
+                valid_y,
+                valid_groups,
+                params,
+                args.model_version,
+                settings.features.feature_version,
+                f"fixed-{params_path.parent.name}",
+                run_id,
             )
         elif args.objective == "rank:pairwise":
             artifact, booster = train_xgb_ranker(
-                train_x, train_y, train_groups, valid_x, valid_y, valid_groups, params,
-                args.model_version, settings.features.feature_version,
-                f"fixed-{params_path.parent.name}", run_id,
+                train_x,
+                train_y,
+                train_groups,
+                valid_x,
+                valid_y,
+                valid_groups,
+                params,
+                args.model_version,
+                settings.features.feature_version,
+                f"fixed-{params_path.parent.name}",
+                run_id,
             )
         else:
             artifact, booster = train_xgb(
-                train_x, train_y, valid_x, valid_y, params, args.model_version,
-                settings.features.feature_version, f"fixed-{params_path.parent.name}", run_id,
+                train_x,
+                train_y,
+                valid_x,
+                valid_y,
+                params,
+                args.model_version,
+                settings.features.feature_version,
+                f"fixed-{params_path.parent.name}",
+                run_id,
             )
         trials = pd.DataFrame()
         print(f"reused fixed parameters from {params_path}")
@@ -230,22 +276,62 @@ def main(argv: list[str] | None = None) -> int:
                 run_id,
             )
             trials = pd.DataFrame()
+        elif args.objective == "lightgbm:huber":
+            artifact, booster, trials = optimize_lightgbm_regressor(
+                train_x,
+                train_y,
+                train_groups,
+                valid_x,
+                valid_y,
+                valid_groups,
+                settings,
+                args.model_version,
+                settings.features.feature_version,
+                f"manual-{run_id}",
+                run_id,
+                n_trials=args.trials,
+            )
         elif args.objective == "reg:pseudohubererror":
             artifact, booster, trials = optimize_xgb_regressor(
-                train_x, train_y, train_groups, valid_x, valid_y, valid_groups, settings,
-                args.model_version, settings.features.feature_version,
-                f"manual-{run_id}", run_id, n_trials=args.trials,
+                train_x,
+                train_y,
+                train_groups,
+                valid_x,
+                valid_y,
+                valid_groups,
+                settings,
+                args.model_version,
+                settings.features.feature_version,
+                f"manual-{run_id}",
+                run_id,
+                n_trials=args.trials,
             )
         elif args.objective == "rank:pairwise":
             artifact, booster, trials = optimize_xgb_ranker(
-                train_x, train_y, train_groups, valid_x, valid_y, valid_groups, settings,
-                args.model_version, settings.features.feature_version,
-                f"manual-{run_id}", run_id, n_trials=args.trials,
+                train_x,
+                train_y,
+                train_groups,
+                valid_x,
+                valid_y,
+                valid_groups,
+                settings,
+                args.model_version,
+                settings.features.feature_version,
+                f"manual-{run_id}",
+                run_id,
+                n_trials=args.trials,
             )
         else:
             artifact, booster, trials = optimize_xgb(
-                train_x, train_y, valid_x, valid_y, settings, args.model_version,
-                settings.features.feature_version, f"manual-{run_id}", run_id,
+                train_x,
+                train_y,
+                valid_x,
+                valid_y,
+                settings,
+                args.model_version,
+                settings.features.feature_version,
+                f"manual-{run_id}",
+                run_id,
                 n_trials=args.trials,
             )
     print(f"best params: {artifact.best_params}")
@@ -260,11 +346,12 @@ def main(argv: list[str] | None = None) -> int:
         keep = aligned.notna().to_numpy()
         frame = frame.loc[keep]
         truth_m = aligned.loc[keep].astype(float if continuous_labels is not None else int)
-        scored = (
-            predict_logistic(artifact, frame[["stock_id", *columns]], booster)
-            if args.objective == "logistic_regression"
-            else predict_xgb(artifact, frame[["stock_id", *columns]], booster)
-        )
+        if args.objective == "logistic_regression":
+            scored = predict_logistic(artifact, frame[["stock_id", *columns]], booster)
+        elif args.objective == "lightgbm:huber":
+            scored = predict_lightgbm(artifact, frame[["stock_id", *columns]], booster)
+        else:
+            scored = predict_xgb(artifact, frame[["stock_id", *columns]], booster)
         probs = scored.set_index("stock_id")["probability"]
         truth_m = truth_m.set_axis(frame["stock_id"].to_numpy())
         month_ics.append(rank_ic(probs, truth_m.loc[probs.index]))
@@ -280,6 +367,14 @@ def main(argv: list[str] | None = None) -> int:
     spread = float(np.mean(month_spreads)) if month_spreads else float("nan")
     report = {
         "model_version": args.model_version,
+        "model_family": (
+            "lightgbm"
+            if args.objective == "lightgbm:huber"
+            else "sklearn"
+            if args.objective == "logistic_regression"
+            else "xgboost"
+        ),
+        "library_version": (lightgbm.__version__ if args.objective == "lightgbm:huber" else None),
         "training_objective": args.objective,
         "target_definition": (
             "stock_simple_return_t_plus_20_minus_monthly_eligible_universe_mean"
@@ -303,6 +398,7 @@ def main(argv: list[str] | None = None) -> int:
         },
         "trials": len(trials),
         "parameters_from": args.params_from,
+        "training_seconds": float(time.perf_counter() - training_started),
     }
     if args.objective == "logistic_regression":
         validation_probability = booster.predict_proba(valid_x)[:, 1]
@@ -322,13 +418,20 @@ def main(argv: list[str] | None = None) -> int:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     if args.objective == "logistic_regression":
-        joblib.dump(booster, out / "model.joblib")
+        model_path = out / "model.joblib"
+        joblib.dump(booster, model_path)
+    elif args.objective == "lightgbm:huber":
+        model_path = out / "booster.txt"
+        booster.booster_.save_model(str(model_path))
     else:
-        booster.save_model(str(out / "booster.ubj"))
+        model_path = out / "booster.ubj"
+        booster.save_model(str(model_path))
+    report["model_file"] = model_path.name
+    report["model_file_size_bytes"] = model_path.stat().st_size
     with open(out / "report.json", "w", encoding="utf-8") as handle:
         json.dump(report, handle, ensure_ascii=False, indent=1)
     with open(out / "trials.csv", "w", encoding="utf-8") as handle:
-        trials.to_csv(handle, index=False)
+        trials.to_csv(handle, index=False, lineterminator="\n")
     print(f"saved: {out}")
     return 0
 

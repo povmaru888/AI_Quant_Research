@@ -1,0 +1,19 @@
+{
+  "fallback_reason": null,
+  "fast_path": true,
+  "rows_loaded": {
+    "backtest": 31948,
+    "selection": 1017952
+  },
+  "run_id": "oos-2020-factor-v4-lightgbm-huber-NOrefit",
+  "stages_seconds": {
+    "artifact_write": 0.012222899938933551,
+    "final_panel_explain": 2.3568975999951363,
+    "price_slices": 0.18517700000666082,
+    "replay": 0.1863766999449581,
+    "selection_metrics": 3.6653902999823913,
+    "sensitivity": 1.081618299940601,
+    "total": 7.628791900002398
+  },
+  "tool": "materialize_run"
+}

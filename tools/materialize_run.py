@@ -12,6 +12,8 @@ Approximations are labeled in payload ``meta`` instead of hidden:
   default hyper-parameters, trained on the signal month panel only
   (the tuned walk-forward booster was never persisted). It answers
   "what drove this month's scores", not "what the global model learned".
+- Passing ``--model-dir`` replaces that legacy approximation with SHAP and
+  gain from the frozen model that generated the run's predictions.
 - ``predicted_volatility`` is the trailing-60d realized vol at the signal
   date (the forecast basis risk controls actually had).
 - Run-level ``rank_ic`` and ``icir`` summarize monthly forward-return ICs;
@@ -178,6 +180,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--panels", default="data/panels")
+    parser.add_argument(
+        "--model-dir",
+        default=None,
+        help="Frozen model directory used for native SHAP and gain.",
+    )
     parser.add_argument("--profile-json", default=None)
     args = parser.parse_args(argv)
     started = time.perf_counter()
@@ -491,10 +498,14 @@ def main(argv: list[str] | None = None) -> int:
         if np.isfinite(ic):
             factor_rows.append({"factor": factor, "ic": float(ic)})
     factor_rows.sort(key=lambda r: abs(r["ic"]), reverse=True)
-    # -- proxy model: importance + SHAP --------------------------------------
-    print("training proxy model...", flush=True)
-    explain_payload = _proxy_explain(features, labels, settings, summary, run_id, as_of_str)
-    stages["final_panel_proxy"] = time.perf_counter() - feature_started
+    # -- frozen model (preferred) or legacy proxy: importance + SHAP ----------
+    if args.model_dir:
+        print("explaining frozen model...", flush=True)
+        explain_payload = _frozen_model_explain(features, Path(args.model_dir), summary)
+    else:
+        print("training proxy model...", flush=True)
+        explain_payload = _proxy_explain(features, labels, settings, summary, run_id, as_of_str)
+    stages["final_panel_explain"] = time.perf_counter() - feature_started
 
     # -- sensitivity ----------------------------------------------------------
     print("running cost sensitivity...", flush=True)
@@ -598,6 +609,86 @@ def _proxy_explain(features, labels, settings, summary, run_id: str, as_of_str: 
         "shap_top": shap_top[:15],
         "feature_importance": importance,
         "method": "posthoc_xgb_default_params_seed42",
+    }
+
+
+def _frozen_model_explain(features, model_dir: Path, summary: dict) -> dict:
+    """Explain the exact persisted XGBoost or LightGBM model used by a run."""
+    report_path = model_dir / "report.json"
+    if not report_path.is_file():
+        raise FileNotFoundError(f"missing frozen model report: {report_path}")
+    with report_path.open(encoding="utf-8") as handle:
+        report = json.load(handle)
+    if report.get("feature_version") != features.feature_version:
+        raise ValueError(
+            "frozen model feature_version differs from the materialized run: "
+            f"{report.get('feature_version')!r} != {features.feature_version!r}"
+        )
+    expected_model = summary.get("model_version")
+    if expected_model and report.get("model_version") != expected_model:
+        raise ValueError(
+            "frozen model version differs from the materialized run: "
+            f"{report.get('model_version')!r} != {expected_model!r}"
+        )
+    columns = tuple(report.get("oos_columns") or report.get("common_features") or ())
+    if not columns:
+        raise ValueError("frozen model report has no feature columns")
+    missing = [column for column in columns if column not in features.frame]
+    if missing:
+        raise ValueError(f"final panel lacks frozen model features: {missing}")
+    matrix = features.frame.loc[:, columns].apply(pd.to_numeric, errors="coerce")
+    if matrix.isna().any().any():
+        raise ValueError("final panel has NaN in frozen model features")
+
+    model_family = str(report.get("model_family") or "xgboost").lower()
+    objective = str(report.get("training_objective") or "binary:logistic")
+    if model_family == "lightgbm":
+        import lightgbm as lgb
+
+        model_path = model_dir / str(report.get("model_file") or "booster.txt")
+        model = lgb.Booster(model_file=str(model_path))
+        raw_gain = model.feature_importance(importance_type="gain")
+        shap_model = model
+    elif model_family == "xgboost":
+        from xgboost import XGBClassifier, XGBRanker, XGBRegressor
+
+        if objective == "rank:pairwise":
+            model = XGBRanker()
+        elif objective == "reg:pseudohubererror":
+            model = XGBRegressor()
+        else:
+            model = XGBClassifier()
+        model_path = model_dir / str(report.get("model_file") or "booster.ubj")
+        model.load_model(str(model_path))
+        raw_gain = model.feature_importances_
+        shap_model = model
+    else:
+        raise ValueError(f"unsupported frozen model family for TreeSHAP: {model_family!r}")
+
+    importance = [
+        {"feature": feature, "gain": float(gain)}
+        for feature, gain in zip(columns, raw_gain, strict=True)
+    ]
+    importance.sort(key=lambda row: row["gain"], reverse=True)
+
+    import shap
+
+    values = np.asarray(shap.TreeExplainer(shap_model).shap_values(matrix))
+    if values.ndim == 3:
+        values = values[:, :, -1]
+    if values.ndim != 2 or values.shape[1] != len(columns):
+        raise ValueError(f"unexpected SHAP shape: {values.shape}")
+    mean_abs = np.abs(values).mean(axis=0)
+    shap_top = [
+        {"feature": feature, "value": float(value)}
+        for feature, value in zip(columns, mean_abs, strict=True)
+    ]
+    shap_top.sort(key=lambda row: row["value"], reverse=True)
+    return {
+        "shap_top": shap_top[:15],
+        "feature_importance": importance,
+        "method": f"frozen_{model_family}_{objective}",
+        "model_dir": str(model_dir),
     }
 
 

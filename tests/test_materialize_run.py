@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from contextlib import contextmanager
 from types import SimpleNamespace
 
+import lightgbm as lgb
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -13,8 +16,47 @@ from tools import materialize_run
 from tools.materialize_run import (
     _close_panel,
     _forward_returns,
+    _frozen_model_explain,
     _prices_through_oos_horizon,
 )
+
+
+def test_frozen_lightgbm_explain_uses_persisted_model(tmp_path) -> None:
+    rng = np.random.default_rng(7)
+    matrix = pd.DataFrame(rng.normal(size=(30, 2)), columns=["a", "b"])
+    target = matrix["a"] - matrix["b"]
+    model = lgb.LGBMRegressor(
+        objective="huber",
+        n_estimators=10,
+        random_state=42,
+        deterministic=True,
+        force_col_wise=True,
+        verbosity=-1,
+    ).fit(matrix, target)
+    model.booster_.save_model(str(tmp_path / "booster.txt"))
+    (tmp_path / "report.json").write_text(
+        json.dumps(
+            {
+                "model_family": "lightgbm",
+                "training_objective": "lightgbm:huber",
+                "model_version": "lgbm-test",
+                "feature_version": "factor_v4",
+                "common_features": ["a", "b"],
+                "model_file": "booster.txt",
+            }
+        ),
+        encoding="utf-8",
+    )
+    features = SimpleNamespace(
+        feature_version="factor_v4",
+        frame=pd.concat([pd.Series([f"S{i}" for i in range(30)], name="stock_id"), matrix], axis=1),
+    )
+
+    payload = _frozen_model_explain(features, tmp_path, {"model_version": "lgbm-test"})
+
+    assert payload["method"] == "frozen_lightgbm_lightgbm:huber"
+    assert {row["feature"] for row in payload["shap_top"]} == {"a", "b"}
+    assert {row["feature"] for row in payload["feature_importance"]} == {"a", "b"}
 
 
 def test_forward_returns_do_not_skip_missing_adjusted_day() -> None:
@@ -50,9 +92,7 @@ def test_backtest_prices_cover_full_final_execution_month() -> None:
 
 
 def test_oos_horizon_requires_a_complete_final_month() -> None:
-    prices = pd.DataFrame(
-        [{"stock_id": "A", "trade_date": "2024-01-15"}]
-    )
+    prices = pd.DataFrame([{"stock_id": "A", "trade_date": "2024-01-15"}])
 
     with pytest.raises(ValueError, match="does not prove the full valuation month"):
         _prices_through_oos_horizon(prices, "2023-12-29")

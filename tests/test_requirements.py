@@ -18,6 +18,7 @@ REQUIRED_PACKAGES = frozenset(
         "numpy",
         "scikit-learn",
         "xgboost",
+        "lightgbm",
         "optuna",
         "vectorbt",
         "sqlalchemy",

@@ -144,9 +144,7 @@ def test_run_filters_support_all_factor_version_and_oos_year() -> None:
         {"run_id": "rebalance-live", "feature_version": "factor_v4"},
     ]
     assert _filter_run_rows(rows) == rows
-    assert [row["run_id"] for row in _filter_run_rows(rows, "factor_v4", "2024")] == [
-        "oos-2024-a"
-    ]
+    assert [row["run_id"] for row in _filter_run_rows(rows, "factor_v4", "2024")] == ["oos-2024-a"]
     assert [row["run_id"] for row in _filter_run_rows(rows, ALL_FILTER, "2024")] == [
         "oos-2024-a",
         "oos-2024-c",
@@ -166,8 +164,12 @@ def test_run_method_classifies_binary_logistic_rank_and_huber() -> None:
             "run_id": "oos-2024-factor-v4-pseudohuber-NOrefit",
             "model_version": "xgb_pseudohuber",
         },
+        {
+            "run_id": "oos-2024-factor-v4-lightgbm-huber-NOrefit",
+            "model_version": "lgbm_huber",
+        },
     ]
-    assert [_run_method(row) for row in rows] == ["binary", "logistic", "rank", "huber"]
+    assert [_run_method(row) for row in rows] == ["binary", "logistic", "rank", "huber", "huber"]
     assert [row["run_id"] for row in _filter_run_rows(rows, method="logistic")] == [
         "oos-2024-factor-v4-logistic-NOrefit"
     ]
@@ -175,7 +177,8 @@ def test_run_method_classifies_binary_logistic_rank_and_huber() -> None:
         "oos-2024-factor-v4-rank-pairwise-NOrefit"
     ]
     assert [row["run_id"] for row in _filter_run_rows(rows, method="huber")] == [
-        "oos-2024-factor-v4-pseudohuber-NOrefit"
+        "oos-2024-factor-v4-pseudohuber-NOrefit",
+        "oos-2024-factor-v4-lightgbm-huber-NOrefit",
     ]
 
 
@@ -213,9 +216,7 @@ def test_hold_threshold_classifies_buffer_run_names() -> None:
         "Hold60",
         "Hold45",
     ]
-    assert [
-        row["run_id"] for row in _filter_run_rows(rows, hold_threshold="Hold60")
-    ] == [
+    assert [row["run_id"] for row in _filter_run_rows(rows, hold_threshold="Hold60")] == [
         "oos-2024-factor-v4-pseudohuber-top60-NOrefit",
         "oos-2024-factor-v4-pseudohuber-top30-hold60-NOrefit",
     ]
@@ -231,9 +232,7 @@ def test_weighting_method_classifies_equal_and_legacy_inverse_runs() -> None:
         },
     ]
     assert [_weighting_method(row) for row in rows] == ["反波動", "等權", "等權"]
-    assert [
-        row["run_id"] for row in _filter_run_rows(rows, weighting_method="等權")
-    ] == [
+    assert [row["run_id"] for row in _filter_run_rows(rows, weighting_method="等權")] == [
         "oos-2024-factor-v4-pseudohuber-equalweight-NOrefit",
         "custom-oos-2024",
     ]
@@ -253,16 +252,12 @@ def test_main_defaults_smoothing_alpha_filter_to_one() -> None:
         pages={"總覽": lambda _st, _payload: None},
     )
     alpha_select = next(
-        call
-        for call in st.calls
-        if call[0] == "selectbox" and call[1] == "依平滑係數 α 篩選"
+        call for call in st.calls if call[0] == "selectbox" and call[1] == "依平滑係數 α 篩選"
     )
     assert alpha_select[2] == ["全部", "1.0", "0.8", "0.6", "0.4"]
     assert alpha_select[3]["index"] == 1
     hold_select = next(
-        call
-        for call in st.calls
-        if call[0] == "selectbox" and call[1] == "依 OOS 緩衝區篩選"
+        call for call in st.calls if call[0] == "selectbox" and call[1] == "依 OOS 緩衝區篩選"
     )
     assert hold_select[2] == ["Hold15", "Hold30", "Hold60"]
     assert hold_select[3]["index"] == 1

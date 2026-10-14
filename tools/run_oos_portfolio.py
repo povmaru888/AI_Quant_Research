@@ -26,6 +26,7 @@ from datetime import date
 from pathlib import Path
 
 import joblib
+import lightgbm as lgb
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -44,6 +45,7 @@ from runtime.oos_data import PreparedOOSData, month_end_signal_dates  # noqa: E4
 from services.execution_service import create_orders  # noqa: E402
 from services.feature_preprocess_service import preprocess_features  # noqa: E402
 from services.feature_service import calculate_raw_features, uses_pit_market_values  # noqa: E402
+from services.lightgbm_regression_service import predict_lightgbm  # noqa: E402
 from services.logistic_service import predict_logistic  # noqa: E402
 from services.pit_service import build_pit_snapshot  # noqa: E402
 from services.portfolio_service import build_target_holdings  # noqa: E402
@@ -149,7 +151,10 @@ def main(argv: list[str] | None = None) -> int:
         print("model report has no feature columns", file=sys.stderr)
         return 1
     objective = model_report.get("training_objective", "binary:logistic")
-    if objective == "logistic_regression":
+    model_family = model_report.get("model_family", "xgboost")
+    if model_family == "lightgbm":
+        booster = lgb.Booster(model_file=str(Path(args.model) / "booster.txt"))
+    elif objective == "logistic_regression":
         booster = joblib.load(Path(args.model) / "model.joblib")
     elif objective == "rank:pairwise":
         booster = XGBRanker()
@@ -157,7 +162,7 @@ def main(argv: list[str] | None = None) -> int:
         booster = XGBRegressor()
     else:
         booster = XGBClassifier()
-    if objective != "logistic_regression":
+    if model_family != "lightgbm" and objective != "logistic_regression":
         booster.load_model(str(Path(args.model) / "booster.ubj"))
     artifact = ModelArtifact(
         run_id=args.run_id,
@@ -234,11 +239,12 @@ def main(argv: list[str] | None = None) -> int:
                 fallback_reason = f"panel {signal_str[:7]} lacks model features"
                 fast_path = False
                 break
-            scored = (
-                predict_logistic(artifact, features_frame[["stock_id", *columns]], booster)
-                if objective == "logistic_regression"
-                else predict_xgb(artifact, features_frame[["stock_id", *columns]], booster)
-            )
+            if model_family == "lightgbm":
+                scored = predict_lightgbm(artifact, features_frame[["stock_id", *columns]], booster)
+            elif objective == "logistic_regression":
+                scored = predict_logistic(artifact, features_frame[["stock_id", *columns]], booster)
+            else:
+                scored = predict_xgb(artifact, features_frame[["stock_id", *columns]], booster)
             scored, previous_scores = _smooth_percentile_scores(
                 scored, previous_scores, args.score_smoothing_alpha
             )
@@ -311,11 +317,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[{signal_str}] only {len(available)}/{len(columns)} features, skipped")
             continue
         if not fast_path:
-            scored = (
-                predict_logistic(artifact, features_frame[["stock_id", *columns]], booster)
-                if objective == "logistic_regression"
-                else predict_xgb(artifact, features_frame[["stock_id", *columns]], booster)
-            )
+            if model_family == "lightgbm":
+                scored = predict_lightgbm(artifact, features_frame[["stock_id", *columns]], booster)
+            elif objective == "logistic_regression":
+                scored = predict_logistic(artifact, features_frame[["stock_id", *columns]], booster)
+            else:
+                scored = predict_xgb(artifact, features_frame[["stock_id", *columns]], booster)
             scored, previous_scores = _smooth_percentile_scores(
                 scored, previous_scores, args.score_smoothing_alpha
             )
@@ -343,9 +350,7 @@ def main(argv: list[str] | None = None) -> int:
             settings,
             weighting_method=args.weighting_method,
             exposure_weighting_method=(
-                None
-                if args.exposure_weighting_method == "same"
-                else args.exposure_weighting_method
+                None if args.exposure_weighting_method == "same" else args.exposure_weighting_method
             ),
         )
         previous_target_stocks = set(controlled.weights)

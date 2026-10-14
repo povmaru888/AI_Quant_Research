@@ -1,0 +1,18 @@
+{
+  "exposure_weighting_method": "inverse_volatility",
+  "fallback_reason": null,
+  "fast_path": true,
+  "rows_loaded": 436353,
+  "run_id": "oos-2022-factor-v4-lightgbm-huber-NOrefit",
+  "score_smoothing_alpha": 1.0,
+  "stages_seconds": {
+    "db_writes": 0.8103134999983013,
+    "market_data": 6.823904799995944,
+    "monthly_risk_execution": 2.0535691998666152,
+    "panels": 0.01660000008996576,
+    "predictions": 0.14525549998506904,
+    "total": 9.091259200009517
+  },
+  "tool": "run_oos_portfolio",
+  "weighting_method": "inverse_volatility"
+}

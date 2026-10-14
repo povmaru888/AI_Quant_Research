@@ -96,7 +96,12 @@ def _run_method(row: dict) -> str:
     marker = f"{row.get('model_version', '')} {row.get('run_id', '')}".lower()
     if "logistic" in marker:
         return "logistic"
-    if "pseudohuber" in marker or "pseudo-huber" in marker:
+    if (
+        "pseudohuber" in marker
+        or "pseudo-huber" in marker
+        or "lightgbm-huber" in marker
+        or "lightgbm_huber" in marker
+    ):
         return "huber"
     if "rank_pairwise" in marker or "rank-pairwise" in marker or "rank:pairwise" in marker:
         return "rank"

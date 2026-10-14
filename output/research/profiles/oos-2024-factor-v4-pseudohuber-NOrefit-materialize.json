@@ -1,0 +1,19 @@
+{
+  "fallback_reason": null,
+  "fast_path": true,
+  "rows_loaded": {
+    "backtest": 31255,
+    "selection": 582186
+  },
+  "run_id": "oos-2024-factor-v4-pseudohuber-NOrefit",
+  "stages_seconds": {
+    "artifact_write": 0.012227799976244569,
+    "final_panel_explain": 0.6626634000567719,
+    "price_slices": 0.19233380001969635,
+    "replay": 0.2934768999693915,
+    "selection_metrics": 2.7579964000033215,
+    "sensitivity": 1.3691340000368655,
+    "total": 5.55430920002982
+  },
+  "tool": "materialize_run"
+}

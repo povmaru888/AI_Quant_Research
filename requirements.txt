@@ -4,6 +4,7 @@
 # and shioaji (broker historical kbars backfill).
 Alembic==1.20.0
 numpy==2.5.3
+lightgbm==4.7.0
 optuna==5.0.0
 pandas==3.0.6
 plotly==7.1.0
