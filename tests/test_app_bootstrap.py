@@ -15,6 +15,7 @@ from app import (
     PAGES,
     _filter_run_rows,
     _hold_threshold,
+    _midmonth_augmentation,
     _oos_year,
     _run_method,
     _smoothing_alpha,
@@ -246,6 +247,21 @@ def test_weighting_method_classifies_equal_and_legacy_inverse_runs() -> None:
     ]
 
 
+def test_midmonth_augmentation_classifies_run_and_model_names() -> None:
+    rows = [
+        {"run_id": "oos-2024-factor-v4-pseudohuber-NOrefit"},
+        {"run_id": "oos-2024-factor-v4-pseudohuber-midmonth-augmented-NOrefit"},
+        {"run_id": "custom", "model_version": "xgb_midmonth_augmented"},
+    ]
+    assert [_midmonth_augmentation(row) for row in rows] == ["無", "有", "有"]
+    assert [
+        row["run_id"] for row in _filter_run_rows(rows, midmonth_augmentation="有")
+    ] == [
+        "oos-2024-factor-v4-pseudohuber-midmonth-augmented-NOrefit",
+        "custom",
+    ]
+
+
 def test_main_defaults_smoothing_alpha_filter_to_one() -> None:
     st = FakeSt()
     rows = [
@@ -279,6 +295,13 @@ def test_main_defaults_smoothing_alpha_filter_to_one() -> None:
     )
     assert method_select[2] == ["全部", "binary", "logistic", "rank", "huber", "LightGBM"]
     assert method_select[2][method_select[3]["index"]] == "huber"
+    midmonth_select = next(
+        call
+        for call in st.calls
+        if call[0] == "selectbox" and call[1] == "依 midmonth-augmented 篩選"
+    )
+    assert midmonth_select[2] == ["無", "有"]
+    assert midmonth_select[2][midmonth_select[3]["index"]] == "無"
     run_select = next(
         call
         for call in st.calls
@@ -436,6 +459,7 @@ def test_comparison_filters_default_to_primary_filter_values() -> None:
         "依平滑係數 α 篩選": "0.8",
         "依 OOS 緩衝區篩選": "Hold60",
         "依權重方式篩選": "等權",
+        "依 midmonth-augmented 篩選": "有",
     }
     rows = [
         {
@@ -443,12 +467,14 @@ def test_comparison_filters_default_to_primary_filter_values() -> None:
             "status": "succeeded",
             "feature_version": "factor_v4",
             "parameter_version": "manual-oos-b2-smooth-0.8-weight-equal",
+            "model_version": "xgb_midmonth_augmented",
         },
         {
             "run_id": "oos-2024-factor-v4-pseudohuber-smooth08-top60-b",
             "status": "succeeded",
             "feature_version": "factor_v4",
             "parameter_version": "manual-oos-b2-smooth-0.8-weight-equal",
+            "model_version": "xgb_midmonth_augmented",
         },
     ]
     st.sidebar.toggle = lambda label, **_kwargs: label == "開啟 OOS 比較"
@@ -471,6 +497,7 @@ def test_comparison_filters_default_to_primary_filter_values() -> None:
         "比較：依平滑係數 α 篩選": "0.8",
         "比較：依 OOS 緩衝區篩選": "Hold60",
         "比較：依權重方式篩選": "等權",
+        "比較：依 midmonth-augmented 篩選": "有",
     }
     for label, value in expected.items():
         call = calls[label]
@@ -520,6 +547,7 @@ def test_main_oos_comparison_renders_both_payloads_on_other_pages(page) -> None:
     assert "比較：依平滑係數 α 篩選" in labels
     assert "比較：依 OOS 緩衝區篩選" in labels
     assert "比較：依權重方式篩選" in labels
+    assert "比較：依 midmonth-augmented 篩選" in labels
 
 
 def test_main_offers_month_selector_for_portfolio() -> None:

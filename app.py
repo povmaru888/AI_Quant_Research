@@ -31,6 +31,7 @@ METHODS: tuple[str, ...] = ("binary", "logistic", "rank", "huber", "LightGBM")
 SMOOTHING_ALPHAS: tuple[str, ...] = ("1.0", "0.8", "0.6", "0.4")
 HOLD_THRESHOLDS: tuple[str, ...] = ("Hold15", "Hold30", "Hold60")
 WEIGHTING_METHODS: tuple[str, ...] = ("反波動", "等權")
+MIDMONTH_AUGMENTATION: tuple[str, ...] = ("無", "有")
 _OOS_YEAR_RE = re.compile(r"(?:^|-)oos-(\d{4})(?:-|$)", re.IGNORECASE)
 _PARAM_ALPHA_RE = re.compile(r"(?:^|-)smooth-(0(?:\.\d+)?|1(?:\.0+)?)(?:-|$)", re.IGNORECASE)
 _RUN_ALPHA_RE = re.compile(r"(?:^|-)smooth(\d{2})(?:-|$)", re.IGNORECASE)
@@ -136,6 +137,12 @@ def _weighting_method(row: dict) -> str:
     return "反波動"
 
 
+def _midmonth_augmentation(row: dict) -> str:
+    """Classify whether training included the midmonth panel augmentation."""
+    marker = f"{row.get('model_version', '')} {row.get('run_id', '')}".lower()
+    return "有" if "midmonth-augmented" in marker or "midmonth_augmented" in marker else "無"
+
+
 def _filter_run_rows(
     rows: list[dict],
     factor_version: str = ALL_FILTER,
@@ -144,6 +151,7 @@ def _filter_run_rows(
     smoothing_alpha: str = ALL_FILTER,
     hold_threshold: str = ALL_FILTER,
     weighting_method: str = ALL_FILTER,
+    midmonth_augmentation: str = ALL_FILTER,
 ) -> list[dict]:
     """Filter run rows while preserving the database display order."""
     return [
@@ -155,6 +163,10 @@ def _filter_run_rows(
         and (smoothing_alpha == ALL_FILTER or _smoothing_alpha(row) == smoothing_alpha)
         and (hold_threshold == ALL_FILTER or _hold_threshold(row) == hold_threshold)
         and (weighting_method == ALL_FILTER or _weighting_method(row) == weighting_method)
+        and (
+            midmonth_augmentation == ALL_FILTER
+            or _midmonth_augmentation(row) == midmonth_augmentation
+        )
     ]
 
 
@@ -295,6 +307,11 @@ def main(
         list(WEIGHTING_METHODS),
         index=0,
     )
+    selected_midmonth = filter_panel.selectbox(
+        "依 midmonth-augmented 篩選",
+        list(MIDMONTH_AUGMENTATION),
+        index=0,
+    )
     filtered_rows = _filter_run_rows(
         run_rows,
         selected_factor,
@@ -303,6 +320,7 @@ def main(
         selected_alpha,
         selected_hold,
         selected_weighting,
+        selected_midmonth,
     )
     if not filtered_rows:
         st.info("目前篩選條件下沒有已完成的研究 run。")
@@ -330,6 +348,7 @@ def main(
         comparison_alpha_options = [ALL_FILTER, *SMOOTHING_ALPHAS]
         comparison_hold_options = list(HOLD_THRESHOLDS)
         comparison_weighting_options = list(WEIGHTING_METHODS)
+        comparison_midmonth_options = list(MIDMONTH_AUGMENTATION)
         comparison_factor = filter_panel.selectbox(
             "比較：依 Factor Version 篩選",
             comparison_factor_options,
@@ -360,6 +379,11 @@ def main(
             comparison_weighting_options,
             index=comparison_weighting_options.index(selected_weighting),
         )
+        comparison_midmonth = filter_panel.selectbox(
+            "比較：依 midmonth-augmented 篩選",
+            comparison_midmonth_options,
+            index=comparison_midmonth_options.index(selected_midmonth),
+        )
         comparison_rows = _filter_run_rows(
             run_rows,
             comparison_factor,
@@ -368,6 +392,7 @@ def main(
             comparison_alpha,
             comparison_hold,
             comparison_weighting,
+            comparison_midmonth,
         )
         comparison_rows = [
             row for row in comparison_rows if row["run_id"] != run_id and _oos_year(row)
