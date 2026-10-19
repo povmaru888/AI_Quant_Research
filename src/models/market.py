@@ -50,6 +50,22 @@ class Financial(Base):
     source: Mapped[str] = mapped_column(String, nullable=False)
 
 
+class MonthlyRevenue(Base):
+    """PIT monthly revenue keyed by company and revenue period."""
+
+    __tablename__ = "monthly_revenues"
+
+    stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.stock_id"), primary_key=True)
+    revenue_year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    revenue_month: Mapped[int] = mapped_column(Integer, primary_key=True)
+    revenue: Mapped[float] = mapped_column(Float, nullable=False)
+    source_date: Mapped[str] = mapped_column(String, nullable=False)
+    create_time: Mapped[str | None] = mapped_column(String, nullable=True)
+    available_date: Mapped[str] = mapped_column(String, nullable=False)
+    country: Mapped[str | None] = mapped_column(String, nullable=True)
+    source: Mapped[str] = mapped_column(String, nullable=False)
+
+
 class Institutional(Base):
     """Daily institutional/chip snapshot; composite key (trade_date, stock_id)."""
 
