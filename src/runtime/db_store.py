@@ -63,7 +63,7 @@ from sqlalchemy.exc import OperationalError
 
 from database import create_engine_from_settings, session_scope
 from models.market import Financial, Institutional, MarketValue, MarketValueSyncDay, Price
-from models.research import Feature, Order, PipelineRun, PortfolioDaily, Prediction, Signal
+from models.research import Order, PipelineRun, PortfolioDaily, Prediction, Signal
 from models.security import Stock
 from repositories import artifacts as artifacts_repo
 from repositories import fundamentals as fundamentals_repo
@@ -119,6 +119,32 @@ def _annualized_volatility_60d(closes: Collection[float]) -> float:
         return float("nan")
     returns = np.diff(np.log(values))
     return float(np.std(returns, ddof=1) * np.sqrt(252))
+
+
+def _beta_60d(
+    dated_closes: Collection[tuple[str, float]], market_returns: dict[str, float]
+) -> float:
+    """Beta of 60 adjusted stock returns against aligned raw TAIEX returns."""
+    history = list(dated_closes)
+    required = VOLATILITY_LOOKBACK_DAYS + 1
+    if len(history) != required:
+        return float("nan")
+    dates = [str(day) for day, _ in history]
+    closes = np.asarray([close for _, close in history], dtype=float)
+    if not np.all(np.isfinite(closes)) or np.any(closes <= 0):
+        return float("nan")
+    stock_returns = np.diff(np.log(closes))
+    aligned_market = np.asarray(
+        [market_returns.get(day, np.nan) for day in dates[-VOLATILITY_LOOKBACK_DAYS:]],
+        dtype=float,
+    )
+    if not np.all(np.isfinite(aligned_market)):
+        return float("nan")
+    market_variance = float(np.var(aligned_market, ddof=1))
+    if market_variance == 0:
+        return float("nan")
+    covariance = float(np.cov(stock_returns, aligned_market, ddof=1)[0, 1])
+    return covariance / market_variance
 
 _engine_cache: dict[str, Engine] = {}
 
@@ -948,6 +974,7 @@ class DbStore:
             if signal_date is None:
                 rows = []
                 raw_volatility: dict[str, float] = {}
+                raw_beta: dict[str, float] = {}
             else:
                 statement = (
                     select(
@@ -956,8 +983,6 @@ class DbStore:
                         Signal.rank,
                         Prediction.prediction_probability,
                         Signal.target_weight,
-                        Feature.volatility_60d,
-                        Feature.beta_60d,
                     )
                     .select_from(Signal)
                     .outerjoin(Stock, Stock.stock_id == Signal.stock_id)
@@ -970,14 +995,6 @@ class DbStore:
                             Prediction.model_version == summary["model_version"],
                         ),
                     )
-                    .outerjoin(
-                        Feature,
-                        and_(
-                            Feature.stock_id == Signal.stock_id,
-                            Feature.rebalance_date == Signal.signal_date,
-                            Feature.feature_version == summary["feature_version"],
-                        ),
-                    )
                     .where(
                         Signal.run_id == run_id,
                         Signal.signal_date == signal_date,
@@ -988,6 +1005,7 @@ class DbStore:
                 rows = session.execute(statement).all()
                 stock_ids = [str(row[0]) for row in rows]
                 raw_volatility = {}
+                raw_beta: dict[str, float] = {}
                 if stock_ids:
                     price_rows = session.execute(
                         select(Price.stock_id, Price.trade_date, Price.close_adj)
@@ -997,21 +1015,47 @@ class DbStore:
                         )
                         .order_by(Price.stock_id, Price.trade_date.desc())
                     ).all()
+                    taiex_rows = session.execute(
+                        select(Price.trade_date, Price.close)
+                        .where(Price.stock_id == TAIEX_ID, Price.trade_date <= signal_date)
+                        .order_by(Price.trade_date)
+                    ).all()
+                    market_returns: dict[str, float] = {}
+                    if taiex_rows:
+                        market_dates = [str(day) for day, _ in taiex_rows]
+                        market_closes = np.asarray(
+                            [close for _, close in taiex_rows], dtype=float
+                        )
+                        if (
+                            np.all(np.isfinite(market_closes))
+                            and np.all(market_closes > 0)
+                            and len(market_closes) >= 2
+                        ):
+                            market_returns = dict(
+                                zip(
+                                    market_dates[1:],
+                                    np.diff(np.log(market_closes)),
+                                    strict=True,
+                                )
+                            )
                     histories: dict[str, list[tuple[str, float | None]]] = {}
                     for stock_id, trade_date, close_adj in price_rows:
                         history = histories.setdefault(str(stock_id), [])
                         if len(history) < VOLATILITY_LOOKBACK_DAYS + 1:
                             history.append((str(trade_date), close_adj))
                     for stock_id, history in histories.items():
-                        ordered_closes = [close for _, close in reversed(history)]
+                        ordered_history = list(reversed(history))
+                        ordered_closes = [close for _, close in ordered_history]
                         raw_volatility[stock_id] = _annualized_volatility_60d(ordered_closes)
+                        raw_beta[stock_id] = _beta_60d(ordered_history, market_returns)
 
-        frame = pd.DataFrame(rows, columns=list(HOLDING_COLUMNS))
+        frame = pd.DataFrame(rows, columns=list(HOLDING_COLUMNS[:5]))
         if not frame.empty:
             frame["stock_id"] = frame["stock_id"].astype(str)
             frame["rank"] = pd.to_numeric(frame["rank"], errors="raise").astype(int)
             frame["weight"] = pd.to_numeric(frame["weight"], errors="raise").astype(float)
-            frame["volatility_60d"] = frame["stock_id"].map(raw_volatility)
+        frame["volatility_60d"] = frame["stock_id"].map(raw_volatility)
+        frame["beta_60d"] = frame["stock_id"].map(raw_beta)
         return frame.loc[:, list(HOLDING_COLUMNS)].reset_index(drop=True)
 
     def load_portfolio_risk(self, run_id: str, as_of: str) -> dict:

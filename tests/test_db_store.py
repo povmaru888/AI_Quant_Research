@@ -21,6 +21,7 @@ from runtime.db_store import (
     INITIAL_CAPITAL,
     DbStore,
     _annualized_volatility_60d,
+    _beta_60d,
     build_store,
     default_shares_path,
     load_shares_cache,
@@ -46,6 +47,20 @@ def test_annualized_volatility_60d_uses_adjusted_log_returns() -> None:
     expected = float(np.std(daily_log_returns, ddof=1) * np.sqrt(252))
     assert _annualized_volatility_60d(closes) == pytest.approx(expected)
     assert np.isnan(_annualized_volatility_60d(closes[:-1]))
+
+
+def test_beta_60d_uses_aligned_adjusted_stock_and_raw_market_returns() -> None:
+    dates = pd.bdate_range("2024-01-02", periods=61).strftime("%Y-%m-%d").tolist()
+    market_returns = np.linspace(-0.02, 0.02, 60)
+    stock_closes = 100.0 * np.exp(np.r_[0.0, np.cumsum(2.0 * market_returns)])
+    history = list(zip(dates, stock_closes, strict=True))
+
+    result = _beta_60d(
+        history,
+        dict(zip(dates[1:], market_returns, strict=True)),
+    )
+
+    assert result == pytest.approx(2.0)
 
 
 def _load_migration():
@@ -678,9 +693,72 @@ def test_load_holdings_uses_run_feature_version(
     # Dashboard volatility is recomputed from adjusted prices, never read from
     # the cross-sectionally standardized model feature stored above.
     assert pd.isna(holdings.loc["2330", "volatility_60d"])
-    assert holdings.loc["2330", "beta_60d"] == pytest.approx(1.1)
+    # Displayed risk values are recomputed from raw prices, never read from
+    # the cross-sectionally transformed feature table.
+    assert pd.isna(holdings.loc["2330", "beta_60d"])
     assert pd.isna(holdings.loc["0050", "volatility_60d"])
     assert pd.isna(holdings.loc["0050", "beta_60d"])
+
+
+def test_load_holdings_recomputes_beta_when_feature_rows_are_missing(
+    store: DbStore, sample_prices: pd.DataFrame
+) -> None:
+    from models.research import Signal
+
+    _seed_market(store, sample_prices)
+    signal_date = "2024-03-29"
+    run_id = "oos-missing-feature-beta"
+    store.start_run(
+        {
+            "run_id": run_id,
+            "data_end_date": signal_date,
+            "feature_version": "factor_v4",
+            "parameter_version": "p1",
+        }
+    )
+    days = pd.bdate_range(end=signal_date, periods=61)
+    market_returns = np.linspace(-0.015, 0.015, 60)
+    market_closes = 1000.0 * np.exp(np.r_[0.0, np.cumsum(market_returns)])
+    stock_closes = 100.0 * np.exp(np.r_[0.0, np.cumsum(1.5 * market_returns)])
+    rows = []
+    for stock_id, closes in (("TAIEX", market_closes), ("2330", stock_closes)):
+        for trade_date, close in zip(days.strftime("%Y-%m-%d"), closes, strict=True):
+            rows.append(
+                {
+                    "trade_date": trade_date,
+                    "stock_id": stock_id,
+                    "open": close,
+                    "high": close,
+                    "low": close,
+                    "close": close,
+                    "open_adj": close,
+                    "high_adj": close,
+                    "low_adj": close,
+                    "close_adj": close,
+                    "volume": 1_000.0,
+                    "traded_value": close * 1_000.0,
+                    "source": "test",
+                }
+            )
+    store.upsert_prices(pd.DataFrame(rows))
+    with store._scope() as session:  # noqa: SLF001 - test-only seeding hook.
+        session.add(
+            Signal(
+                signal_date=signal_date,
+                stock_id="2330",
+                run_id=run_id,
+                signal="BUY",
+                rank=1,
+                target_weight=0.5,
+            )
+        )
+
+    holdings = store.load_holdings(run_id, "2024-03")
+
+    assert holdings.loc[0, "beta_60d"] == pytest.approx(1.5)
+    assert holdings.loc[0, "volatility_60d"] == pytest.approx(
+        np.std(1.5 * market_returns, ddof=1) * np.sqrt(252)
+    )
 
 
 def test_load_holdings_scopes_signal_prediction_and_features_to_selected_month(
