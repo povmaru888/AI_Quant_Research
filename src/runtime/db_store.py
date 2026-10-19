@@ -909,39 +909,41 @@ class DbStore:
             ).all()
         return [str(row[0]) for row in rows]
 
+    @staticmethod
+    def _signal_date_for_as_of(session, run_id: str, as_of: str) -> str | None:
+        if not as_of:
+            return session.execute(
+                select(func.max(Signal.signal_date)).where(Signal.run_id == run_id)
+            ).scalar_one_or_none()
+        if len(as_of) == 7:
+            month_start = date.fromisoformat(f"{as_of}-01")
+            if month_start.strftime("%Y-%m") != as_of:
+                raise ValueError(f"invalid as_of month: {as_of!r}")
+            if month_start.month == 12:
+                month_end = date(month_start.year + 1, 1, 1)
+            else:
+                month_end = date(month_start.year, month_start.month + 1, 1)
+            return session.execute(
+                select(func.max(Signal.signal_date)).where(
+                    Signal.run_id == run_id,
+                    Signal.signal_date >= month_start.isoformat(),
+                    Signal.signal_date < month_end.isoformat(),
+                )
+            ).scalar_one_or_none()
+        requested_date = date.fromisoformat(as_of)
+        if requested_date.isoformat() != as_of:
+            raise ValueError(f"invalid as_of date: {as_of!r}")
+        return session.execute(
+            select(func.max(Signal.signal_date)).where(
+                Signal.run_id == run_id,
+                Signal.signal_date == as_of,
+            )
+        ).scalar_one_or_none()
+
     def load_holdings(self, run_id: str, as_of: str) -> pd.DataFrame:
         summary = self.load_run_summary(run_id)
-        signal_date = None
         with self._scope() as session:
-            if not as_of:
-                signal_date = session.execute(
-                    select(func.max(Signal.signal_date)).where(Signal.run_id == run_id)
-                ).scalar_one_or_none()
-            elif len(as_of) == 7:
-                month_start = date.fromisoformat(f"{as_of}-01")
-                if month_start.strftime("%Y-%m") != as_of:
-                    raise ValueError(f"invalid as_of month: {as_of!r}")
-                if month_start.month == 12:
-                    month_end = date(month_start.year + 1, 1, 1)
-                else:
-                    month_end = date(month_start.year, month_start.month + 1, 1)
-                signal_date = session.execute(
-                    select(func.max(Signal.signal_date)).where(
-                        Signal.run_id == run_id,
-                        Signal.signal_date >= month_start.isoformat(),
-                        Signal.signal_date < month_end.isoformat(),
-                    )
-                ).scalar_one_or_none()
-            else:
-                requested_date = date.fromisoformat(as_of)
-                if requested_date.isoformat() != as_of:
-                    raise ValueError(f"invalid as_of date: {as_of!r}")
-                signal_date = session.execute(
-                    select(func.max(Signal.signal_date)).where(
-                        Signal.run_id == run_id,
-                        Signal.signal_date == as_of,
-                    )
-                ).scalar_one_or_none()
+            signal_date = self._signal_date_for_as_of(session, run_id, as_of)
 
             if signal_date is None:
                 rows = []
@@ -1011,6 +1013,45 @@ class DbStore:
             frame["weight"] = pd.to_numeric(frame["weight"], errors="raise").astype(float)
             frame["volatility_60d"] = frame["stock_id"].map(raw_volatility)
         return frame.loc[:, list(HOLDING_COLUMNS)].reset_index(drop=True)
+
+    def load_portfolio_risk(self, run_id: str, as_of: str) -> dict:
+        """Load the MA regime and resulting exposure for one signal month."""
+        self.load_run_summary(run_id)  # unknown run raises here.
+        window = self._settings.portfolio.taiex_ma_window
+        with self._scope() as session:
+            signal_date = self._signal_date_for_as_of(session, run_id, as_of)
+            if signal_date is None:
+                return {
+                    "signal_date": None,
+                    "market_regime": None,
+                    "equity_exposure": None,
+                    "exposure_cap": float(
+                        self._settings.portfolio.reduced_exposure_below_ma
+                    ),
+                }
+            exposure = session.execute(
+                select(func.sum(Signal.target_weight)).where(
+                    Signal.run_id == run_id,
+                    Signal.signal_date == signal_date,
+                )
+            ).scalar_one_or_none()
+            taiex_rows = session.execute(
+                select(Price.close)
+                .where(Price.stock_id == TAIEX_ID, Price.trade_date <= signal_date)
+                .order_by(Price.trade_date.desc())
+                .limit(window)
+            ).all()
+
+        closes = [float(row[0]) for row in taiex_rows if row[0] is not None]
+        regime = None
+        if window > 0 and len(closes) == window and all(np.isfinite(closes)):
+            regime = "above_ma60" if closes[0] > sum(closes) / window else "below_ma60"
+        return {
+            "signal_date": str(signal_date),
+            "market_regime": regime,
+            "equity_exposure": float(exposure) if exposure is not None else None,
+            "exposure_cap": float(self._settings.portfolio.reduced_exposure_below_ma),
+        }
 
     def load_model_data(self, run_id: str) -> dict:
         self.load_run_summary(run_id)  # unknown run raises here.

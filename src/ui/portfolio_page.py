@@ -22,6 +22,8 @@ REQUIRED_COLUMNS: tuple[str, ...] = (
     "volatility_60d",
     "beta_60d",
 )
+BELOW_MA60 = "below_ma60"
+ABOVE_MA60 = "above_ma60"
 
 
 def summarize_holdings(holdings: pd.DataFrame) -> dict:
@@ -29,6 +31,49 @@ def summarize_holdings(holdings: pd.DataFrame) -> dict:
     _validate(holdings)
     weights = [float(w) for w in holdings["weight"].tolist()]
     return {"count": int(len(holdings)), "total_weight": float(sum(weights))}
+
+
+def _finite_number(value: object) -> float | None:
+    if value is None or isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if math.isfinite(number) else None
+
+
+def _render_ma60_status(st, risk_state: dict) -> None:
+    regime = risk_state.get("market_regime")
+    exposure = _finite_number(risk_state.get("equity_exposure"))
+    cap = _finite_number(risk_state.get("exposure_cap"))
+    signal_date = risk_state.get("signal_date") or "N/A"
+    if regime == ABOVE_MA60:
+        regime_text, regime_tone = "高於 MA60", "positive"
+        control_text, control_tone = "未觸發", "neutral"
+    elif regime == BELOW_MA60:
+        regime_text, regime_tone = "低於或等於 MA60", "negative"
+        if exposure is None or cap is None:
+            control_text, control_tone = "已觸發（曝險資料不足）", "neutral"
+        elif exposure <= cap + 1e-12:
+            control_text = f"已觸發（曝險 {exposure:.0%}／上限 {cap:.0%}）"
+            control_tone = "positive"
+        else:
+            control_text = f"超限（曝險 {exposure:.0%}／上限 {cap:.0%}）"
+            control_tone = "negative"
+    else:
+        regime_text, regime_tone = "資料不足", "neutral"
+        control_text, control_tone = "資料不足", "neutral"
+
+    markdown = getattr(st, "markdown", None)
+    if callable(markdown):
+        markdown(
+            f'<span class="status neutral">訊號日：{signal_date}</span> '
+            f'<span class="status {regime_tone}">TAIEX：{regime_text}</span> '
+            f'<span class="status {control_tone}">MA60 風控：{control_text}</span>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.write(f"訊號日：{signal_date}")
+        st.write(f"TAIEX：{regime_text}")
+        st.write(f"MA60 風控：{control_text}")
 
 
 def render_portfolio(holdings: pd.DataFrame | dict, st=None) -> None:
@@ -47,8 +92,17 @@ def render_portfolio(holdings: pd.DataFrame | dict, st=None) -> None:
         st.subheader(f"比較 OOS：{holdings.get('comparison_run_id', '')}")
         render_portfolio(holdings.get("comparison"), st)
         return
+    risk_state = None
+    if isinstance(holdings, dict):
+        risk_state = holdings.get("risk_state")
+        holdings = holdings.get("holdings")
     if not isinstance(holdings, pd.DataFrame):
         raise ValueError("invalid holdings: must be a DataFrame")
+    if risk_state is not None and not isinstance(risk_state, dict):
+        raise ValueError("invalid portfolio risk: must be a dict")
+    st.header("投組")
+    if isinstance(risk_state, dict):
+        _render_ma60_status(st, risk_state)
     if holdings.empty:
         st.info("此截止日無持股。")
         return
@@ -58,7 +112,6 @@ def render_portfolio(holdings: pd.DataFrame | dict, st=None) -> None:
         st.info("此截止日無持股。")
         return
     ordered = active.sort_values("rank", ignore_index=True)
-    st.header("投組")
     summary = summarize_holdings(ordered)
     columns_fn = getattr(st, "columns", None)
     if callable(columns_fn):

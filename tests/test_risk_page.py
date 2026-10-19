@@ -38,8 +38,7 @@ def test_render_full_risk_data() -> None:
     writes = [c[1] for c in st.calls if c[0] == "write"]
     assert "股票曝險：0.6000" in writes
     assert "實際波動：N/A" in writes
-    assert "TAIEX regime：below_ma60" in writes
-    assert "MA60 曝險限制：符合" in writes
+    assert not any("TAIEX" in value or "MA60" in value for value in writes)
 
 
 def test_ma60_verdict_branches() -> None:
@@ -49,14 +48,6 @@ def test_ma60_verdict_branches() -> None:
     assert check_ma60_exposure(None, 0.6, 0.6) == "資料不足"
     assert check_ma60_exposure("below_ma60", None, 0.6) == "資料不足"
     assert check_ma60_exposure("below_ma60", 0.6, float("nan")) == "資料不足"
-
-    st = FakeSt()
-    render_risk(_risk_data(equity_exposure=0.9, exposure_cap=0.6), st=st)
-    assert "MA60 曝險限制：超限" in [c[1] for c in st.calls if c[0] == "write"]
-
-    st = FakeSt()
-    render_risk(_risk_data(market_regime="above_ma60", equity_exposure=1.0), st=st)
-    assert "MA60 曝險限制：不適用" in [c[1] for c in st.calls if c[0] == "write"]
 
     st = FakeSt()
     render_risk({}, st=st)

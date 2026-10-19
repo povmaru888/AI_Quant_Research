@@ -12,6 +12,7 @@ from services.dashboard_service import (
     get_holdings,
     get_model_data,
     get_overview,
+    get_portfolio,
     get_risk,
 )
 
@@ -61,6 +62,15 @@ class FakeStore:
             }
         )
         return frame.set_index("stock_id")
+
+    def load_portfolio_risk(self, run_id: str, as_of: str) -> dict:
+        assert run_id and isinstance(as_of, str)
+        return {
+            "signal_date": "2024-02-29",
+            "market_regime": "below_ma60",
+            "equity_exposure": 0.5,
+            "exposure_cap": 0.5,
+        }
 
     def load_model_data(self, run_id: str) -> dict:
         return {
@@ -114,6 +124,18 @@ def test_get_holdings_columns_and_index() -> None:
 
 def test_get_holding_months_deduplicates_dates() -> None:
     assert get_holding_months("run-001", FakeStore()) == ["2024-01", "2024-02"]
+
+
+def test_get_portfolio_combines_holdings_and_same_month_risk() -> None:
+    payload = get_portfolio("run-001", "2024-02", FakeStore())
+
+    assert payload["holdings"]["stock_id"].tolist() == ["2330", "2317"]
+    assert payload["risk_state"] == {
+        "signal_date": "2024-02-29",
+        "market_regime": "below_ma60",
+        "equity_exposure": 0.5,
+        "exposure_cap": 0.5,
+    }
 
 
 def test_get_holdings_accepts_month_and_rejects_bad_month() -> None:

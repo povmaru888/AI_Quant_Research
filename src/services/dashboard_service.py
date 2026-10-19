@@ -43,6 +43,13 @@ HOLDING_COLUMNS: tuple[str, ...] = (
     "beta_60d",
 )
 
+PORTFOLIO_RISK_KEYS: tuple[str, ...] = (
+    "signal_date",
+    "market_regime",
+    "equity_exposure",
+    "exposure_cap",
+)
+
 MODEL_KEYS: tuple[str, ...] = (
     "shap_top",
     "feature_importance",
@@ -68,6 +75,7 @@ class DashboardStore(Protocol):
     def load_run_summary(self, run_id: str) -> dict: ...
     def list_holding_dates(self, run_id: str) -> list[str]: ...
     def load_holdings(self, run_id: str, as_of: str) -> pd.DataFrame: ...
+    def load_portfolio_risk(self, run_id: str, as_of: str) -> dict: ...
     def load_model_data(self, run_id: str) -> dict: ...
     def load_risk(self, run_id: str) -> dict: ...
     def load_comparison(self, run_id: str) -> pd.DataFrame: ...
@@ -141,6 +149,21 @@ def get_holdings(run_id: str, as_of: str, store: DashboardStore) -> pd.DataFrame
     if missing:
         raise ValueError(f"invalid holdings: missing columns {missing}")
     return frame.loc[:, list(HOLDING_COLUMNS)].reset_index(drop=True)
+
+
+def get_portfolio(run_id: str, as_of: str, store: DashboardStore) -> dict:
+    """Return holdings and the MA60 control state for the same signal month."""
+    holdings = get_holdings(run_id, as_of, store)
+    risk_state = store.load_portfolio_risk(run_id, as_of)
+    if not isinstance(risk_state, dict):
+        raise ValueError("invalid portfolio risk: must be a dict")
+    missing = [key for key in PORTFOLIO_RISK_KEYS if key not in risk_state]
+    if missing:
+        raise ValueError(f"invalid portfolio risk: missing {missing}")
+    return {
+        "holdings": holdings,
+        "risk_state": {key: _clean(risk_state[key]) for key in PORTFOLIO_RISK_KEYS},
+    }
 
 
 def get_holding_months(run_id: str, store: DashboardStore) -> list[str]:

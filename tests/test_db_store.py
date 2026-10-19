@@ -532,6 +532,64 @@ def test_load_risk_uses_latest_daily_exposure_then_latest_signal_fallback(
     assert store.load_risk(run_id)["equity_exposure"] == pytest.approx(0.4)
 
 
+def test_load_portfolio_risk_uses_selected_signal_month_and_taiex_ma60(
+    store: DbStore, sample_prices: pd.DataFrame
+) -> None:
+    from models.research import Signal
+
+    _seed_market(store, sample_prices)
+    run_id = "oos-monthly-portfolio-risk"
+    signal_date = "2024-07-31"
+    store.start_run(
+        {
+            "run_id": run_id,
+            "data_end_date": signal_date,
+            "feature_version": "factor_v4",
+            "parameter_version": "p1",
+        }
+    )
+    days = pd.bdate_range(end=signal_date, periods=60)
+    closes = np.linspace(160.0, 101.0, len(days))
+    taiex = pd.DataFrame(
+        {
+            "trade_date": days.strftime("%Y-%m-%d"),
+            "stock_id": "TAIEX",
+            "open": closes,
+            "high": closes,
+            "low": closes,
+            "close": closes,
+            "open_adj": closes,
+            "high_adj": closes,
+            "low_adj": closes,
+            "close_adj": closes,
+            "volume": 1.0,
+            "traded_value": closes,
+            "source": "test",
+        }
+    )
+    store.upsert_prices(taiex)
+    with store._scope() as session:  # noqa: SLF001 - test-only seeding hook.
+        session.add(
+            Signal(
+                signal_date=signal_date,
+                stock_id="2330",
+                run_id=run_id,
+                signal="BUY",
+                rank=1,
+                target_weight=0.5,
+            )
+        )
+
+    state = store.load_portfolio_risk(run_id, "2024-07")
+
+    assert state == {
+        "signal_date": signal_date,
+        "market_regime": "below_ma60",
+        "equity_exposure": pytest.approx(0.5),
+        "exposure_cap": pytest.approx(0.5),
+    }
+
+
 def test_model_data_reads_versioned_monthly_selection_artifact(
     store: DbStore, sample_prices: pd.DataFrame, monkeypatch
 ) -> None:

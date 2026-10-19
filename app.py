@@ -183,7 +183,7 @@ def _default_loaders(store=None) -> dict[str, Callable[[str, str], object]]:
     dashboard_store = store if store is not None else _dashboard_store()
     return {
         "總覽": lambda run_id, as_of: dashboard.get_overview(run_id, dashboard_store),
-        "投組": lambda run_id, as_of: dashboard.get_holdings(run_id, as_of, dashboard_store),
+        "投組": lambda run_id, as_of: dashboard.get_portfolio(run_id, as_of, dashboard_store),
         "模型": lambda run_id, as_of: dashboard.get_model_data(run_id, dashboard_store),
         "風險": lambda run_id, as_of: dashboard.get_risk(run_id, dashboard_store),
         "研究比較": lambda run_id, as_of: dashboard.get_comparison(run_id, dashboard_store),

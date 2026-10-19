@@ -82,6 +82,27 @@ def test_empty_frame_is_info_state() -> None:
     assert [c for c in st.calls if c[0] == "dataframe"] == []
 
 
+def test_render_shows_selected_month_ma60_control_state() -> None:
+    st = FakeSt()
+    render_portfolio(
+        {
+            "holdings": _holdings(),
+            "risk_state": {
+                "signal_date": "2024-07-31",
+                "market_regime": "below_ma60",
+                "equity_exposure": 0.5,
+                "exposure_cap": 0.5,
+            },
+        },
+        st=st,
+    )
+
+    writes = [call[1] for call in st.calls if call[0] == "write"]
+    assert "訊號日：2024-07-31" in writes
+    assert "TAIEX：低於或等於 MA60" in writes
+    assert "MA60 風控：已觸發（曝險 50%／上限 50%）" in writes
+
+
 def test_bad_inputs_rejected() -> None:
     st = FakeSt()
     with pytest.raises(ValueError, match="missing columns"):

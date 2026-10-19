@@ -1,8 +1,7 @@
 """P4-06: risk page (SDD 14.1 風險).
 
-Renders equity exposure, predicted/realized volatility, MDD, turnover,
-and the TAIEX regime from a ``get_risk`` dict, plus a verifiable MA60
-exposure check: below the MA60 the exposure must not exceed the cap.
+Renders equity exposure, predicted/realized volatility, MDD, and turnover.
+The month-specific TAIEX/MA60 control state is shown on the portfolio page.
 Missing values degrade to ``N/A`` / "insufficient data", never an
 exception.
 """
@@ -87,16 +86,6 @@ def render_risk(risk_data: dict, st=None) -> None:
                     f"{label}：目前 {format_value(primary.get(key), kind)}｜"
                     f"比較 {format_value(comparison.get(key), kind)}"
                 )
-        for label, payload in (("目前 OOS", primary), ("比較 OOS", comparison)):
-            verdict = check_ma60_exposure(
-                payload.get("market_regime"),
-                payload.get("equity_exposure"),
-                payload.get("exposure_cap"),
-            )
-            st.write(
-                f"{label}：市場狀態 {payload.get('market_regime') or 'N/A'}｜"
-                f"MA60 曝險限制 {verdict}"
-            )
         return
     st.header("風險")
 
@@ -126,21 +115,3 @@ def render_risk(risk_data: dict, st=None) -> None:
         _line("實際波動", risk_data.get("realized_volatility"))
         _line("MDD", risk_data.get("max_drawdown"))
         _line("Turnover", risk_data.get("turnover"))
-    regime = risk_data.get("market_regime")
-    regime_text = regime if isinstance(regime, str) and regime else "N/A"
-    verdict = check_ma60_exposure(
-        regime, risk_data.get("equity_exposure"), risk_data.get("exposure_cap")
-    )
-    if callable(markdown):
-        regime_tone = "negative" if regime == BELOW_MA60 else "positive" if regime else "neutral"
-        verdict_tone = (
-            "positive" if verdict == "符合" else "negative" if verdict == "超限" else "neutral"
-        )
-        markdown(
-            f'<span class="status {regime_tone}">TAIEX：{regime_text}</span>'
-            f'<span class="status {verdict_tone}">MA60 曝險限制：{verdict}</span>',
-            unsafe_allow_html=True,
-        )
-    else:
-        st.write(f"TAIEX regime：{regime_text}")
-        st.write(f"MA60 曝險限制：{verdict}")
