@@ -13,6 +13,7 @@ import app
 from app import (
     ALL_FILTER,
     PAGES,
+    _factor_guide_requested,
     _filter_run_rows,
     _hold_threshold,
     _midmonth_augmentation,
@@ -98,6 +99,15 @@ def test_available_runs_keeps_only_succeeded() -> None:
     store = FakeStore(_run_ids("succeeded", "failed", "started", "succeeded"))
     assert available_runs(store) == ["run-00", "run-03"]
     assert store.seen == ["succeeded"]
+
+
+def test_factor_guide_query_view() -> None:
+    class QuerySt:
+        query_params = {"view": "factors"}
+
+    assert _factor_guide_requested(QuerySt()) is True
+    QuerySt.query_params = {"view": "other"}
+    assert _factor_guide_requested(QuerySt()) is False
 
 
 def test_available_runs_filters_even_if_store_ignores_arg() -> None:

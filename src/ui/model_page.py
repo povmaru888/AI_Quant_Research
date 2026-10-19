@@ -22,6 +22,7 @@ SELECTION_DISCLAIMER = (
     "以下指標只衡量模型選股排序，不代表實際持股或投資組合損益；"
     "報酬以訊號日收盤至第 20 個個股交易日的還原收盤價計算。"
 )
+FACTOR_GUIDE_LINK = "?view=factors"
 
 _TOP_N = 10
 _SELECTION_SUMMARIES = (
@@ -274,6 +275,18 @@ def _show_dataframe(st, frame: pd.DataFrame) -> None:
         st.dataframe(frame)
 
 
+def _render_factor_guide_link(st) -> None:
+    markup = (
+        '<div style="font-size:0.88rem;margin-top:0.65rem">'
+        f'<a href="{FACTOR_GUIDE_LINK}" target="_self">特徵因子解說 →</a></div>'
+    )
+    markdown = getattr(st, "markdown", None)
+    if callable(markdown):
+        markdown(markup, unsafe_allow_html=True)
+    else:
+        st.caption(f"特徵因子解說：{FACTOR_GUIDE_LINK}")
+
+
 def _render_model_comparison(model_data: dict, st, theme: DashboardTheme) -> None:
     primary = model_data.get("primary")
     comparison = model_data.get("comparison")
@@ -384,6 +397,7 @@ def _render_model_comparison(model_data: dict, st, theme: DashboardTheme) -> Non
     if dist_figure.data:
         dist_figure.update_layout(title="預測分數分布比較", barmode="overlay")
         _show_chart(st, apply_plotly_theme(dist_figure, theme))
+    _render_factor_guide_link(st)
 
 
 def render_model(model_data: dict, st=None) -> None:
@@ -417,3 +431,4 @@ def render_model(model_data: dict, st=None) -> None:
         _show_chart(st, prediction_dist_figure(model_data.get("prediction_dist"), theme))
     else:
         st.info("尚無預測分布資料。")
+    _render_factor_guide_link(st)

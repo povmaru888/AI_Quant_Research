@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from ui.model_page import (
+    FACTOR_GUIDE_LINK,
     SHAP_DISCLAIMER,
     monthly_ic_figure,
     prediction_dist_figure,
@@ -32,6 +33,9 @@ class FakeSt:
 
     def info(self, text) -> None:
         self.calls.append(("info", text))
+
+    def markdown(self, text, **kwargs) -> None:
+        self.calls.append(("markdown", text, kwargs))
 
     def dataframe(self, frame) -> None:
         self.calls.append(("dataframe", frame))
@@ -97,6 +101,9 @@ def test_render_full_model_data() -> None:
         "Excess Return",
         "Top-Bottom Spread",
     ]
+    links = [call for call in st.calls if call[0] == "markdown"]
+    assert links[-1][1].find(FACTOR_GUIDE_LINK) >= 0
+    assert "特徵因子解說" in links[-1][1]
 
 
 def test_disclaimer_without_data() -> None:

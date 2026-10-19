@@ -209,6 +209,19 @@ def _dashboard_store():
     return build_store(_default_load_settings())
 
 
+def _factor_guide_requested(st) -> bool:
+    query = getattr(st, "query_params", None)
+    if query is None:
+        return False
+    try:
+        value = query.get("view")
+    except (AttributeError, TypeError):
+        return False
+    if isinstance(value, list):
+        value = value[-1] if value else None
+    return value == "factors"
+
+
 def main(
     st=None,
     store: RunStore | None = None,
@@ -248,6 +261,11 @@ def main(
         markdown(dashboard_css(theme), unsafe_allow_html=True)
     else:
         st.title("台股多因子量化交易")
+    if _factor_guide_requested(st):
+        from ui.factor_guide_page import render_factor_guide
+
+        render_factor_guide(st)
+        return
     try:
         (load_settings_fn or _default_load_settings)()
     except Exception as exc:
