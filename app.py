@@ -26,6 +26,7 @@ PAGE_ICONS = {"總覽": "◉", "投組": "▦", "模型": "⌁", "風險": "△"
 CONFIG_PATH = Path(__file__).resolve().parent / "config.yaml"
 SUCCEEDED = "succeeded"
 ALL_FILTER = "全部"
+DEFAULT_FACTOR_VERSION = "factor_v4"
 UNKNOWN_FACTOR_VERSION = "未標示"
 METHODS: tuple[str, ...] = ("binary", "logistic", "rank", "huber", "LightGBM")
 SMOOTHING_ALPHAS: tuple[str, ...] = ("1.0", "0.8", "0.6", "0.4")
@@ -293,10 +294,14 @@ def main(
     expander = getattr(st.sidebar, "expander", None)
     if callable(expander):
         filter_panel = expander("研究篩選", expanded=True)
+    factor_options = [ALL_FILTER, *factor_versions]
+    default_factor = (
+        DEFAULT_FACTOR_VERSION if DEFAULT_FACTOR_VERSION in factor_versions else ALL_FILTER
+    )
     selected_factor = filter_panel.selectbox(
         "依 Factor Version 篩選",
-        [ALL_FILTER, *factor_versions],
-        index=0,
+        factor_options,
+        index=factor_options.index(default_factor),
     )
     selected_year = filter_panel.selectbox(
         "依 OOS 年份篩選",

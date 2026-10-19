@@ -320,6 +320,44 @@ def test_main_defaults_smoothing_alpha_filter_to_one() -> None:
     assert run_select[2] == ["oos-2024-factor-v4-pseudohuber-NOrefit"]
 
 
+def test_main_defaults_factor_version_filter_to_v4_when_available() -> None:
+    st = FakeSt()
+    rows = [
+        {
+            "run_id": "oos-2024-factor-v4-pseudohuber-NOrefit",
+            "status": "succeeded",
+            "feature_version": "factor_v4",
+        },
+        {
+            "run_id": "oos-2024-b2",
+            "status": "succeeded",
+            "feature_version": "factor_adj_v2",
+        },
+    ]
+
+    main(
+        st=st,
+        store=FakeStore(rows),
+        load_settings_fn=lambda: object(),
+        loaders={"總覽": lambda _run_id, _as_of: "payload"},
+        pages={"總覽": lambda _st, _payload: None},
+    )
+
+    factor_select = next(
+        call
+        for call in st.calls
+        if call[0] == "selectbox" and call[1] == "依 Factor Version 篩選"
+    )
+    assert factor_select[2] == ["全部", "factor_adj_v2", "factor_v4"]
+    assert factor_select[2][factor_select[3]["index"]] == "factor_v4"
+    run_select = next(
+        call
+        for call in st.calls
+        if call[0] == "selectbox" and call[1] == "研究 run（僅顯示已完成）"
+    )
+    assert run_select[2] == ["oos-2024-factor-v4-pseudohuber-NOrefit"]
+
+
 def test_main_happy_path_dispatches_first_page() -> None:
     st = FakeSt()
     store = FakeStore(_run_ids("succeeded", "failed", "succeeded"))
