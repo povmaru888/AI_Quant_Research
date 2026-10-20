@@ -155,21 +155,25 @@ def test_market_value_daily_upsert_replaces_corrected_snapshot_atomically(tmp_pa
             assert upsert_market_value_day(session, day, original) == 2
             session.commit()
         with Session(engine) as session:
-            assert upsert_market_value_day(
-                session, day, original, source_content_hash=canonical_day_hash(original)
-            ) == 2
+            assert (
+                upsert_market_value_day(
+                    session, day, original, source_content_hash=canonical_day_hash(original)
+                )
+                == 2
+            )
             session.commit()
             rows = session.execute(
-                select(MarketValue.stock_id, MarketValue.market_value).where(
-                    MarketValue.trade_date == day.isoformat()
-                ).order_by(MarketValue.stock_id)
+                select(MarketValue.stock_id, MarketValue.market_value)
+                .where(MarketValue.trade_date == day.isoformat())
+                .order_by(MarketValue.stock_id)
             ).all()
             assert rows == [("2317", 200.0), ("2330", 100.0)]
         corrected_hash = "a" * 64
         with Session(engine) as session:
-            assert upsert_market_value_day(
-                session, day, corrected, source_content_hash=corrected_hash
-            ) == 1
+            assert (
+                upsert_market_value_day(session, day, corrected, source_content_hash=corrected_hash)
+                == 1
+            )
             session.commit()
             rows = session.execute(
                 select(MarketValue.stock_id, MarketValue.market_value).where(
@@ -188,9 +192,7 @@ def test_market_value_daily_upsert_replaces_corrected_snapshot_atomically(tmp_pa
             mark_sync_day(session, day.isoformat(), "non_trading")
             session.commit()
             assert load_market_value_snapshot(session, day).empty
-            assert load_completed_days(session, "2024-12-01", "2024-12-31") == {
-                day.isoformat()
-            }
+            assert load_completed_days(session, "2024-12-01", "2024-12-31") == {day.isoformat()}
             non_trading_marker = session.get(MarketValueSyncDay, day.isoformat())
             assert non_trading_marker is not None
             assert non_trading_marker.status == "non_trading"

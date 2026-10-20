@@ -170,7 +170,9 @@ def test_build_universe_rejects_bad_inputs(settings) -> None:
     with pytest.raises(ValueError, match="as_of"):
         build_universe(prices, stocks, "2019-12-31", settings, "run-001")
     with pytest.raises(ValueError, match="missing columns"):
-        build_universe(prices.drop(columns=["close_adj"]), stocks, date(2019, 12, 31), settings, "r")
+        build_universe(
+            prices.drop(columns=["close_adj"]), stocks, date(2019, 12, 31), settings, "r"
+        )
 
 
 def test_build_universe_uses_nominal_tradable_price_and_requires_adjusted_close(settings) -> None:

@@ -6,7 +6,6 @@ import importlib.util
 import sqlite3
 from pathlib import Path
 
-
 _MIGRATIONS_DIR = Path(__file__).resolve().parents[1] / "database/migrations/versions"
 
 

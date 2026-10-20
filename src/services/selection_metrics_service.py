@@ -81,9 +81,7 @@ def build_selection_metrics(
     pred = predictions.loc[:, list(_PREDICTION_COLUMNS)].copy()
     pred["prediction_date"] = pred["prediction_date"].astype(str)
     pred["stock_id"] = pred["stock_id"].astype(str)
-    pred["prediction_probability"] = pd.to_numeric(
-        pred["prediction_probability"], errors="coerce"
-    )
+    pred["prediction_probability"] = pd.to_numeric(pred["prediction_probability"], errors="coerce")
     pred["rank"] = pd.to_numeric(pred["rank"], errors="coerce")
     if pred.duplicated(["prediction_date", "stock_id"]).any():
         raise ValueError("invalid predictions: duplicate prediction_date and stock_id")
@@ -181,13 +179,8 @@ def build_selection_metrics(
             )
         monthly_rows.append(row_payload)
 
-    summary = {
-        key: _monthly_average(monthly_rows, field)
-        for key, field in _SUMMARY_FIELDS.items()
-    }
-    summary["ic_positive_month_ratio"] = _positive_month_ratio(
-        monthly_rows, "continuous_rank_ic"
-    )
+    summary = {key: _monthly_average(monthly_rows, field) for key, field in _SUMMARY_FIELDS.items()}
+    summary["ic_positive_month_ratio"] = _positive_month_ratio(monthly_rows, "continuous_rank_ic")
     summary["top15_excess_positive_month_ratio"] = _positive_month_ratio(
         monthly_rows, "top15_excess_return"
     )
@@ -212,7 +205,10 @@ def validate_selection_metrics(
     minimum_eligible: int = 2 * SELECTION_TOP_N,
 ) -> list[str]:
     """Return preflight errors; an empty list means the payload is batch-ready."""
-    if not isinstance(payload, dict) or payload.get("schema_version") != SELECTION_METRICS_SCHEMA_VERSION:
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema_version") != SELECTION_METRICS_SCHEMA_VERSION
+    ):
         return ["unsupported or invalid selection metrics payload"]
     monthly = payload.get("monthly")
     if not isinstance(monthly, list) or not monthly:

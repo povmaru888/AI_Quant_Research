@@ -49,6 +49,11 @@ def test_triggers_and_steps() -> None:
         "missing secret scan step"
     )
     assert any(".env" in blob for blob in blobs), "missing sensitive file guard step"
+    assert data["jobs"]["security"]["runs-on"] == "ubuntu-24.04"
+    assert any("actions/checkout@v5" in blob for blob in blobs)
+    assert any("actions/setup-python@v6" in blob for blob in blobs)
+    assert any("pip-audit==2.10.1" in blob for blob in blobs)
+    assert any("git ls-files" in blob for blob in blobs)
 
 
 def test_no_secret_echo() -> None:
@@ -72,6 +77,7 @@ def test_sensitive_file_fixtures_trip_rule() -> None:
     assert SENSITIVE_FILE_PATTERN.search(".env")
     assert SENSITIVE_FILE_PATTERN.search("config/.env")
     assert SENSITIVE_FILE_PATTERN.search("database/quant.db")
+    assert SENSITIVE_FILE_PATTERN.search("data/cache.sqlite")
     assert SENSITIVE_FILE_PATTERN.search("data/cache.sqlite3")
     assert not SENSITIVE_FILE_PATTERN.search(".env.example")
     assert not SENSITIVE_FILE_PATTERN.search("config.yaml")

@@ -160,9 +160,7 @@ def test_load_prices_exposes_adjusted_values_without_raw_fallback(
                 ),
             )
         with session_scope(engine) as session:
-            loaded = load_prices(
-                session, [first["stock_id"]], date(2000, 1, 1), date(2030, 1, 1)
-            )
+            loaded = load_prices(session, [first["stock_id"]], date(2000, 1, 1), date(2030, 1, 1))
         assert loaded.iloc[0]["close_adj"] == 10.5
         assert loaded.iloc[0]["close"] == first["close"]
         assert loaded["close_adj"].isna().sum() == len(loaded) - 1

@@ -57,10 +57,21 @@ def test_prepared_oos_data_matches_adjusted_returns_and_bounds_symbols(
         for day, close in zip(("2020-01-30", "2020-01-31", "2020-02-03"), closes, strict=True):
             raw = 10.0 if not np.isfinite(close) else close
             rows.append(
-                {"trade_date": day, "stock_id": stock_id, "open": raw, "high": raw,
-                 "low": raw, "close": raw, "open_adj": raw, "high_adj": raw,
-                 "low_adj": raw, "close_adj": close, "volume": 1.0,
-                 "traded_value": raw, "source": "test"}
+                {
+                    "trade_date": day,
+                    "stock_id": stock_id,
+                    "open": raw,
+                    "high": raw,
+                    "low": raw,
+                    "close": raw,
+                    "open_adj": raw,
+                    "high_adj": raw,
+                    "low_adj": raw,
+                    "close_adj": close,
+                    "volume": 1.0,
+                    "traded_value": raw,
+                    "source": "test",
+                }
             )
     for day, close in zip(
         ("2020-01-30", "2020-01-31", "2020-02-03", "2020-02-04"),
@@ -68,17 +79,39 @@ def test_prepared_oos_data_matches_adjusted_returns_and_bounds_symbols(
         strict=True,
     ):
         rows.append(
-            {"trade_date": day, "stock_id": "TAIEX", "open": close, "high": close,
-             "low": close, "close": close, "open_adj": None, "high_adj": None,
-             "low_adj": None, "close_adj": None, "volume": 1.0,
-             "traded_value": close, "source": "test"}
+            {
+                "trade_date": day,
+                "stock_id": "TAIEX",
+                "open": close,
+                "high": close,
+                "low": close,
+                "close": close,
+                "open_adj": None,
+                "high_adj": None,
+                "low_adj": None,
+                "close_adj": None,
+                "volume": 1.0,
+                "traded_value": close,
+                "source": "test",
+            }
         )
     for day, close in (("2020-01-30", 30.0), ("2020-02-03", 33.0)):
         rows.append(
-            {"trade_date": day, "stock_id": "C", "open": close, "high": close,
-             "low": close, "close": close, "open_adj": close, "high_adj": close,
-             "low_adj": close, "close_adj": close, "volume": 1.0,
-             "traded_value": close, "source": "test"}
+            {
+                "trade_date": day,
+                "stock_id": "C",
+                "open": close,
+                "high": close,
+                "low": close,
+                "close": close,
+                "open_adj": close,
+                "high_adj": close,
+                "low_adj": close,
+                "close_adj": close,
+                "volume": 1.0,
+                "traded_value": close,
+                "source": "test",
+            }
         )
     store.upsert_prices(pd.DataFrame(rows))
 
@@ -112,29 +145,71 @@ def test_compact_backtest_prices_ignores_only_suspension_placeholders(
     store = DbStore(engine, db_settings)
     rows = pd.DataFrame(
         [
-            {"trade_date": "2020-01-02", "stock_id": "A", "open": 10.0, "high": 10.0,
-             "low": 10.0, "close": 10.0, "open_adj": None, "high_adj": None,
-             "low_adj": None, "close_adj": None, "volume": 0.0, "traded_value": 0.0,
-             "source": "test"},
-            {"trade_date": "2020-01-03", "stock_id": "A", "open": 10.0, "high": 10.0,
-             "low": 10.0, "close": 10.0, "open_adj": None, "high_adj": None,
-             "low_adj": None, "close_adj": None, "volume": 1.0, "traded_value": 10.0,
-             "source": "test"},
-            {"trade_date": "2020-01-02", "stock_id": "TAIEX", "open": 100.0,
-             "high": 100.0, "low": 100.0, "close": 100.0, "open_adj": None,
-             "high_adj": None, "low_adj": None, "close_adj": None, "volume": 1.0,
-             "traded_value": 100.0, "source": "test"},
-            {"trade_date": "2020-01-03", "stock_id": "TAIEX", "open": 101.0,
-             "high": 101.0, "low": 101.0, "close": 101.0, "open_adj": None,
-             "high_adj": None, "low_adj": None, "close_adj": None, "volume": 1.0,
-             "traded_value": 101.0, "source": "test"},
+            {
+                "trade_date": "2020-01-02",
+                "stock_id": "A",
+                "open": 10.0,
+                "high": 10.0,
+                "low": 10.0,
+                "close": 10.0,
+                "open_adj": None,
+                "high_adj": None,
+                "low_adj": None,
+                "close_adj": None,
+                "volume": 0.0,
+                "traded_value": 0.0,
+                "source": "test",
+            },
+            {
+                "trade_date": "2020-01-03",
+                "stock_id": "A",
+                "open": 10.0,
+                "high": 10.0,
+                "low": 10.0,
+                "close": 10.0,
+                "open_adj": None,
+                "high_adj": None,
+                "low_adj": None,
+                "close_adj": None,
+                "volume": 1.0,
+                "traded_value": 10.0,
+                "source": "test",
+            },
+            {
+                "trade_date": "2020-01-02",
+                "stock_id": "TAIEX",
+                "open": 100.0,
+                "high": 100.0,
+                "low": 100.0,
+                "close": 100.0,
+                "open_adj": None,
+                "high_adj": None,
+                "low_adj": None,
+                "close_adj": None,
+                "volume": 1.0,
+                "traded_value": 100.0,
+                "source": "test",
+            },
+            {
+                "trade_date": "2020-01-03",
+                "stock_id": "TAIEX",
+                "open": 101.0,
+                "high": 101.0,
+                "low": 101.0,
+                "close": 101.0,
+                "open_adj": None,
+                "high_adj": None,
+                "low_adj": None,
+                "close_adj": None,
+                "volume": 1.0,
+                "traded_value": 101.0,
+                "source": "test",
+            },
         ]
     )
     store.upsert_prices(rows)
 
-    compact = compact_backtest_prices(
-        engine, ["A"], start="2020-01-02", end="2020-01-03"
-    )
+    compact = compact_backtest_prices(engine, ["A"], start="2020-01-02", end="2020-01-03")
     stock_rows = compact.loc[compact["stock_id"] == "A"]
     assert stock_rows["trade_date"].tolist() == ["2020-01-03"]
     assert compact.loc[compact["stock_id"] == "TAIEX", "trade_date"].tolist() == [

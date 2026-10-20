@@ -10,10 +10,10 @@ CI_PATH = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.ym
 
 # YAML 1.1 parses the `on:` key as boolean True; accept both forms.
 ORDERED_MARKERS = (
-    "actions/checkout",
-    "setup-python",
-    "pip install -r requirements.txt",
-    "pip check",
+    "actions/checkout@v5",
+    "setup-python@v6",
+    "python -m pip install -r requirements.txt",
+    "python -m pip check",
     "ruff check",
     "ruff format --check",
     "pytest",
@@ -70,3 +70,7 @@ def test_python_pinned() -> None:
             assert str(step["with"]["python-version"]) == "3.12"
             return
     raise AssertionError("missing setup-python step")
+
+
+def test_runner_is_stable_ubuntu_release() -> None:
+    assert _load_workflow()["jobs"]["ci"]["runs-on"] == "ubuntu-24.04"

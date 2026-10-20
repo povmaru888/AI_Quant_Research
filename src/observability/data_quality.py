@@ -225,10 +225,7 @@ def _check_adjusted_prices(as_of: str, session: Session) -> list[DataQualityIssu
         & Price.close_adj.is_not(None)
     )
     positive = (
-        (Price.open_adj > 0)
-        & (Price.high_adj > 0)
-        & (Price.low_adj > 0)
-        & (Price.close_adj > 0)
+        (Price.open_adj > 0) & (Price.high_adj > 0) & (Price.low_adj > 0) & (Price.close_adj > 0)
     )
     latest_adjusted = session.execute(
         select(func.max(Price.trade_date)).where(*scope, complete, positive)
@@ -255,8 +252,7 @@ def _check_adjusted_prices(as_of: str, session: Session) -> list[DataQualityIssu
                 check="missing_adjusted_prices",
                 severity="warning",
                 detail=(
-                    f"{missing_count} non-index bars lack complete adjusted OHLC "
-                    f"on/before {as_of}"
+                    f"{missing_count} non-index bars lack complete adjusted OHLC on/before {as_of}"
                 ),
                 count=missing_count,
             )

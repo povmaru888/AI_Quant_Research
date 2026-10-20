@@ -146,6 +146,7 @@ def _beta_60d(
     covariance = float(np.cov(stock_returns, aligned_market, ddof=1)[0, 1])
     return covariance / market_variance
 
+
 _engine_cache: dict[str, Engine] = {}
 
 
@@ -1023,9 +1024,7 @@ class DbStore:
                     market_returns: dict[str, float] = {}
                     if taiex_rows:
                         market_dates = [str(day) for day, _ in taiex_rows]
-                        market_closes = np.asarray(
-                            [close for _, close in taiex_rows], dtype=float
-                        )
+                        market_closes = np.asarray([close for _, close in taiex_rows], dtype=float)
                         if (
                             np.all(np.isfinite(market_closes))
                             and np.all(market_closes > 0)
@@ -1069,9 +1068,7 @@ class DbStore:
                     "signal_date": None,
                     "market_regime": None,
                     "equity_exposure": None,
-                    "exposure_cap": float(
-                        self._settings.portfolio.reduced_exposure_below_ma
-                    ),
+                    "exposure_cap": float(self._settings.portfolio.reduced_exposure_below_ma),
                 }
             exposure = session.execute(
                 select(func.sum(Signal.target_weight)).where(

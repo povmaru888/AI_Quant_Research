@@ -177,9 +177,7 @@ def test_save_signals_keeps_same_date_stock_for_two_runs(
             save_signals(session, second)
         with session_scope(engine) as session:
             rows = session.execute(
-                select(Signal.run_id, Signal.signal, Signal.target_weight).order_by(
-                    Signal.run_id
-                )
+                select(Signal.run_id, Signal.signal, Signal.target_weight).order_by(Signal.run_id)
             ).all()
         assert rows == [("run-001", "BUY", 0.1), ("run-002", "HOLD", 0.2)]
     finally:

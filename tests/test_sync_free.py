@@ -127,10 +127,21 @@ def test_default_sync_fetches_adjusted_despite_legacy_fundamental_skip(
         "fetch_institutional",
         lambda *a, **k: pytest.fail("legacy gate should skip only institutional"),
     )
-    assert sync_free.main(
-        [
-            "--start", "2020-01-01", "--end", "2020-01-31", "--symbols", "2330",
-            "--skip-file", str(skip_path), "--delay", "0",
-        ]
-    ) == expected_code
+    assert (
+        sync_free.main(
+            [
+                "--start",
+                "2020-01-01",
+                "--end",
+                "2020-01-31",
+                "--symbols",
+                "2330",
+                "--skip-file",
+                str(skip_path),
+                "--delay",
+                "0",
+            ]
+        )
+        == expected_code
+    )
     assert calls == ["raw", "adjusted", expected_status]

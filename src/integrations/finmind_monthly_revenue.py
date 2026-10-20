@@ -41,10 +41,7 @@ def fetch_monthly_revenues(
     raw["revenue_year"] = pd.to_numeric(raw["revenue_year"], errors="coerce")
     raw["revenue_month"] = pd.to_numeric(raw["revenue_month"], errors="coerce")
     create = (
-        raw.get("create_time", pd.Series("", index=raw.index))
-        .fillna("")
-        .astype(str)
-        .str.strip()
+        raw.get("create_time", pd.Series("", index=raw.index)).fillna("").astype(str).str.strip()
     )
     parsed_create = pd.to_datetime(create.where(create.ne("")), errors="coerce")
     available = []

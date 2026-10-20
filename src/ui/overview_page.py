@@ -283,8 +283,7 @@ def render_overview(snapshot: dict, st=None) -> None:
             if key in comparable_metrics:
                 market_value = _format_metric(reference_metrics.get(key))
                 st.write(
-                    f"{label}: {primary_label} {strategy_value}｜"
-                    f"{reference_label} {market_value}"
+                    f"{label}: {primary_label} {strategy_value}｜{reference_label} {market_value}"
                 )
             else:
                 st.write(f"{label}: {strategy_value}")
@@ -304,13 +303,9 @@ def render_overview(snapshot: dict, st=None) -> None:
     )
     if _clean_points(equity):
         show_chart(
-            equity_curve_figure(
-                equity, benchmark_equity, theme, primary_label, reference_label
-            )
+            equity_curve_figure(equity, benchmark_equity, theme, primary_label, reference_label)
         )
-        show_chart(
-            drawdown_figure(equity, benchmark_equity, theme, primary_label, reference_label)
-        )
+        show_chart(drawdown_figure(equity, benchmark_equity, theme, primary_label, reference_label))
     else:
         st.info("尚無淨值曲線資料。")
     monthly = snapshot.get("monthly_returns")

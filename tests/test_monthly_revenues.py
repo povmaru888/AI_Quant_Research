@@ -63,9 +63,7 @@ def test_finmind_monthly_revenue_uses_observed_time_and_conservative_fallback() 
             "create_time": None,
         },
     ]
-    frame = fetch_monthly_revenues(
-        "2020-01-01", "2026-10-16", "token", requester=_requester(rows)
-    )
+    frame = fetch_monthly_revenues("2020-01-01", "2026-10-16", "token", requester=_requester(rows))
 
     assert frame[["revenue_year", "revenue_month"]].values.tolist() == [[2020, 1], [2026, 8]]
     assert frame["available_date"].tolist() == ["2020-02-11", "2026-09-09"]

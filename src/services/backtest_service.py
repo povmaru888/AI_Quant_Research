@@ -118,8 +118,13 @@ def run_backtest(
                     f"invalid prices: missing raw/adjusted open for {stock_id} on {day}"
                 )
             cash, charged = _apply_fill(
-                fill, holdings, adjusted_units, cash, charged,
-                float(raw_open), float(adj_open),
+                fill,
+                holdings,
+                adjusted_units,
+                cash,
+                charged,
+                float(raw_open),
+                float(adj_open),
             )
             fill_cursor += 1
 
@@ -185,9 +190,7 @@ def _apply_fill(
         if outlay > cash:
             return cash, charged  # skipped whole: no partial fills.
         holdings[stock_id] = holdings.get(stock_id, 0) + shares
-        adjusted_units[stock_id] = (
-            adjusted_units.get(stock_id, 0.0) + shares * raw_open / adj_open
-        )
+        adjusted_units[stock_id] = adjusted_units.get(stock_id, 0.0) + shares * raw_open / adj_open
         return cash - outlay, charged + cost
     if side == "SELL":
         held = holdings.get(stock_id, 0)

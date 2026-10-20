@@ -47,9 +47,7 @@ def test_logistic_rejects_invalid_features(bad: str) -> None:
     else:
         valid_x = valid_x[["b", "a"]]
     with pytest.raises(ValueError):
-        train_logistic(
-            train_x, train_y, valid_x, valid_y, "logit", "factor_v4", "fixed", "run"
-        )
+        train_logistic(train_x, train_y, valid_x, valid_y, "logit", "factor_v4", "fixed", "run")
 
 
 def test_logistic_rejects_single_class_labels() -> None:
@@ -90,6 +88,4 @@ def test_logistic_fails_on_convergence_warning(monkeypatch) -> None:
 
     monkeypatch.setattr(LogisticRegression, "fit", fit_with_warning)
     with pytest.raises(RuntimeError, match="converge"):
-        train_logistic(
-            train_x, train_y, valid_x, valid_y, "logit", "factor_v4", "fixed", "run"
-        )
+        train_logistic(train_x, train_y, valid_x, valid_y, "logit", "factor_v4", "fixed", "run")

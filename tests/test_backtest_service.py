@@ -152,22 +152,51 @@ def test_run_backtest_uses_adjusted_total_return_across_dividend(settings) -> No
         [
             # A 20% cash distribution makes raw prices fall from 100 to 80.
             # Back-adjusted prices correctly stay at 80 across the event.
-            {"stock_id": "A", "trade_date": "2020-01-02", "open": 100.0,
-             "open_adj": 80.0, "close_adj": 80.0},
-            {"stock_id": "A", "trade_date": "2020-01-03", "open": 80.0,
-             "open_adj": 80.0, "close_adj": 80.0},
-            {"stock_id": "A", "trade_date": "2020-01-06", "open": 80.0,
-             "open_adj": 80.0, "close_adj": 80.0},
+            {
+                "stock_id": "A",
+                "trade_date": "2020-01-02",
+                "open": 100.0,
+                "open_adj": 80.0,
+                "close_adj": 80.0,
+            },
+            {
+                "stock_id": "A",
+                "trade_date": "2020-01-03",
+                "open": 80.0,
+                "open_adj": 80.0,
+                "close_adj": 80.0,
+            },
+            {
+                "stock_id": "A",
+                "trade_date": "2020-01-06",
+                "open": 80.0,
+                "open_adj": 80.0,
+                "close_adj": 80.0,
+            },
         ]
     )
     orders = pd.DataFrame(
         [
-            {"order_id": "buy", "signal_date": "2020-01-01", "execution_date": "2020-01-02",
-             "stock_id": "A", "side": "BUY", "target_shares": 100,
-             "executed_price": 100.0, "total_cost": 0.0},
-            {"order_id": "sell", "signal_date": "2020-01-03", "execution_date": "2020-01-06",
-             "stock_id": "A", "side": "SELL", "target_shares": 0,
-             "executed_price": 80.0, "total_cost": 0.0},
+            {
+                "order_id": "buy",
+                "signal_date": "2020-01-01",
+                "execution_date": "2020-01-02",
+                "stock_id": "A",
+                "side": "BUY",
+                "target_shares": 100,
+                "executed_price": 100.0,
+                "total_cost": 0.0,
+            },
+            {
+                "order_id": "sell",
+                "signal_date": "2020-01-03",
+                "execution_date": "2020-01-06",
+                "stock_id": "A",
+                "side": "SELL",
+                "target_shares": 0,
+                "executed_price": 80.0,
+                "total_cost": 0.0,
+            },
         ]
     )
     result = run_backtest(orders, prices, 20_000.0, settings, "r")
@@ -179,25 +208,61 @@ def test_run_backtest_uses_adjusted_total_return_across_dividend(settings) -> No
 def test_run_backtest_partial_sell_preserves_adjusted_wealth(settings) -> None:
     prices = pd.DataFrame(
         [
-            {"stock_id": "A", "trade_date": "2020-01-02", "open": 100.0,
-             "open_adj": 80.0, "close_adj": 80.0},
-            {"stock_id": "A", "trade_date": "2020-01-03", "open": 80.0,
-             "open_adj": 80.0, "close_adj": 80.0},
-            {"stock_id": "A", "trade_date": "2020-01-06", "open": 80.0,
-             "open_adj": 80.0, "close_adj": 80.0},
+            {
+                "stock_id": "A",
+                "trade_date": "2020-01-02",
+                "open": 100.0,
+                "open_adj": 80.0,
+                "close_adj": 80.0,
+            },
+            {
+                "stock_id": "A",
+                "trade_date": "2020-01-03",
+                "open": 80.0,
+                "open_adj": 80.0,
+                "close_adj": 80.0,
+            },
+            {
+                "stock_id": "A",
+                "trade_date": "2020-01-06",
+                "open": 80.0,
+                "open_adj": 80.0,
+                "close_adj": 80.0,
+            },
         ]
     )
     orders = pd.DataFrame(
         [
-            {"order_id": "buy", "signal_date": "2020-01-01", "execution_date": "2020-01-02",
-             "stock_id": "A", "side": "BUY", "target_shares": 100,
-             "executed_price": 100.0, "total_cost": 0.0},
-            {"order_id": "half", "signal_date": "2020-01-02", "execution_date": "2020-01-03",
-             "stock_id": "A", "side": "SELL", "target_shares": 50,
-             "executed_price": 80.0, "total_cost": 0.0},
-            {"order_id": "rest", "signal_date": "2020-01-03", "execution_date": "2020-01-06",
-             "stock_id": "A", "side": "SELL", "target_shares": 0,
-             "executed_price": 80.0, "total_cost": 0.0},
+            {
+                "order_id": "buy",
+                "signal_date": "2020-01-01",
+                "execution_date": "2020-01-02",
+                "stock_id": "A",
+                "side": "BUY",
+                "target_shares": 100,
+                "executed_price": 100.0,
+                "total_cost": 0.0,
+            },
+            {
+                "order_id": "half",
+                "signal_date": "2020-01-02",
+                "execution_date": "2020-01-03",
+                "stock_id": "A",
+                "side": "SELL",
+                "target_shares": 50,
+                "executed_price": 80.0,
+                "total_cost": 0.0,
+            },
+            {
+                "order_id": "rest",
+                "signal_date": "2020-01-03",
+                "execution_date": "2020-01-06",
+                "stock_id": "A",
+                "side": "SELL",
+                "target_shares": 0,
+                "executed_price": 80.0,
+                "total_cost": 0.0,
+            },
         ]
     )
     result = run_backtest(orders, prices, 20_000.0, settings, "r")

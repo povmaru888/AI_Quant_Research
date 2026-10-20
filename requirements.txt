@@ -14,7 +14,7 @@ requests==2.34.2
 ruff==0.16.8
 scikit-learn==1.9.1
 shap==0.52.0
-shioaji==1.7.5
+shioaji==1.7.8
 SQLAlchemy==2.0.54
 streamlit==1.64.0
 vectorbt==1.1.0

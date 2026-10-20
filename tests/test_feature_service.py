@@ -260,9 +260,7 @@ def test_pit_v3_uses_market_value_and_issued_shares() -> None:
         market_value=4500.0,
         issued_shares=5.0,
     ).drop(columns="float_shares")
-    out = calculate_raw_features(
-        snapshot, _full_prices(), AS_OF, _financials(), _institutional()
-    )
+    out = calculate_raw_features(snapshot, _full_prices(), AS_OF, _financials(), _institutional())
     assert list(out.columns) == ["stock_id", *FACTOR_COLUMNS_PIT_V3, "missing_flag"]
     row = out.iloc[0]
     assert row["earnings_yield"] == pytest.approx(10e9 / 4500.0)

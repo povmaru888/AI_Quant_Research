@@ -6,7 +6,6 @@ import importlib.util
 import sqlite3
 from pathlib import Path
 
-
 MIGRATION_PATH = (
     Path(__file__).resolve().parents[1]
     / "database"
@@ -115,9 +114,7 @@ def test_upgrade_preserves_rows_and_allows_same_keys_in_another_run(
     temp_db_conn.execute(
         "INSERT INTO predictions VALUES ('2020-01-31','2330','run-002','xgb',0.4,2)"
     )
-    temp_db_conn.execute(
-        "INSERT INTO signals VALUES ('2020-01-31','2330','run-002','HOLD',2,0.2)"
-    )
+    temp_db_conn.execute("INSERT INTO signals VALUES ('2020-01-31','2330','run-002','HOLD',2,0.2)")
     temp_db_conn.execute(
         "INSERT INTO portfolio_daily VALUES "
         "('2020-02-03','run-002',900000,0.5,NULL,NULL,-0.1,10000,9900,'bear')"

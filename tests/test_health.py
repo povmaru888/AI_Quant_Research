@@ -13,11 +13,11 @@ import pytest
 from database import create_engine_from_settings, session_scope
 from models.market import Price
 from models.research import Feature
-from tests.migration_utils import apply_pit_v3_feature_migration
 from models.security import Stock
 from observability.health import get_system_health
 from repositories.runs import finish_run, start_run
 from settings import Settings
+from tests.migration_utils import apply_pit_v3_feature_migration
 
 MIGRATION_PATH = (
     Path(__file__).resolve().parents[1]

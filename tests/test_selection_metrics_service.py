@@ -98,7 +98,7 @@ def test_t_plus_21_and_raw_close_do_not_change_diagnostics() -> None:
     changed = prices.copy()
     changed["close"] *= 7
     # The last adjusted close is beyond t+20 for every stock with a full window.
-    for stock_id, group in changed.groupby("stock_id"):
+    for _stock_id, group in changed.groupby("stock_id"):
         ordered = group.sort_values("trade_date", kind="mergesort")
         if len(ordered) > 21:
             changed.loc[ordered.index[21], "close_adj"] = 123_456.0

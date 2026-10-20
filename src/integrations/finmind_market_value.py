@@ -73,11 +73,17 @@ def fetch_market_value_day(
     except ValueError as exc:
         raise FinMindMarketValueError(f"FinMind returned invalid JSON for {parsed_day}") from exc
     if not isinstance(payload, dict) or payload.get("status") not in ("success", 200, "200"):
-        message = payload.get("msg", "unexpected response") if isinstance(payload, dict) else "invalid response"
+        message = (
+            payload.get("msg", "unexpected response")
+            if isinstance(payload, dict)
+            else "invalid response"
+        )
         raise FinMindMarketValueError(f"FinMind response error for {parsed_day}: {message}")
     raw_rows = payload.get("data")
     if not isinstance(raw_rows, list) or not raw_rows:
-        raise FinMindMarketValueError(f"FinMind returned no market values for trading day {parsed_day}")
+        raise FinMindMarketValueError(
+            f"FinMind returned no market values for trading day {parsed_day}"
+        )
     frame = pd.DataFrame(raw_rows)
     required = {"date", "stock_id", "market_value"}
     missing = sorted(required - set(frame.columns))
@@ -94,14 +100,19 @@ def fetch_market_value_day(
     frame["stock_id"] = frame["stock_id"].astype(str)
     frame["market_value"] = pd.to_numeric(frame["market_value"], errors="coerce")
     if frame["trade_date"].ne(parsed_day).any():
-        raise FinMindMarketValueError(f"FinMind response contains an unexpected date for {parsed_day}")
+        raise FinMindMarketValueError(
+            f"FinMind response contains an unexpected date for {parsed_day}"
+        )
     if frame["stock_id"].isna().any() or frame["stock_id"].duplicated().any():
-        raise FinMindMarketValueError(f"FinMind response contains missing/duplicate IDs for {parsed_day}")
+        raise FinMindMarketValueError(
+            f"FinMind response contains missing/duplicate IDs for {parsed_day}"
+        )
     invalid = frame["market_value"].isna() | frame["market_value"].lt(0)
     if invalid.any():
         examples = frame.loc[invalid, ["stock_id", "market_value"]].head(3).to_dict("records")
         raise FinMindMarketValueError(
-            f"FinMind response contains {int(invalid.sum())} missing/negative values for {parsed_day}; "
+            "FinMind response contains "
+            f"{int(invalid.sum())} missing/negative values for {parsed_day}; "
             f"examples={examples}"
         )
     source_hash = canonical_day_hash(frame)

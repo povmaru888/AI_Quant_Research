@@ -92,9 +92,7 @@ def test_equal_allocation_can_share_inverse_volatility_exposure(settings) -> Non
     settings = _wide_settings(settings)
     returns = _returns({"A": rng.normal(0, 0.005, 60), "B": rng.normal(0, 0.03, 60)})
     base = _target({"A": "BUY", "B": "BUY"})
-    inverse = apply_risk_controls(
-        base, returns, _taiex(100, 160), SIGNAL, settings
-    )
+    inverse = apply_risk_controls(base, returns, _taiex(100, 160), SIGNAL, settings)
     equal = apply_risk_controls(
         base,
         returns,

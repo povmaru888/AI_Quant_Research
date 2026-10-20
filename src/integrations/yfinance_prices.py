@@ -261,7 +261,9 @@ def fetch_bulk_prices_with_adjustments(
         raise ValueError(f"invalid batch: {batch!r}")
     codes = list(dict.fromkeys(s for s in symbols if isinstance(s, str) and s.strip()))
     mapping = dict(market_map) if market_map else {}
-    tickers = {stock_id: to_yahoo_symbol(stock_id, mapping.get(stock_id, "TWSE")) for stock_id in codes}
+    tickers = {
+        stock_id: to_yahoo_symbol(stock_id, mapping.get(stock_id, "TWSE")) for stock_id in codes
+    }
     raw_frames: list[pd.DataFrame] = []
     adjusted_frames: list[pd.DataFrame] = []
     failed: list[str] = []
@@ -279,7 +281,11 @@ def fetch_bulk_prices_with_adjustments(
         for stock_id, ticker in tickers.items():
             if ticker not in chunk:
                 continue
-            sub = raw if len(chunk) == 1 and not isinstance(raw.columns, pd.MultiIndex) else _slice_ticker(raw, ticker)
+            sub = (
+                raw
+                if len(chunk) == 1 and not isinstance(raw.columns, pd.MultiIndex)
+                else _slice_ticker(raw, ticker)
+            )
             raw_frame = _standardize(sub, stock_id)
             adjusted_frame = _standardize_adjusted(sub, stock_id)
             if raw_frame.empty or adjusted_frame.empty:
@@ -288,7 +294,9 @@ def fetch_bulk_prices_with_adjustments(
             raw_frames.append(raw_frame)
             adjusted_frames.append(adjusted_frame)
     raw_result = (
-        pd.concat(raw_frames, ignore_index=True).sort_values(["stock_id", "trade_date"]).reset_index(drop=True)
+        pd.concat(raw_frames, ignore_index=True)
+        .sort_values(["stock_id", "trade_date"])
+        .reset_index(drop=True)
         if raw_frames
         else pd.DataFrame(columns=list(PRICE_COLUMNS))
     )

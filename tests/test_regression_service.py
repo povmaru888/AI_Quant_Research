@@ -39,8 +39,17 @@ def test_pseudo_huber_regressor_scores_for_existing_prediction_contract() -> Non
     valid_x = pd.DataFrame({"f": rng.normal(size=12)})
     valid_y = pd.Series(rng.normal(scale=0.05, size=12))
     artifact, booster = train_xgb_regressor(
-        train_x, train_y, [6] * 4, valid_x, valid_y, [6] * 2,
-        {"n_estimators": 5}, "regressor", "factor_v4", "p", "r",
+        train_x,
+        train_y,
+        [6] * 4,
+        valid_x,
+        valid_y,
+        [6] * 2,
+        {"n_estimators": 5},
+        "regressor",
+        "factor_v4",
+        "p",
+        "r",
     )
     assert isinstance(booster, XGBRegressor)
     features = valid_x.copy()

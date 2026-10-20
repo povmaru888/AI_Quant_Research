@@ -46,9 +46,7 @@ def test_batch_artifact_write_rolls_back_every_run_on_failure(monkeypatch) -> No
     payload = {"schema_version": 2, "monthly": [], "summary": {}}
 
     with pytest.raises(RuntimeError, match="injected write failure"):
-        recalculate_selection_metrics._save_all(
-            engine, {"run-a": payload, "run-b": payload}
-        )
+        recalculate_selection_metrics._save_all(engine, {"run-a": payload, "run-b": payload})
 
     with session_scope(engine) as session:
         assert session.execute(select(RunArtifact.run_id)).scalars().all() == []

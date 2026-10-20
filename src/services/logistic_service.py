@@ -103,9 +103,7 @@ def predict_logistic(
     matrix = _matrix("features", features, artifact.feature_columns)
     if tuple(model.feature_names_in_) != artifact.feature_columns:
         raise ValueError("invalid model: feature columns do not match artifact")
-    probability = model.predict_proba(
-        pd.DataFrame(matrix, columns=artifact.feature_columns)
-    )[:, 1]
+    probability = model.predict_proba(pd.DataFrame(matrix, columns=artifact.feature_columns))[:, 1]
     out = pd.DataFrame(
         {"stock_id": features["stock_id"].astype(str).tolist(), "probability": probability}
     )

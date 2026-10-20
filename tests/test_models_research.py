@@ -21,9 +21,9 @@ from models.research import (
     Prediction,
     Signal,
 )
-from tests.migration_utils import apply_pit_v3_feature_migration
 from models.security import Stock
 from settings import Settings
+from tests.migration_utils import apply_pit_v3_feature_migration
 
 MIGRATION_PATH = (
     Path(__file__).resolve().parents[1]

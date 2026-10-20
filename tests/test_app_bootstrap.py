@@ -264,9 +264,7 @@ def test_midmonth_augmentation_classifies_run_and_model_names() -> None:
         {"run_id": "custom", "model_version": "xgb_midmonth_augmented"},
     ]
     assert [_midmonth_augmentation(row) for row in rows] == ["無", "有", "有"]
-    assert [
-        row["run_id"] for row in _filter_run_rows(rows, midmonth_augmentation="有")
-    ] == [
+    assert [row["run_id"] for row in _filter_run_rows(rows, midmonth_augmentation="有")] == [
         "oos-2024-factor-v4-pseudohuber-midmonth-augmented-NOrefit",
         "custom",
     ]
@@ -344,9 +342,7 @@ def test_main_defaults_factor_version_filter_to_v4_when_available() -> None:
     )
 
     factor_select = next(
-        call
-        for call in st.calls
-        if call[0] == "selectbox" and call[1] == "依 Factor Version 篩選"
+        call for call in st.calls if call[0] == "selectbox" and call[1] == "依 Factor Version 篩選"
     )
     assert factor_select[2] == ["全部", "factor_adj_v2", "factor_v4"]
     assert factor_select[2][factor_select[3]["index"]] == "factor_v4"

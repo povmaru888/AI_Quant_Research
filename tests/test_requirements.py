@@ -92,3 +92,10 @@ def test_pip_check_clean() -> None:
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_shioaji_runtime_smoke() -> None:
+    import shioaji as sj
+
+    api = sj.Shioaji(simulation=True)
+    assert api is not None

@@ -94,7 +94,10 @@ def main(argv: list[str] | None = None, store_factory=None, research_fn=None) ->
         return 1
     try:
         result = run_monthly_rebalance(
-            signal_date, settings, store, run_id=args.run_id,
+            signal_date,
+            settings,
+            store,
+            run_id=args.run_id,
             research_fn=research_fn or run_research,
         )
     except ValueError as exc:

@@ -80,9 +80,7 @@ class Prediction(Base):
 
     prediction_date: Mapped[str] = mapped_column(String, primary_key=True)
     stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.stock_id"), primary_key=True)
-    run_id: Mapped[str] = mapped_column(
-        ForeignKey("pipeline_runs.run_id"), primary_key=True
-    )
+    run_id: Mapped[str] = mapped_column(ForeignKey("pipeline_runs.run_id"), primary_key=True)
     model_version: Mapped[str] = mapped_column(String, primary_key=True)
     prediction_probability: Mapped[float] = mapped_column(Float, nullable=False)
     rank: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -95,9 +93,7 @@ class Signal(Base):
 
     signal_date: Mapped[str] = mapped_column(String, primary_key=True)
     stock_id: Mapped[str] = mapped_column(ForeignKey("stocks.stock_id"), primary_key=True)
-    run_id: Mapped[str] = mapped_column(
-        ForeignKey("pipeline_runs.run_id"), primary_key=True
-    )
+    run_id: Mapped[str] = mapped_column(ForeignKey("pipeline_runs.run_id"), primary_key=True)
     signal: Mapped[str] = mapped_column(String, nullable=False)
     rank: Mapped[int] = mapped_column(Integer, nullable=False)
     target_weight: Mapped[float] = mapped_column(Float, nullable=False)
@@ -142,9 +138,7 @@ class PortfolioDaily(Base):
     __tablename__ = "portfolio_daily"
 
     trade_date: Mapped[str] = mapped_column(String, primary_key=True)
-    run_id: Mapped[str] = mapped_column(
-        ForeignKey("pipeline_runs.run_id"), primary_key=True
-    )
+    run_id: Mapped[str] = mapped_column(ForeignKey("pipeline_runs.run_id"), primary_key=True)
     nav: Mapped[float] = mapped_column(Float, nullable=False)
     equity_exposure: Mapped[float] = mapped_column(Float, nullable=False)
     forecast_volatility: Mapped[float | None] = mapped_column(Float, nullable=True)

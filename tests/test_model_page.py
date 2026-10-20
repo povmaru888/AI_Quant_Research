@@ -83,17 +83,11 @@ def test_render_full_model_data() -> None:
     assert [trace.name for trace in charts[0].data] == ["Continuous Rank IC"]
     assert charts[1].data[0].name == "SHAP"
     assert charts[2].data[0].name == "probability"
-    shown = next(
-        c[1]
-        for c in st.calls
-        if c[0] == "dataframe" and "feature" in c[1].columns
-    )
+    shown = next(c[1] for c in st.calls if c[0] == "dataframe" and "feature" in c[1].columns)
     assert shown["feature"].tolist() == ["momentum_20d", "roe"]
     assert len([c for c in st.calls if c[0] == "metric"]) == 6
     selection_table = next(
-        c[1]
-        for c in st.calls
-        if c[0] == "dataframe" and "Excess Return" in c[1].columns
+        c[1] for c in st.calls if c[0] == "dataframe" and "Excess Return" in c[1].columns
     )
     assert list(selection_table.columns) == [
         "月份",

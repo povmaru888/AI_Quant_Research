@@ -12,13 +12,13 @@ import pytest
 from database import create_engine_from_settings, session_scope
 from models.market import Financial, Institutional, Price
 from models.research import Feature
-from tests.migration_utils import apply_pit_v3_feature_migration
 from models.security import Stock
 from observability.data_quality import (
     assert_no_blockers,
     audit_data_quality,
 )
 from settings import Settings
+from tests.migration_utils import apply_pit_v3_feature_migration
 
 MIGRATION_PATH = (
     Path(__file__).resolve().parents[1]

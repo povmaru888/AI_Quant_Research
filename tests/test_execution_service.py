@@ -46,9 +46,7 @@ def _holdings() -> pd.DataFrame:
 
 def _investable_value(portfolio_value: float, settings) -> float:
     cfg = settings.execution
-    return portfolio_value / (
-        (1.0 + cfg.slippage_rate_per_side) * (1.0 + cfg.broker_fee_rate)
-    )
+    return portfolio_value / ((1.0 + cfg.slippage_rate_per_side) * (1.0 + cfg.broker_fee_rate))
 
 
 def test_executed_price_and_cost_math(settings) -> None:
@@ -88,9 +86,7 @@ def test_create_orders_buy_and_sell(settings) -> None:
 def test_create_orders_executes_at_raw_open_when_adjusted_differs(settings) -> None:
     opens = _opens()
     opens["open_adj"] = [80.0, 40.0]
-    orders = create_orders(
-        _target(), SIGNAL, opens, _holdings(), 1_000_000.0, settings, "run-001"
-    )
+    orders = create_orders(_target(), SIGNAL, opens, _holdings(), 1_000_000.0, settings, "run-001")
     buy = orders.set_index("stock_id").loc["A"]
     assert buy["target_shares"] == round(0.6 * _investable_value(1_000_000.0, settings) / 100.0)
     assert buy["executed_price"] == pytest.approx(100.0 * 1.001)

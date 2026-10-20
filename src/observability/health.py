@@ -38,10 +38,7 @@ def get_system_health(session: Session, today: str | None = None) -> dict:
         select(func.max(Price.trade_date)).where(Price.stock_id != _TAIEX_ID)
     ).scalar()
     valid_adjusted = (
-        (Price.open_adj > 0)
-        & (Price.high_adj > 0)
-        & (Price.low_adj > 0)
-        & (Price.close_adj > 0)
+        (Price.open_adj > 0) & (Price.high_adj > 0) & (Price.low_adj > 0) & (Price.close_adj > 0)
     )
     latest_adjusted_day = session.execute(
         select(func.max(Price.trade_date)).where(Price.stock_id != _TAIEX_ID, valid_adjusted)

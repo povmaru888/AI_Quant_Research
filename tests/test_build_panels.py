@@ -18,9 +18,7 @@ def _panel() -> dict:
         "universe": ["2330"],
         "feature_columns": ["momentum_20d"],
         "feature_version": "factor_adj_v2",
-        "frame": pd.DataFrame(
-            {"stock_id": ["2330"], "missing_flag": [0], "momentum_20d": [0.25]}
-        ),
+        "frame": pd.DataFrame({"stock_id": ["2330"], "missing_flag": [0], "momentum_20d": [0.25]}),
         "labels": pd.Series(
             [1], index=pd.Index(["2330"], name="stock_id"), name="2024-12-31", dtype="int64"
         ),

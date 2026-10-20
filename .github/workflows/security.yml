@@ -9,23 +9,23 @@ on:
 
 jobs:
   security:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Dependency audit (pip-audit)
         run: |
-          pip install pip-audit
-          pip-audit -r requirements.txt
+          python -m pip install pip-audit==2.10.1
+          python -m pip_audit -r requirements.txt
 
       - name: Secret scan (suspected values)
         run: |
@@ -58,15 +58,11 @@ jobs:
 
       - name: Sensitive file guard (.env, SQLite databases)
         run: |
-          if git rev-parse --verify HEAD >/dev/null 2>&1; then
-            CHANGED=$(git diff --name-only HEAD $(git rev-list --max-parents=0 HEAD | head -1) -- 2>/dev/null || git ls-files)
-          else
-            CHANGED=$(git ls-files 2>/dev/null || echo "")
-          fi
-          echo "$CHANGED" | python -c "
+          git ls-files | python -c "
           import re, sys
           names = [line.strip() for line in sys.stdin if line.strip()]
-          bad = [n for n in names if re.search(r'(^|/)\.env$|\.db$|\.sqlite3?\$', n) and not n.endswith('.example')]
+          pattern = re.compile(r'(^|/)\.env$|\.(db|sqlite|sqlite3)$')
+          bad = [n for n in names if pattern.search(n) and not n.endswith('.example')]
           if bad:
               sys.exit('refusing sensitive files: ' + ', '.join(bad))
           print('file guard clean')

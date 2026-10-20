@@ -16,8 +16,17 @@ def test_rank_pairwise_uses_month_groups_and_predicts_scores() -> None:
     valid_x = pd.DataFrame({"f": rng.normal(size=12)})
     valid_y = pd.Series(([0, 0, 0, 1, 1, 1] * 2), dtype=int)
     artifact, booster = train_xgb_ranker(
-        train_x, train_y, [6] * 4, valid_x, valid_y, [6] * 2,
-        {"n_estimators": 5}, "ranker", "factor_v4", "p", "r",
+        train_x,
+        train_y,
+        [6] * 4,
+        valid_x,
+        valid_y,
+        [6] * 2,
+        {"n_estimators": 5},
+        "ranker",
+        "factor_v4",
+        "p",
+        "r",
     )
     assert isinstance(booster, XGBRanker)
     features = valid_x.copy()

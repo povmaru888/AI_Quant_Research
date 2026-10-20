@@ -79,9 +79,7 @@ def build_pit_snapshot(
         for column in [c for c in institutional.columns if c != "stock_id"]:
             snapshot[column] = pd.NA
 
-    day_close = prices.loc[
-        prices["trade_date"] == as_of_str, ["stock_id", "close", "close_adj"]
-    ]
+    day_close = prices.loc[prices["trade_date"] == as_of_str, ["stock_id", "close", "close_adj"]]
     snapshot = snapshot.merge(day_close, on="stock_id", how="left")
     if market_values is not None:
         day_market_value = market_values.loc[

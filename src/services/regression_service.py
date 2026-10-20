@@ -141,8 +141,17 @@ def optimize_xgb_regressor(
         params = _suggest(trial)
         params["random_state"] = settings.project.random_state
         artifact, booster = train_xgb_regressor(
-            train_x, train_y, train_groups, valid_x, valid_y, valid_groups, params,
-            model_version, feature_version, parameter_version, run_id,
+            train_x,
+            train_y,
+            train_groups,
+            valid_x,
+            valid_y,
+            valid_groups,
+            params,
+            model_version,
+            feature_version,
+            parameter_version,
+            run_id,
         )
         score = float(artifact.validation_rank_ic)
         records.append({"trial": trial.number, **params, "rank_ic": score})

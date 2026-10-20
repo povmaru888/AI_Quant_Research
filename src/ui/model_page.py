@@ -300,9 +300,7 @@ def _render_model_comparison(model_data: dict, st, theme: DashboardTheme) -> Non
     st.write(SHAP_DISCLAIMER)
     first_monthly, second_monthly = primary.get("monthly_ic"), comparison.get("monthly_ic")
     first_summary = first_monthly.get("summary", {}) if isinstance(first_monthly, dict) else {}
-    second_summary = (
-        second_monthly.get("summary", {}) if isinstance(second_monthly, dict) else {}
-    )
+    second_summary = second_monthly.get("summary", {}) if isinstance(second_monthly, dict) else {}
     for start in range(0, len(_SELECTION_SUMMARIES), 3):
         cols = st.columns(3)
         for col, (key, label, percentage) in zip(
@@ -368,9 +366,7 @@ def _render_model_comparison(model_data: dict, st, theme: DashboardTheme) -> Non
             ),
         )
     gain_first = dict(_clean_pairs(primary.get("feature_importance"), "feature", "gain"))
-    gain_second = dict(
-        _clean_pairs(comparison.get("feature_importance"), "feature", "gain")
-    )
+    gain_second = dict(_clean_pairs(comparison.get("feature_importance"), "feature", "gain"))
     gain_features = list(dict.fromkeys([*gain_first, *gain_second]))
     if gain_features:
         st.subheader("Feature Gain 比較")

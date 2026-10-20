@@ -5,7 +5,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-
 ADJUSTED_COLUMNS = ("open_adj", "high_adj", "low_adj", "close_adj")
 
 
@@ -25,11 +24,12 @@ def calibrate_adjusted_prices(
     required_yahoo = {"stock_id", "trade_date", *ADJUSTED_COLUMNS}
     required_reference = {"stock_id", "trade_date", "close_adj"}
     if not required_yahoo.issubset(yahoo_prices.columns):
-        raise ValueError(f"Yahoo adjusted prices missing {sorted(required_yahoo - set(yahoo_prices.columns))}")
-    if not required_reference.issubset(reference_closes.columns):
         raise ValueError(
-            f"reference adjusted closes missing {sorted(required_reference - set(reference_closes.columns))}"
+            f"Yahoo adjusted prices missing {sorted(required_yahoo - set(yahoo_prices.columns))}"
         )
+    if not required_reference.issubset(reference_closes.columns):
+        missing = sorted(required_reference - set(reference_closes.columns))
+        raise ValueError(f"reference adjusted closes missing {missing}")
     if max_relative_spread < 0 or minimum_anchors < 1:
         raise ValueError("invalid calibration thresholds")
 
@@ -41,7 +41,9 @@ def calibrate_adjusted_prices(
     yahoo["close_adj"] = pd.to_numeric(yahoo["close_adj"], errors="coerce")
     reference["close_adj"] = pd.to_numeric(reference["close_adj"], errors="coerce")
     overlap = yahoo[["stock_id", "trade_date", "close_adj"]].merge(
-        reference, on=["stock_id", "trade_date"], suffixes=("_yahoo", "_reference"),
+        reference,
+        on=["stock_id", "trade_date"],
+        suffixes=("_yahoo", "_reference"),
         validate="one_to_one",
     )
     overlap["scale"] = overlap["close_adj_reference"] / overlap["close_adj_yahoo"]
