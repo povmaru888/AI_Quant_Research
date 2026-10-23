@@ -1,0 +1,73 @@
+{
+  "recorded_at": "2026-10-23T20:20:34.184031+08:00",
+  "run_id": "oos-2026-ytd-factor-v4-pseudohuber-NOrefit",
+  "signal_months": {
+    "start": "2026-01",
+    "end": "2026-09",
+    "count": 9
+  },
+  "final_signal_date": "2026-09-30",
+  "final_execution_date": "2026-10-01",
+  "valuation_end_date": "2026-10-16",
+  "valuation_complete": false,
+  "latest_selection_metrics_status": "pending_t_plus_20",
+  "panel_2026_09": {
+    "purpose": "inference",
+    "rows": 663,
+    "labels": 0,
+    "content_hash": "e81b50ae76dfffc18904c171e205cfda2d768ee5007b7b0a60385b19b6f75059",
+    "sha256": "71fc8bb74e57b495aac2f04b49eb34b3b3e53851d5358bef3bd139b2230b40c5"
+  },
+  "database_rows": {
+    "predictions": 6256,
+    "signals": 6263,
+    "orders": 234,
+    "run_artifacts": 5
+  },
+  "files": {
+    "config.factor_v4.yaml": {
+      "bytes": 1192,
+      "sha256": "b1892e2af0296829d5486d59043da4ceb99ac4aa56eb19ec7e835ebcafff9075"
+    },
+    "tools/build_panels.py": {
+      "bytes": 18961,
+      "sha256": "ed235bfd0fa5837ad39b7232c3e518571e86ec441992f294c569288c6fa19b37"
+    },
+    "tools/materialize_run.py": {
+      "bytes": 34029,
+      "sha256": "e53e4307d68d5fbb86023f2b8fe83d8bdb9a5226c389be22ac7d246aec1935d4"
+    },
+    "src/runtime/panel_data.py": {
+      "bytes": 28948,
+      "sha256": "793861570bf823cb4d21a75fc9447f20a1022da58c77b53469ec0bb6bc59d895"
+    },
+    "output\\research\\factor_v4_oos2026ytd_final_holdings_2026-10-16.csv": {
+      "bytes": 1744,
+      "sha256": "ac62a89002025f74e1d4cfb985ab50b6ae133b899d5b0ace35dad4b83ca3440c"
+    },
+    "output\\research\\factor_v4_oos2026ytd_report.md": {
+      "bytes": 3054,
+      "sha256": "6701d05bc757d5c360764846fbbefcdc0c395147b6703b870e21b56c14d727bb"
+    },
+    "output/research/factor_v4_oos2026ytd_monthly_selection_metrics.csv": {
+      "bytes": 1359,
+      "sha256": "ed6cb89d5a99a66b9e3e6938e6860094e6b83aefd07c49681279cb7b844748bd"
+    },
+    "models/model_oos2026ytd_validation_2021_2024_v4_pseudohuber_NOrefit/booster.ubj": {
+      "bytes": 112697,
+      "sha256": "eb4f2cdc8a01f21994d8a1a2a95c5c6b06b04c341df333108dda2021a6dd07a9"
+    },
+    "models/model_oos2026ytd_validation_2021_2024_v4_pseudohuber_NOrefit/report.json": {
+      "bytes": 8925,
+      "sha256": "c8250d60f520dedcb10b1e5c68e2290e79643e4019f4c31a6cc61fdd0867ed30"
+    },
+    "output/research/factor_v4_oos2026ytd_report.md": {
+      "bytes": 3054,
+      "sha256": "6701d05bc757d5c360764846fbbefcdc0c395147b6703b870e21b56c14d727bb"
+    },
+    "output/research/factor_v4_oos2026ytd_final_holdings_2026-10-16.csv": {
+      "bytes": 1744,
+      "sha256": "ac62a89002025f74e1d4cfb985ab50b6ae133b899d5b0ace35dad4b83ca3440c"
+    }
+  }
+}

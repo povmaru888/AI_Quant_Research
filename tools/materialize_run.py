@@ -84,21 +84,26 @@ def _write_profile(path: str | None, payload: dict) -> None:
 
 
 def _prices_through_oos_horizon(
-    prices: pd.DataFrame, final_signal_date: str
+    prices: pd.DataFrame,
+    final_signal_date: str,
+    *,
+    allow_partial: bool = False,
 ) -> tuple[pd.DataFrame, str]:
-    """Keep prices through the complete month after the final OOS signal.
+    """Keep prices through the month after the final OOS signal.
 
     A month-end signal executes at the next month's open.  The final OOS
     holding period therefore ends at the end of that execution month, not on
     the execution session itself.  Seeing a later-month price is the release
     gate that proves the valuation month is complete in the local database.
+    An explicitly allowed partial run stops at the latest available session.
     """
     signal_period = pd.Period(pd.Timestamp(final_signal_date), freq="M")
     valuation_period = signal_period + 1
     valuation_month_start = valuation_period.start_time.strftime("%Y-%m-%d")
     calendar_month_end = valuation_period.end_time.strftime("%Y-%m-%d")
     trade_dates = prices["trade_date"].astype(str)
-    if not (trade_dates > calendar_month_end).any():
+    complete = bool((trade_dates > calendar_month_end).any())
+    if not complete and not allow_partial:
         raise ValueError(
             f"price history does not prove the full valuation month through "
             f"{calendar_month_end}; load a later trading day first"
@@ -186,6 +191,14 @@ def main(argv: list[str] | None = None) -> int:
         help="Frozen model directory used for native SHAP and gain.",
     )
     parser.add_argument("--profile-json", default=None)
+    parser.add_argument(
+        "--allow-partial-final-valuation",
+        action="store_true",
+        help=(
+            "For an in-progress OOS year, value the final signal through the "
+            "latest available trading day in its execution month."
+        ),
+    )
     args = parser.parse_args(argv)
     started = time.perf_counter()
     stages: dict[str, float] = {}
@@ -270,7 +283,8 @@ def main(argv: list[str] | None = None) -> int:
     valuation_month_start = valuation_period.start_time.strftime("%Y-%m-%d")
     calendar_month_end = valuation_period.end_time.strftime("%Y-%m-%d")
     calendar = load_calendar(engine)
-    if not any(day > calendar_month_end for day in calendar):
+    valuation_complete = any(day > calendar_month_end for day in calendar)
+    if not valuation_complete and not args.allow_partial_final_valuation:
         exc = ValueError(
             f"price history does not prove the full valuation month through {calendar_month_end}; "
             "load a later trading day first"
@@ -416,6 +430,7 @@ def main(argv: list[str] | None = None) -> int:
             "rank_ic_mean_monthly": _finite(run_rank_ic),
             "final_signal_date": final_signal_date,
             "valuation_end_date": valuation_end_date,
+            "valuation_complete": valuation_complete,
         },
     }
 
@@ -454,7 +469,12 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                 )
                 labels = final_panel.get("labels")
-                fast_path = isinstance(labels, pd.Series)
+                # Native frozen-model explanations use features only.  A
+                # feature-only latest panel is therefore valid even though
+                # its t+20 labels have not matured yet.
+                fast_path = isinstance(labels, pd.Series) and (
+                    not labels.empty or bool(args.model_dir)
+                )
                 if not fast_path:
                     fallback_reason = "final panel has no labels"
         except (OSError, EOFError, pickle.UnpicklingError, KeyError, ValueError) as exc:

@@ -1,0 +1,18 @@
+{
+  "exposure_weighting_method": "inverse_volatility",
+  "fallback_reason": null,
+  "fast_path": true,
+  "rows_loaded": 538419,
+  "run_id": "oos-2026-ytd-factor-v4-pseudohuber-NOrefit",
+  "score_smoothing_alpha": 1.0,
+  "stages_seconds": {
+    "db_writes": 0.577546399901621,
+    "market_data": 7.170544299995527,
+    "monthly_risk_execution": 1.5177675999584608,
+    "panels": 0.012539400020614266,
+    "predictions": 0.07856759999413043,
+    "total": 8.818695400026627
+  },
+  "tool": "run_oos_portfolio",
+  "weighting_method": "inverse_volatility"
+}

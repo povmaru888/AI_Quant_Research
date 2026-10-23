@@ -3,7 +3,7 @@
 Usage:
     python tools/build_panels.py [--config config.yaml]
         [--start 2019-01] [--end 2023-12] [--out data/panels]
-        [--force] [--profile-json reports/panel-profile.json]
+        [--force] [--inference-only] [--profile-json reports/panel-profile.json]
 """
 
 from __future__ import annotations
@@ -117,6 +117,7 @@ def _read_valid_panel(
     build_fp: str,
     source_fp: str,
     expected_signal_date: str | None = None,
+    expected_purpose: str = "training",
 ) -> bool:
     try:
         with path.open("rb") as handle:
@@ -136,6 +137,9 @@ def _read_valid_panel(
         return False
     if expected_signal_date is not None and panel.get("signal_date") != expected_signal_date:
         return False
+    # Old panels predate this field and are training panels by definition.
+    if panel.get("panel_purpose", "training") != expected_purpose:
+        return False
     try:
         return panel.get("content_hash") == canonical_panel_hash(panel)
     except Exception:  # noqa: BLE001
@@ -151,7 +155,14 @@ def _write_panel(path: Path, panel: dict) -> None:
     os.replace(temp, path)
 
 
-def _build_month(data: PreparedPanelData, signal_day: str, run_id: str, settings) -> dict:
+def _build_month(
+    data: PreparedPanelData,
+    signal_day: str,
+    run_id: str,
+    settings,
+    *,
+    require_labels: bool = True,
+) -> dict:
     as_of = date.fromisoformat(signal_day)
     inputs = data.month_inputs(signal_day)
     universe = inputs["universe"]
@@ -171,7 +182,14 @@ def _build_month(data: PreparedPanelData, signal_day: str, run_id: str, settings
     )
     eligibility = None
     if is_factor_v4_feature_version(settings.features.feature_version):
-        labelable = set(data.labelable_ids(signal_day, list(universe.included_ids)))
+        # Historical training panels must be complete at t+20 before label
+        # ranking.  The latest inference panel deliberately omits this gate:
+        # future prices do not exist yet and are not model inputs.
+        labelable = (
+            set(data.labelable_ids(signal_day, list(universe.included_ids)))
+            if require_labels
+            else None
+        )
         universe, eligibility = filter_factor_v4_universe(
             universe,
             inputs["stocks"],
@@ -195,14 +213,23 @@ def _build_month(data: PreparedPanelData, signal_day: str, run_id: str, settings
         inputs["institutional"],
     )
     features = preprocess_features(raw, settings, run_id, as_of)
-    labelable = data.labelable_ids(signal_day, list(universe.included_ids))
-    labels = build_labels(inputs["labels_prices"], labelable, as_of, settings)
-    if labels.empty:
-        raise RuntimeError("no labels")
+    if require_labels:
+        labelable = data.labelable_ids(signal_day, list(universe.included_ids))
+        labels = build_labels(inputs["labels_prices"], labelable, as_of, settings)
+        if labels.empty:
+            raise RuntimeError("no labels")
+    else:
+        labels = pd.Series(
+            dtype="int64",
+            index=pd.Index([], name="stock_id", dtype="object"),
+            name=signal_day,
+        )
     feature_ids = features.frame["stock_id"].astype(str).tolist()
     universe_ids = list(universe.included_ids)
-    if feature_ids != universe_ids or labels.index.astype(str).tolist() != universe_ids:
-        raise RuntimeError("feature, label, and eligible universe membership/order differ")
+    if feature_ids != universe_ids:
+        raise RuntimeError("feature and eligible universe membership/order differ")
+    if require_labels and labels.index.astype(str).tolist() != universe_ids:
+        raise RuntimeError("label and eligible universe membership/order differ")
     if is_factor_v4_feature_version(settings.features.feature_version):
         minimum = max(30, settings.portfolio.top_n * 2)
         if len(universe_ids) < minimum:
@@ -215,6 +242,7 @@ def _build_month(data: PreparedPanelData, signal_day: str, run_id: str, settings
         "universe": list(universe.included_ids),
         "feature_columns": list(features.feature_columns),
         "feature_version": features.feature_version,
+        "panel_purpose": "training" if require_labels else "inference",
         "feature_coverage": {
             column: rate
             for column, rate in features.coverage.items()
@@ -235,6 +263,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--end", default="2023-12")
     parser.add_argument("--out", default="data/panels")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--inference-only",
+        action="store_true",
+        help=(
+            "Build feature-only panels without the future t+20 label gate. "
+            "Use only for frozen-model inference, never for training."
+        ),
+    )
     parser.add_argument("--profile-json", default=None)
     parser.add_argument(
         "--schedule",
@@ -260,6 +296,7 @@ def main(argv: list[str] | None = None) -> int:
         "end": args.end,
         "feature_version": settings.features.feature_version,
         "schedule": args.schedule,
+        "panel_purpose": "inference" if args.inference_only else "training",
         "stages_seconds": {},
         "months": {},
         "rows_loaded": {},
@@ -292,6 +329,7 @@ def main(argv: list[str] | None = None) -> int:
                     build_fp,
                     source_fp,
                     expected_signal_date=signal_day,
+                    expected_purpose=("inference" if args.inference_only else "training"),
                 ):
                     continue
                 pending.append(signal_day)
@@ -320,7 +358,13 @@ def main(argv: list[str] | None = None) -> int:
             for signal_day in pending:
                 month_started = time.perf_counter()
                 try:
-                    panel = _build_month(data, signal_day, run_id, settings)
+                    panel = _build_month(
+                        data,
+                        signal_day,
+                        run_id,
+                        settings,
+                        require_labels=not args.inference_only,
+                    )
                     panel["panel_format_version"] = PANEL_FORMAT_VERSION
                     panel["build_fingerprint"] = build_fp
                     panel["source_fingerprint"] = source_fp
@@ -363,6 +407,9 @@ def main(argv: list[str] | None = None) -> int:
                     previous_manifest = {}
                 merged_months = sorted(set(previous_manifest.get("months", [])) | set(months))
                 month_sources = dict(previous_manifest.get("month_sources", {}))
+                for source_metadata in month_sources.values():
+                    if isinstance(source_metadata, dict):
+                        source_metadata.setdefault("panel_purpose", "training")
                 previous_build_fp = previous_manifest.get("build_fingerprint")
                 previous_source_fp = previous_manifest.get("source_fingerprint")
                 if previous_build_fp and previous_source_fp:
@@ -372,12 +419,16 @@ def main(argv: list[str] | None = None) -> int:
                             {
                                 "build_fingerprint": previous_build_fp,
                                 "source_fingerprint": previous_source_fp,
+                                "panel_purpose": "training",
                             },
                         )
                 for built_month in months:
                     month_sources[built_month] = {
                         "build_fingerprint": build_fp,
                         "source_fingerprint": source_fp,
+                        "panel_purpose": (
+                            "inference" if args.inference_only else "training"
+                        ),
                     }
                 _atomic_json(
                     manifest_path,
@@ -386,6 +437,9 @@ def main(argv: list[str] | None = None) -> int:
                         "build_fingerprint": build_fp,
                         "source_fingerprint": source_fp,
                         "schedule": args.schedule,
+                        "latest_panel_purpose": (
+                            "inference" if args.inference_only else "training"
+                        ),
                         "months": merged_months,
                         "month_sources": month_sources,
                         "updated_at": datetime.now(timezone.utc).isoformat(),

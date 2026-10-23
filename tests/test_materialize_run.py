@@ -98,6 +98,22 @@ def test_oos_horizon_requires_a_complete_final_month() -> None:
         _prices_through_oos_horizon(prices, "2023-12-29")
 
 
+def test_oos_horizon_can_value_an_in_progress_final_month() -> None:
+    prices = pd.DataFrame(
+        [
+            {"stock_id": "A", "trade_date": "2024-01-02"},
+            {"stock_id": "A", "trade_date": "2024-01-15"},
+        ]
+    )
+
+    window, valuation_end = _prices_through_oos_horizon(
+        prices, "2023-12-29", allow_partial=True
+    )
+
+    assert valuation_end == "2024-01-15"
+    assert window["trade_date"].tolist() == ["2024-01-02", "2024-01-15"]
+
+
 def test_backtest_values_last_entry_through_month_end(settings) -> None:
     prices = pd.DataFrame(
         [

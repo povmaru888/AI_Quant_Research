@@ -1,0 +1,76 @@
+{
+  "cpu_seconds": 77.15625,
+  "end": "2026-08",
+  "feature_version": "factor_v4",
+  "months": {
+    "2026-01-30": {
+      "n_labels": 669,
+      "n_universe": 669,
+      "seconds": 4.362762899952941,
+      "status": "succeeded"
+    },
+    "2026-02-26": {
+      "n_labels": 677,
+      "n_universe": 677,
+      "seconds": 4.312053400033619,
+      "status": "succeeded"
+    },
+    "2026-03-31": {
+      "n_labels": 675,
+      "n_universe": 675,
+      "seconds": 4.330689800030086,
+      "status": "succeeded"
+    },
+    "2026-04-30": {
+      "n_labels": 694,
+      "n_universe": 694,
+      "seconds": 4.445405300008133,
+      "status": "succeeded"
+    },
+    "2026-05-29": {
+      "n_labels": 743,
+      "n_universe": 743,
+      "seconds": 4.752135500020813,
+      "status": "succeeded"
+    },
+    "2026-06-30": {
+      "n_labels": 767,
+      "n_universe": 767,
+      "seconds": 4.758865499985404,
+      "status": "succeeded"
+    },
+    "2026-07-31": {
+      "n_labels": 689,
+      "n_universe": 689,
+      "seconds": 4.413992499990854,
+      "status": "succeeded"
+    },
+    "2026-08-31": {
+      "n_labels": 679,
+      "n_universe": 679,
+      "seconds": 4.520233599992935,
+      "status": "succeeded"
+    }
+  },
+  "months_cache_hit": 0,
+  "months_pending": 8,
+  "months_requested": 8,
+  "peak_working_set_bytes": 345169920,
+  "rows_loaded": {
+    "financials": 95274,
+    "institutional_retained": 149654,
+    "institutional_scanned": 2541397,
+    "market_values": 21355,
+    "prices": 756902,
+    "stocks": 3627
+  },
+  "schedule": "month_end",
+  "stages_seconds": {
+    "financials": 0.3223401000141166,
+    "institutional": 6.991371299955063,
+    "market_values_and_universes": 13.473259299993515,
+    "prices": 23.916783799999394
+  },
+  "start": "2026-01",
+  "wall_seconds": 81.67750569997588
+}

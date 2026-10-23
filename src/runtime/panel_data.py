@@ -128,6 +128,13 @@ def canonical_panel_hash(panel: dict) -> str:
             json.dumps(panel.get(key), ensure_ascii=False, sort_keys=True, default=str).encode()
         )
         digest.update(b"\0")
+    # ``panel_purpose`` was added after the original training-panel format.
+    # Hash it only when present so previously committed training panels keep
+    # their canonical hashes, while feature-only inference panels cannot be
+    # mistaken for label-complete training panels.
+    if "panel_purpose" in panel:
+        digest.update(json.dumps(panel["panel_purpose"], ensure_ascii=False).encode())
+        digest.update(b"\0")
     if "feature_coverage" in panel:
         digest.update(
             json.dumps(panel["feature_coverage"], ensure_ascii=False, sort_keys=True).encode()

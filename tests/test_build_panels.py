@@ -55,6 +55,20 @@ def test_valid_panel_cache_requires_schema_fingerprints_and_content_hash(tmp_pat
         path, "factor_adj_v2", "wrong-build", "source-fingerprint"
     )
 
+    panel["panel_purpose"] = "inference"
+    panel["content_hash"] = canonical_panel_hash(panel)
+    build_panels._write_panel(path, panel)
+    assert not build_panels._read_valid_panel(
+        path, "factor_adj_v2", "build-fingerprint", "source-fingerprint"
+    )
+    assert build_panels._read_valid_panel(
+        path,
+        "factor_adj_v2",
+        "build-fingerprint",
+        "source-fingerprint",
+        expected_purpose="inference",
+    )
+
     panel["frame"].loc[0, "momentum_20d"] = 0.5
     with path.open("wb") as handle:
         pickle.dump(panel, handle)
