@@ -1,0 +1,100 @@
+{
+  "cpu_seconds": 98.5,
+  "end": "2025-12",
+  "feature_version": "factor_v4",
+  "months": {
+    "2025-01-22": {
+      "n_labels": 584,
+      "n_universe": 584,
+      "seconds": 3.9124866999918595,
+      "status": "succeeded"
+    },
+    "2025-02-27": {
+      "n_labels": 649,
+      "n_universe": 649,
+      "seconds": 4.172540699946694,
+      "status": "succeeded"
+    },
+    "2025-03-31": {
+      "n_labels": 634,
+      "n_universe": 634,
+      "seconds": 4.0594240999780595,
+      "status": "succeeded"
+    },
+    "2025-04-30": {
+      "n_labels": 616,
+      "n_universe": 616,
+      "seconds": 3.958649200038053,
+      "status": "succeeded"
+    },
+    "2025-05-29": {
+      "n_labels": 586,
+      "n_universe": 586,
+      "seconds": 3.8715271999826655,
+      "status": "succeeded"
+    },
+    "2025-06-30": {
+      "n_labels": 578,
+      "n_universe": 578,
+      "seconds": 3.8847231999970973,
+      "status": "succeeded"
+    },
+    "2025-07-31": {
+      "n_labels": 565,
+      "n_universe": 565,
+      "seconds": 3.8254128999542445,
+      "status": "succeeded"
+    },
+    "2025-08-29": {
+      "n_labels": 643,
+      "n_universe": 643,
+      "seconds": 4.103986600006465,
+      "status": "succeeded"
+    },
+    "2025-09-30": {
+      "n_labels": 628,
+      "n_universe": 628,
+      "seconds": 4.0907493000268005,
+      "status": "succeeded"
+    },
+    "2025-10-31": {
+      "n_labels": 614,
+      "n_universe": 614,
+      "seconds": 4.066326999978628,
+      "status": "succeeded"
+    },
+    "2025-11-28": {
+      "n_labels": 624,
+      "n_universe": 624,
+      "seconds": 4.109151100041345,
+      "status": "succeeded"
+    },
+    "2025-12-31": {
+      "n_labels": 587,
+      "n_universe": 587,
+      "seconds": 4.057103500002995,
+      "status": "succeeded"
+    }
+  },
+  "months_cache_hit": 0,
+  "months_pending": 12,
+  "months_requested": 12,
+  "peak_working_set_bytes": 358187008,
+  "rows_loaded": {
+    "financials": 95274,
+    "institutional_retained": 186065,
+    "institutional_scanned": 2277286,
+    "market_values": 30636,
+    "prices": 943006,
+    "stocks": 3627
+  },
+  "schedule": "month_end",
+  "stages_seconds": {
+    "financials": 0.6077223000465892,
+    "institutional": 8.008426500018686,
+    "market_values_and_universes": 19.42456310003763,
+    "prices": 35.07007139996858
+  },
+  "start": "2025-01",
+  "wall_seconds": 112.07744780002395
+}

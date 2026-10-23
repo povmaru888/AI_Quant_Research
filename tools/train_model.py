@@ -248,9 +248,10 @@ def main(argv: list[str] | None = None) -> int:
         return big_x, big_y, groups
 
     train_snapshots = [(month, train_panels[month]) for month in train_months]
-    train_snapshots.extend(
-        (f"{month}@extra", extra_train_panels[month]) for month in train_months
-    )
+    if extra_train_panels:
+        train_snapshots.extend(
+            (f"{month}@extra", extra_train_panels[month]) for month in train_months
+        )
     valid_snapshots = [(month, valid_panels[month]) for month in valid_months]
     train_frame, train_y, train_groups = assemble(train_snapshots)
     valid_frame, valid_y, valid_groups = assemble(valid_snapshots)

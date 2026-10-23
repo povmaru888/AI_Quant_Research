@@ -480,6 +480,54 @@
     "2024-12-31": {
       "build_fingerprint": "2edb9b040bae86c909fbac0cdaf6b32d46d0d036fbb3c27d8b93b6dfb1d14697",
       "source_fingerprint": "1e58319778e64aa72ac6ec4322053253b551499a2f86d1a375bbafa189d863cb"
+    },
+    "2025-01-22": {
+      "build_fingerprint": "2edb9b040bae86c909fbac0cdaf6b32d46d0d036fbb3c27d8b93b6dfb1d14697",
+      "source_fingerprint": "f24edcae59f3243d7a16806ed09aa8269f4852f5d3dfd853a67bc6ba3f97d609"
+    },
+    "2025-02-27": {
+      "build_fingerprint": "2edb9b040bae86c909fbac0cdaf6b32d46d0d036fbb3c27d8b93b6dfb1d14697",
+      "source_fingerprint": "f24edcae59f3243d7a16806ed09aa8269f4852f5d3dfd853a67bc6ba3f97d609"
+    },
+    "2025-03-31": {
+      "build_fingerprint": "2edb9b040bae86c909fbac0cdaf6b32d46d0d036fbb3c27d8b93b6dfb1d14697",
+      "source_fingerprint": "f24edcae59f3243d7a16806ed09aa8269f4852f5d3dfd853a67bc6ba3f97d609"
+    },
+    "2025-04-30": {
+      "build_fingerprint": "2edb9b040bae86c909fbac0cdaf6b32d46d0d036fbb3c27d8b93b6dfb1d14697",
+      "source_fingerprint": "f24edcae59f3243d7a16806ed09aa8269f4852f5d3dfd853a67bc6ba3f97d609"
+    },
+    "2025-05-29": {
+      "build_fingerprint": "2edb9b040bae86c909fbac0cdaf6b32d46d0d036fbb3c27d8b93b6dfb1d14697",
+      "source_fingerprint": "f24edcae59f3243d7a16806ed09aa8269f4852f5d3dfd853a67bc6ba3f97d609"
+    },
+    "2025-06-30": {
+      "build_fingerprint": "2edb9b040bae86c909fbac0cdaf6b32d46d0d036fbb3c27d8b93b6dfb1d14697",
+      "source_fingerprint": "f24edcae59f3243d7a16806ed09aa8269f4852f5d3dfd853a67bc6ba3f97d609"
+    },
+    "2025-07-31": {
+      "build_fingerprint": "2edb9b040bae86c909fbac0cdaf6b32d46d0d036fbb3c27d8b93b6dfb1d14697",
+      "source_fingerprint": "f24edcae59f3243d7a16806ed09aa8269f4852f5d3dfd853a67bc6ba3f97d609"
+    },
+    "2025-08-29": {
+      "build_fingerprint": "2edb9b040bae86c909fbac0cdaf6b32d46d0d036fbb3c27d8b93b6dfb1d14697",
+      "source_fingerprint": "f24edcae59f3243d7a16806ed09aa8269f4852f5d3dfd853a67bc6ba3f97d609"
+    },
+    "2025-09-30": {
+      "build_fingerprint": "2edb9b040bae86c909fbac0cdaf6b32d46d0d036fbb3c27d8b93b6dfb1d14697",
+      "source_fingerprint": "f24edcae59f3243d7a16806ed09aa8269f4852f5d3dfd853a67bc6ba3f97d609"
+    },
+    "2025-10-31": {
+      "build_fingerprint": "2edb9b040bae86c909fbac0cdaf6b32d46d0d036fbb3c27d8b93b6dfb1d14697",
+      "source_fingerprint": "f24edcae59f3243d7a16806ed09aa8269f4852f5d3dfd853a67bc6ba3f97d609"
+    },
+    "2025-11-28": {
+      "build_fingerprint": "2edb9b040bae86c909fbac0cdaf6b32d46d0d036fbb3c27d8b93b6dfb1d14697",
+      "source_fingerprint": "f24edcae59f3243d7a16806ed09aa8269f4852f5d3dfd853a67bc6ba3f97d609"
+    },
+    "2025-12-31": {
+      "build_fingerprint": "2edb9b040bae86c909fbac0cdaf6b32d46d0d036fbb3c27d8b93b6dfb1d14697",
+      "source_fingerprint": "f24edcae59f3243d7a16806ed09aa8269f4852f5d3dfd853a67bc6ba3f97d609"
     }
   },
   "months": [
@@ -602,9 +650,22 @@
     "2024-09-30",
     "2024-10-30",
     "2024-11-29",
-    "2024-12-31"
+    "2024-12-31",
+    "2025-01-22",
+    "2025-02-27",
+    "2025-03-31",
+    "2025-04-30",
+    "2025-05-29",
+    "2025-06-30",
+    "2025-07-31",
+    "2025-08-29",
+    "2025-09-30",
+    "2025-10-31",
+    "2025-11-28",
+    "2025-12-31"
   ],
   "panel_format_version": 2,
-  "source_fingerprint": "3d63f8e25e3b1c2595b8d3d66e9e31416852bd7b2e264f4f3ec4f79dd1705bf8",
-  "updated_at": "2026-10-02T02:09:20.343015+00:00"
+  "schedule": "month_end",
+  "source_fingerprint": "f24edcae59f3243d7a16806ed09aa8269f4852f5d3dfd853a67bc6ba3f97d609",
+  "updated_at": "2026-10-23T11:40:55.911361+00:00"
 }

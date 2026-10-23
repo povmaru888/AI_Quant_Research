@@ -1,0 +1,39 @@
+{
+  "recorded_at": "2026-10-23T19:46:54.605873+08:00",
+  "base_git_commit": "b3969ad063f747fb6bbbb502edf4363246f32bc8",
+  "execution_note": "Training required one control-flow fix after preregistration: omit extra snapshots when --extra-train-panels is absent. No feature, label, model, hyperparameter, portfolio, or OOS logic changed.",
+  "uncommitted_patch_sha256": "001508de6bf894a7a8fbac1e50668c0bfda56124889904165df284498b05c6cf",
+  "uncommitted_patch": "diff --git a/tools/train_model.py b/tools/train_model.py\nindex d69f8d6..b5b3f66 100644\n--- a/tools/train_model.py\n+++ b/tools/train_model.py\n@@ -248,9 +248,10 @@ def main(argv: list[str] | None = None) -> int:\n         return big_x, big_y, groups\n \n     train_snapshots = [(month, train_panels[month]) for month in train_months]\n-    train_snapshots.extend(\n-        (f\"{month}@extra\", extra_train_panels[month]) for month in train_months\n-    )\n+    if extra_train_panels:\n+        train_snapshots.extend(\n+            (f\"{month}@extra\", extra_train_panels[month]) for month in train_months\n+        )\n     valid_snapshots = [(month, valid_panels[month]) for month in valid_months]\n     train_frame, train_y, train_groups = assemble(train_snapshots)\n     valid_frame, valid_y, valid_groups = assemble(valid_snapshots)\n",
+  "database_source_revision": 842650,
+  "artifacts": {
+    "tools/train_model.py": {
+      "bytes": 20994,
+      "sha256": "1c14833bf0a2919aafb5bb2f58b0e2237021544c6a1471929b62f3a86e7a61e2"
+    },
+    "config.factor_v4.yaml": {
+      "bytes": 1192,
+      "sha256": "b1892e2af0296829d5486d59043da4ceb99ac4aa56eb19ec7e835ebcafff9075"
+    },
+    "models/model_oos2025_validation_2020_2023_v4_pseudohuber_NOrefit/booster.ubj": {
+      "bytes": 172521,
+      "sha256": "360a07f60e2a7221d57b2da39176ffe4372bfb1b8951ba1ad4f4a93f32b3c79a"
+    },
+    "models/model_oos2025_validation_2020_2023_v4_pseudohuber_NOrefit/report.json": {
+      "bytes": 8854,
+      "sha256": "9b60ca4733b7c2bf3c36ea1f103765babebe15dac319694265e55a484874155a"
+    },
+    "models/model_oos2025_validation_2020_2023_v4_pseudohuber_NOrefit/trials.csv": {
+      "bytes": 6827,
+      "sha256": "1f5f80cec85e0c0ce930b42679db0caa41f87fd8dde73d1164000b1e1d736eb7"
+    }
+  },
+  "run_id": "oos-2025-factor-v4-pseudohuber-NOrefit",
+  "verification": {
+    "predictions_dates": 12,
+    "signal_dates": 12,
+    "order_execution_dates": 11,
+    "zero_order_signal_date": "2025-07-31",
+    "pytest": "22 passed",
+    "ruff": "passed"
+  }
+}
