@@ -761,6 +761,87 @@ def test_load_holdings_recomputes_beta_when_feature_rows_are_missing(
     )
 
 
+def test_load_holdings_ignores_vendor_only_dates_and_carries_absent_official_rows(
+    store: DbStore, sample_prices: pd.DataFrame
+) -> None:
+    from models.research import Signal
+
+    _seed_market(store, sample_prices)
+    signal_date = "2024-03-29"
+    run_id = "oos-official-session-risk"
+    store.start_run(
+        {
+            "run_id": run_id,
+            "data_end_date": signal_date,
+            "feature_version": "factor_v4",
+            "parameter_version": "p1",
+        }
+    )
+    days = pd.bdate_range(end=signal_date, periods=62)
+    market_returns = np.linspace(-0.015, 0.015, 61)
+    market_closes = 1000.0 * np.exp(np.r_[0.0, np.cumsum(market_returns)])
+    stock_closes = 100.0 * np.exp(np.r_[0.0, np.cumsum(1.5 * market_returns)])
+    rows = []
+    for stock_id, closes in (("TAIEX", market_closes), ("2330", stock_closes)):
+        for trade_date, close in zip(days.strftime("%Y-%m-%d"), closes, strict=True):
+            # A missing stock row on an official session represents a
+            # suspension and must carry the prior adjusted close.
+            if stock_id == "2330" and trade_date == days[-20].strftime("%Y-%m-%d"):
+                continue
+            rows.append(
+                {
+                    "trade_date": trade_date,
+                    "stock_id": stock_id,
+                    "open": close,
+                    "high": close,
+                    "low": close,
+                    "close": close,
+                    "open_adj": close,
+                    "high_adj": close,
+                    "low_adj": close,
+                    "close_adj": close,
+                    "volume": 1_000.0,
+                    "traded_value": close * 1_000.0,
+                    "source": "test",
+                }
+            )
+    # Vendor pseudo bar on a Saturday: this is the production failure mode.
+    rows.append(
+        {
+            "trade_date": "2024-03-23",
+            "stock_id": "2330",
+            "open": 100.0,
+            "high": 100.0,
+            "low": 100.0,
+            "close": 100.0,
+            "open_adj": None,
+            "high_adj": None,
+            "low_adj": None,
+            "close_adj": None,
+            "volume": 0.0,
+            "traded_value": 0.0,
+            "source": "test-vendor-placeholder",
+        }
+    )
+    store.upsert_prices(pd.DataFrame(rows))
+    with store._scope() as session:  # noqa: SLF001 - test-only seeding hook.
+        session.add(
+            Signal(
+                signal_date=signal_date,
+                stock_id="2330",
+                run_id=run_id,
+                signal="BUY",
+                rank=1,
+                target_weight=0.5,
+            )
+        )
+
+    holdings = store.load_holdings(run_id, "2024-03")
+
+    assert np.isfinite(holdings.loc[0, "volatility_60d"])
+    assert np.isfinite(holdings.loc[0, "beta_60d"])
+
+
 def test_load_holdings_scopes_signal_prediction_and_features_to_selected_month(
     store: DbStore, sample_prices: pd.DataFrame
 ) -> None:

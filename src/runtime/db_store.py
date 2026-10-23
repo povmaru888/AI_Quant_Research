@@ -1008,45 +1008,79 @@ class DbStore:
                 raw_volatility = {}
                 raw_beta: dict[str, float] = {}
                 if stock_ids:
-                    price_rows = session.execute(
-                        select(Price.stock_id, Price.trade_date, Price.close_adj)
-                        .where(
-                            Price.stock_id.in_(stock_ids),
-                            Price.trade_date <= signal_date,
-                        )
-                        .order_by(Price.stock_id, Price.trade_date.desc())
-                    ).all()
                     taiex_rows = session.execute(
                         select(Price.trade_date, Price.close)
                         .where(Price.stock_id == TAIEX_ID, Price.trade_date <= signal_date)
-                        .order_by(Price.trade_date)
+                        .order_by(Price.trade_date.desc())
+                        # One extra official session seeds a carried close if
+                        # a held stock was suspended on the first day of the
+                        # 61-session display window.
+                        .limit(VOLATILITY_LOOKBACK_DAYS + 2)
                     ).all()
+                    taiex_rows = list(reversed(taiex_rows))
                     market_returns: dict[str, float] = {}
-                    if taiex_rows:
+                    calculation_dates: list[str] = []
+                    if len(taiex_rows) >= VOLATILITY_LOOKBACK_DAYS + 1:
                         market_dates = [str(day) for day, _ in taiex_rows]
                         market_closes = np.asarray([close for _, close in taiex_rows], dtype=float)
                         if (
                             np.all(np.isfinite(market_closes))
                             and np.all(market_closes > 0)
-                            and len(market_closes) >= 2
                         ):
+                            calculation_dates = market_dates[-(VOLATILITY_LOOKBACK_DAYS + 1) :]
+                            calculation_closes = market_closes[
+                                -(VOLATILITY_LOOKBACK_DAYS + 1) :
+                            ]
                             market_returns = dict(
                                 zip(
-                                    market_dates[1:],
-                                    np.diff(np.log(market_closes)),
+                                    calculation_dates[1:],
+                                    np.diff(np.log(calculation_closes)),
                                     strict=True,
                                 )
                             )
-                    histories: dict[str, list[tuple[str, float | None]]] = {}
-                    for stock_id, trade_date, close_adj in price_rows:
-                        history = histories.setdefault(str(stock_id), [])
-                        if len(history) < VOLATILITY_LOOKBACK_DAYS + 1:
-                            history.append((str(trade_date), close_adj))
-                    for stock_id, history in histories.items():
-                        ordered_history = list(reversed(history))
-                        ordered_closes = [close for _, close in ordered_history]
-                        raw_volatility[stock_id] = _annualized_volatility_60d(ordered_closes)
-                        raw_beta[stock_id] = _beta_60d(ordered_history, market_returns)
+                    if calculation_dates:
+                        # Bound the stock read to the official calendar window.
+                        # Vendor-only pseudo dates inside the range are later
+                        # removed by reindexing to TAIEX sessions.
+                        price_rows = session.execute(
+                            select(Price.stock_id, Price.trade_date, Price.close_adj)
+                            .where(
+                                Price.stock_id.in_(stock_ids),
+                                Price.trade_date >= market_dates[0],
+                                Price.trade_date <= signal_date,
+                            )
+                            .order_by(Price.stock_id, Price.trade_date)
+                        ).all()
+                        price_frame = pd.DataFrame(
+                            price_rows, columns=["stock_id", "trade_date", "close_adj"]
+                        )
+                        official_index = pd.Index(market_dates, name="trade_date")
+                        calculation_index = pd.Index(calculation_dates, name="trade_date")
+                        for stock_id in stock_ids:
+                            rows_for_stock = price_frame.loc[
+                                price_frame["stock_id"].astype(str).eq(stock_id)
+                            ].copy()
+                            rows_for_stock["trade_date"] = rows_for_stock["trade_date"].astype(str)
+                            original_dates = set(rows_for_stock["trade_date"])
+                            closes = pd.to_numeric(
+                                rows_for_stock.set_index("trade_date")["close_adj"],
+                                errors="coerce",
+                            ).reindex(official_index)
+                            # A completely absent official-session row means
+                            # suspension and carries the prior adjusted close.
+                            # An explicit row with a missing adjusted close is
+                            # retained as invalid and still yields N/A.
+                            absent = ~official_index.isin(original_dates)
+                            carried = closes.ffill()
+                            closes.loc[absent] = carried.loc[absent]
+                            closes = closes.reindex(calculation_index)
+                            ordered_history = list(
+                                zip(calculation_dates, closes.to_list(), strict=True)
+                            )
+                            raw_volatility[stock_id] = _annualized_volatility_60d(closes)
+                            raw_beta[stock_id] = _beta_60d(
+                                ordered_history, market_returns
+                            )
 
         frame = pd.DataFrame(rows, columns=list(HOLDING_COLUMNS[:5]))
         if not frame.empty:
