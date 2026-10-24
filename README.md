@@ -106,6 +106,24 @@ python -m streamlit run app.py --server.port 8501
 
 Then open <http://localhost:8501/>.
 
+### Local real-time fund monitor
+
+The repository also includes a local operations dashboard for the simulated
+`oos-2026-ytd-factor-v4-pseudohuber-NOrefit` fund. It reconstructs the current
+nominal share book from OOS orders, anchors valuation to the materialized OOS NAV,
+and applies Shioaji stock and TAIEX quotes to the live price delta. The research
+database remains read only; minute snapshots are stored separately in
+`database/realtime_monitor.db`.
+
+```powershell
+.\start_realtime_monitor.bat
+```
+
+Open <http://127.0.0.1:8601/>. When Shioaji credentials are absent or login fails,
+the monitor clearly switches to the latest stored nominal closes. It polls the
+research run every minute, so a newly materialized monthly signal and its OOS
+orders roll the monitored book forward without restarting the web page.
+
 ## Installation
 
 Python 3.12 is the tested environment; project metadata allows Python 3.10 or newer.

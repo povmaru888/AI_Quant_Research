@@ -3,6 +3,7 @@
 # SDD 5.1 + TASK_ROADMAP P0-02 union, plus yfinance (SDD fallback_source)
 # and shioaji (broker historical kbars backfill).
 Alembic==1.20.0
+fastapi==0.115.12
 numpy==2.5.3
 lightgbm==4.7.0
 optuna==5.0.0
@@ -17,6 +18,7 @@ shap==0.52.0
 shioaji==1.7.8
 SQLAlchemy==2.0.54
 streamlit==1.64.0
+uvicorn==0.34.3
 vectorbt==1.1.0
 xgboost==3.4.1
 yfinance==1.7.0
