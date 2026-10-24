@@ -261,6 +261,38 @@ python tools/run_oos_portfolio.py \
 
 The final December signal is valued through its full 20-trading-day horizon in the following January.
 
+### 7. Repair historical daily-price gaps efficiently
+
+The gap-driven price synchronizer first audits the local database and downloads
+one full-market official TWSE or TPEx response per affected date. Adjusted prices
+come only from FinMind; all missing dates for the same stock are combined into one
+minimal request range to conserve the free hourly allowance.
+
+Review the request plan without downloading data:
+
+```bash
+python tools/sync_prices_fast.py \
+  --config config.factor_v4.yaml \
+  --start 2026-09-01 \
+  --end 2026-10-23 \
+  --dry-run \
+  --resume
+```
+
+Execute the same repair and save a machine-readable profile:
+
+```bash
+python tools/sync_prices_fast.py \
+  --config config.factor_v4.yaml \
+  --start 2026-09-01 \
+  --end 2026-10-23 \
+  --resume \
+  --profile-json reports/price_sync_profile.json
+```
+
+All FinMind callers share a persistent 540-request rolling hourly budget. Set
+`FINMIND_REQUESTS_PER_HOUR` only when the account limit changes.
+
 ## Repository layout
 
 ```text

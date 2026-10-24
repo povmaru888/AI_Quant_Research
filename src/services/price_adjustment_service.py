@@ -1,4 +1,4 @@
-"""Calibrate Yahoo adjusted prices onto the existing FinMind price basis."""
+"""Calibrate adjusted prices onto the database's existing price basis."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ ADJUSTED_COLUMNS = ("open_adj", "high_adj", "low_adj", "close_adj")
 
 
 def calibrate_adjusted_prices(
-    yahoo_prices: pd.DataFrame,
+    provider_prices: pd.DataFrame,
     reference_closes: pd.DataFrame,
     *,
     max_relative_spread: float = 0.001,
@@ -17,15 +17,16 @@ def calibrate_adjusted_prices(
 ) -> tuple[pd.DataFrame, dict[str, dict[str, float | int | bool]]]:
     """Apply a stable per-stock scale from overlapping adjusted closes.
 
-    Yahoo and FinMind can use different absolute adjustment bases while
-    preserving the same adjusted return series. Only stocks whose overlap
-    ratios stay within ``max_relative_spread`` are returned.
+    A provider can revise its absolute adjustment basis after a later corporate
+    action while preserving the same adjusted-return series. Only stocks whose
+    overlap ratios stay within ``max_relative_spread`` are returned.
     """
-    required_yahoo = {"stock_id", "trade_date", *ADJUSTED_COLUMNS}
+    required_provider = {"stock_id", "trade_date", *ADJUSTED_COLUMNS}
     required_reference = {"stock_id", "trade_date", "close_adj"}
-    if not required_yahoo.issubset(yahoo_prices.columns):
+    if not required_provider.issubset(provider_prices.columns):
         raise ValueError(
-            f"Yahoo adjusted prices missing {sorted(required_yahoo - set(yahoo_prices.columns))}"
+            "provider adjusted prices missing "
+            f"{sorted(required_provider - set(provider_prices.columns))}"
         )
     if not required_reference.issubset(reference_closes.columns):
         missing = sorted(required_reference - set(reference_closes.columns))
@@ -33,20 +34,20 @@ def calibrate_adjusted_prices(
     if max_relative_spread < 0 or minimum_anchors < 1:
         raise ValueError("invalid calibration thresholds")
 
-    yahoo = yahoo_prices.loc[:, ["stock_id", "trade_date", *ADJUSTED_COLUMNS]].copy()
+    provider = provider_prices.loc[:, ["stock_id", "trade_date", *ADJUSTED_COLUMNS]].copy()
     reference = reference_closes.loc[:, ["stock_id", "trade_date", "close_adj"]].copy()
-    for frame in (yahoo, reference):
+    for frame in (provider, reference):
         frame["stock_id"] = frame["stock_id"].astype(str)
         frame["trade_date"] = frame["trade_date"].astype(str)
-    yahoo["close_adj"] = pd.to_numeric(yahoo["close_adj"], errors="coerce")
+    provider["close_adj"] = pd.to_numeric(provider["close_adj"], errors="coerce")
     reference["close_adj"] = pd.to_numeric(reference["close_adj"], errors="coerce")
-    overlap = yahoo[["stock_id", "trade_date", "close_adj"]].merge(
+    overlap = provider[["stock_id", "trade_date", "close_adj"]].merge(
         reference,
         on=["stock_id", "trade_date"],
-        suffixes=("_yahoo", "_reference"),
+        suffixes=("_provider", "_reference"),
         validate="one_to_one",
     )
-    overlap["scale"] = overlap["close_adj_reference"] / overlap["close_adj_yahoo"]
+    overlap["scale"] = overlap["close_adj_reference"] / overlap["close_adj_provider"]
     overlap = overlap.loc[np.isfinite(overlap["scale"]) & overlap["scale"].gt(0)]
 
     scales: dict[str, float] = {}
@@ -65,7 +66,7 @@ def calibrate_adjusted_prices(
         if accepted:
             scales[str(stock_id)] = scale
 
-    adjusted = yahoo.loc[yahoo["stock_id"].isin(scales)].copy()
+    adjusted = provider.loc[provider["stock_id"].isin(scales)].copy()
     adjusted["scale"] = adjusted["stock_id"].map(scales)
     adjusted.loc[:, list(ADJUSTED_COLUMNS)] = adjusted.loc[:, list(ADJUSTED_COLUMNS)].multiply(
         adjusted["scale"], axis=0

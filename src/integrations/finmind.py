@@ -12,6 +12,8 @@ from datetime import date
 import pandas as pd
 import requests
 
+from integrations.request_limiter import default_finmind_limiter
+
 BASE_URL = "https://api.finmindtrade.com/api/v4/data"
 
 
@@ -84,6 +86,11 @@ def _get(
         # Per-stock query: required on free ("register") tokens, which reject
         # full-market requests. Omitted when None (paid-tier bulk path).
         params["data_id"] = data_id
+    request_id: int | None = None
+    # Test doubles are intentionally not rate-accounted. Every production call
+    # uses requests.get and therefore shares the same cross-process ledger.
+    if requester is requests.get:
+        request_id = default_finmind_limiter().acquire(dataset)
     try:
         response = requester(
             BASE_URL,
@@ -92,7 +99,11 @@ def _get(
             timeout=timeout,
         )
     except Exception as exc:
+        if request_id is not None:
+            default_finmind_limiter().finish(request_id, None)
         raise FinMindError(f"finmind {dataset} transport failure: {type(exc).__name__}") from exc
+    if request_id is not None:
+        default_finmind_limiter().finish(request_id, response.status_code)
     if response.status_code != 200:
         raise _http_error(dataset, response)
     try:
