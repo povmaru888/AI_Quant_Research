@@ -44,8 +44,22 @@ class FundEngine:
             return
         with self._lock:
             current = self._quotes.get(quote.code)
-            if current is None or quote.timestamp >= current.timestamp:
+            if current is None or self._quote_time(quote.timestamp) >= self._quote_time(
+                current.timestamp
+            ):
                 self._quotes[quote.code] = quote
+
+    @staticmethod
+    def _quote_time(value: str) -> datetime:
+        """Compare provider timestamps by instant instead of mixed ISO text formats."""
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            # Shioaji streaming callbacks use a naive Taiwan wall-clock while
+            # snapshots currently return UTC-aware timestamps.
+            from zoneinfo import ZoneInfo
+
+            parsed = parsed.replace(tzinfo=ZoneInfo("Asia/Taipei"))
+        return parsed.astimezone(timezone.utc)
 
     def replace_seed(self, seed: FundSeed) -> None:
         """Atomically roll the live book forward after a new materialized signal."""

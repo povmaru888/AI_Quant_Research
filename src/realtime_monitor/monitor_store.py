@@ -33,6 +33,19 @@ class MonitorStore:
                     event_type TEXT NOT NULL,
                     message TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS trading_calendar_years (
+                    calendar_year INTEGER PRIMARY KEY,
+                    holiday_dates_json TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS intraday_sessions (
+                    fund_id TEXT NOT NULL,
+                    session_date TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (fund_id, session_date)
+                );
                 """
             )
 
@@ -74,3 +87,50 @@ class MonitorStore:
                 "VALUES (?, ?, ?, ?)",
                 (datetime.now(timezone.utc).isoformat(), severity, event_type, message),
             )
+
+    def save_calendar_year(self, year: int, holiday_dates: list[str], source: str) -> None:
+        from datetime import datetime, timezone
+
+        with self._connect() as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO trading_calendar_years VALUES (?, ?, ?, ?)",
+                (
+                    year,
+                    json.dumps(holiday_dates, separators=(",", ":")),
+                    source,
+                    datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+
+    def load_calendar_year(self, year: int) -> list[str] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT holiday_dates_json FROM trading_calendar_years WHERE calendar_year = ?",
+                (year,),
+            ).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def save_intraday_session(self, fund_id: str, payload: dict) -> None:
+        from datetime import datetime, timezone
+
+        session_date = payload.get("session_date")
+        if not session_date:
+            return
+        with self._connect() as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO intraday_sessions VALUES (?, ?, ?, ?)",
+                (
+                    fund_id,
+                    session_date,
+                    json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+                    datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+
+    def load_intraday_session(self, fund_id: str, session_date: str) -> dict | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT payload_json FROM intraday_sessions WHERE fund_id = ? AND session_date = ?",
+                (fund_id, session_date),
+            ).fetchone()
+        return json.loads(row[0]) if row else None

@@ -37,13 +37,14 @@ h1 { font-size:23px; margin:6px 0; letter-spacing:-.02em; }
 .pill.good { color:var(--green); border-color:#246b50; }
 .pill.warn { color:var(--amber); border-color:#67502a; }
 .dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px; background:currentColor; box-shadow:0 0 10px currentColor; }
-.kpis { display:grid; grid-template-columns:repeat(6,minmax(130px,1fr)); gap:12px; margin-bottom:14px; }
+.kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:14px; }
 .card { background:linear-gradient(150deg,var(--card2),var(--card)); border:1px solid var(--line); border-radius:14px; box-shadow:0 12px 35px #0005; }
 .kpi { padding:15px 16px; min-height:106px; }
 .kpi-label { color:var(--muted); font-size:11px; }
 .kpi-value { font-variant-numeric:tabular-nums; font-size:23px; font-weight:760; margin:10px 0 4px; letter-spacing:-.035em; }
 .kpi-note { color:var(--muted); font-size:10px; }
-.positive { color:var(--green)!important; }.negative { color:var(--red)!important; }.warning { color:var(--amber)!important; }
+.positive { color:var(--red)!important; }.negative { color:var(--green)!important; }.warning { color:var(--amber)!important; }
+.status-good { color:var(--green)!important; }
 .grid2 { display:grid; grid-template-columns:minmax(0,1.7fr) minmax(300px,1fr); gap:14px; margin:14px 0; }
 .grid3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin:14px 0; }
 .section { padding:18px; }
@@ -51,7 +52,9 @@ h1 { font-size:23px; margin:6px 0; letter-spacing:-.02em; }
 .section-title { font-weight:700; font-size:14px; }.section-note { color:var(--muted); font-size:10px; }
 .chart { height:310px; }.chart.small { height:220px; }
 .market-box { padding:19px; display:grid; gap:15px; }
+.market-value-row { display:flex; align-items:baseline; flex-wrap:wrap; gap:13px; }
 .market-value { font-size:32px; font-weight:750; font-variant-numeric:tabular-nums; }
+.market-points { font-size:17px; font-weight:750; font-variant-numeric:tabular-nums; }
 .market-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
 .mini { background:#091119; border:1px solid var(--line); padding:12px; border-radius:10px; }
 .mini span { display:block; color:var(--muted); font-size:10px; margin-bottom:5px; }.mini strong { font-size:14px; }

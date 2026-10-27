@@ -68,18 +68,46 @@ def merge_intraday_payload(backfill: dict, snapshot: dict) -> dict:
     session_date = backfill.get("session_date")
     if not session_date:
         return intraday_payload([snapshot])
-    current = intraday_point(snapshot, session_date_override=session_date)
     points = {
         str(point["time"]): point
         for point in backfill.get("points", ())
         if point.get("session_date") == session_date
     }
-    points[current["time"]] = current
+    current = current_session_point(snapshot, session_date)
+    if current is not None:
+        points[current["time"]] = current
     return {
         "session_date": session_date,
         "market_open": "09:00",
         "market_close": "13:30",
         "previous_close_nav": backfill.get("previous_close_nav"),
         "previous_close_taiex": backfill.get("previous_close_taiex"),
+        "phase": backfill.get("phase"),
+        "data_status": backfill.get("data_status"),
+        "revision": backfill.get("revision"),
+        "last_market_time": backfill.get("last_market_time"),
         "points": [points[key] for key in sorted(points)],
+    }
+
+
+def current_session_point(snapshot: dict, session_date: str) -> dict | None:
+    """Return a live point only when its market timestamp belongs to the target session."""
+    market = snapshot.get("market") or {}
+    raw_time = market.get("timestamp")
+    if not raw_time:
+        return None
+    observed = datetime.fromisoformat(str(raw_time).replace("Z", "+00:00"))
+    if observed.tzinfo is None:
+        observed = observed.replace(tzinfo=TAIPEI)
+    observed = observed.astimezone(TAIPEI)
+    if observed.date().isoformat() != session_date:
+        return None
+    if not time(9) <= observed.time() <= time(13, 30, 59):
+        return None
+    return {
+        "session_date": session_date,
+        "time": observed.replace(microsecond=0).isoformat(),
+        "nav": snapshot["nav"],
+        "taiex": market.get("price"),
+        "quote_revision": raw_time,
     }

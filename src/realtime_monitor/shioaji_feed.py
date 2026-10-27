@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import threading
+import urllib.request
 from collections.abc import Callable
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
@@ -14,6 +16,10 @@ from realtime_monitor.engine import LiveQuote
 from realtime_monitor.oos_bridge import FundSeed
 
 TAIPEI = ZoneInfo("Asia/Taipei")
+TWSE_INDEX_URL = (
+    "https://mis.twse.com.tw/stock/api/getStockInfo.jsp?"
+    "ex_ch=tse_t00.tw&json=1&delay=0"
+)
 
 
 class DatabaseQuoteFeed:
@@ -49,6 +55,59 @@ class DatabaseQuoteFeed:
         return None
 
 
+class TwseIndexQuoteFeed:
+    """Official TWSE MIS fallback for the cash-market weighted index."""
+
+    def __init__(self, callback: Callable[[LiveQuote], None]) -> None:
+        self.callback = callback
+
+    @staticmethod
+    def _number(value):
+        try:
+            return float(str(value).replace(",", "")) if value not in {None, "-"} else None
+        except (TypeError, ValueError):
+            return None
+
+    @classmethod
+    def quote_from_payload(cls, payload: dict) -> LiveQuote:
+        rows = payload.get("msgArray") or ()
+        if not rows:
+            raise ValueError("TWSE MIS returned no TAIEX row")
+        row = rows[0]
+        day = str(row.get("d") or row.get("^") or "")
+        clock = str(row.get("t") or row.get("%") or "")
+        if len(day) != 8 or not clock:
+            raise ValueError("TWSE MIS returned an invalid market timestamp")
+        moment = datetime.strptime(f"{day} {clock}", "%Y%m%d %H:%M:%S").replace(
+            tzinfo=TAIPEI
+        )
+        price = cls._number(row.get("z"))
+        if price is None or price <= 0:
+            raise ValueError("TWSE MIS returned an invalid TAIEX price")
+        return LiveQuote(
+            code="TAIEX",
+            price=price,
+            timestamp=moment.isoformat(),
+            source="twse-mis",
+            reference=cls._number(row.get("y")),
+            open=cls._number(row.get("o")),
+            high=cls._number(row.get("h")),
+            low=cls._number(row.get("l")),
+            volume=cls._number(row.get("m")),
+        )
+
+    def refresh(self) -> LiveQuote:
+        request = urllib.request.Request(
+            TWSE_INDEX_URL,
+            headers={"User-Agent": "Mozilla/5.0 AI-Quant-Research/1.0"},
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:  # noqa: S310
+            payload = json.loads(response.read().decode("utf-8"))
+        quote = self.quote_from_payload(payload)
+        self.callback(quote)
+        return quote
+
+
 class ShioajiQuoteFeed:
     def __init__(self, callback: Callable[[LiveQuote], None], *, simulation: bool = True) -> None:
         self.callback = callback
@@ -57,6 +116,7 @@ class ShioajiQuoteFeed:
         self._symbols: set[str] = set()
         self._stock_contracts: dict[str, object] = {}
         self._index_contract = None
+        self._index_reference: float | None = None
         self._api_lock = threading.RLock()
 
     @staticmethod
@@ -84,9 +144,12 @@ class ShioajiQuoteFeed:
             change_price = self._number(getattr(quote, "change_price", None))
             if change_price is not None and price - change_price > 0:
                 reference = price - change_price
+        normalized_code = "TAIEX" if code == "IX0001" else str(code)
+        if normalized_code == "TAIEX" and reference is not None:
+            self._index_reference = reference
         self.callback(
             LiveQuote(
-                code="TAIEX" if code == "IX0001" else str(code),
+                code=normalized_code,
                 price=price,
                 timestamp=str(timestamp),
                 source=source,
@@ -158,6 +221,42 @@ class ShioajiQuoteFeed:
         self._symbols = wanted
         return f"Shioaji connected; subscribed to {len(wanted)} holdings and TAIEX"
 
+    def refresh_index_quote(self, session_date: str) -> LiveQuote | None:
+        """Refresh TAIEX, using the current K bar when simulation snapshots are stale."""
+        if self.api is None or self._index_contract is None:
+            raise RuntimeError("Shioaji is not connected")
+        bars = self._bars(self._index_contract, session_date)
+        rows = self._minute_rows(bars, session_date)
+        if not rows:
+            return None
+        moment, price = rows[-1]
+        volumes = [self._number(value) or 0.0 for value in bars.get("Volume") or ()]
+        amounts = [self._number(value) or 0.0 for value in bars.get("Amount") or ()]
+        quote = LiveQuote(
+            code="TAIEX",
+            price=price,
+            timestamp=moment.isoformat(),
+            source="shioaji-index-kbar",
+            reference=self._index_reference,
+            open=self._number((bars.get("Open") or [None])[0]),
+            high=max(
+                (self._number(value) or 0.0 for value in bars.get("High") or ()),
+                default=None,
+            ),
+            low=min(
+                (
+                    value
+                    for value in (self._number(item) for item in bars.get("Low") or ())
+                    if value
+                ),
+                default=None,
+            ),
+            volume=sum(volumes) or None,
+            amount=sum(amounts) or None,
+        )
+        self.callback(quote)
+        return quote
+
     @staticmethod
     def _bar_datetime(value: object) -> datetime:
         """Decode Shioaji's nanosecond timestamp as a Taiwan wall-clock value."""
@@ -191,18 +290,25 @@ class ShioajiQuoteFeed:
         seed: FundSeed,
         fallback_prices: dict[str, float],
         *,
+        target_date: str | None = None,
+        allow_previous: bool = True,
         lookback_days: int = 14,
     ) -> dict:
-        """Rebuild the latest real trading session from Shioaji minute bars."""
+        """Rebuild one requested session, or the latest session when allowed."""
         if self.api is None or self._index_contract is None:
             raise RuntimeError("Shioaji is not connected")
 
         session_date = None
         index_bars: dict = {}
         index_rows: list[tuple[datetime, float]] = []
-        today = datetime.now(TAIPEI).date()
-        for offset in range(max(1, lookback_days)):
-            candidate = (today - timedelta(days=offset)).isoformat()
+        requested = (
+            datetime.fromisoformat(target_date).date()
+            if target_date
+            else datetime.now(TAIPEI).date()
+        )
+        attempts = max(1, lookback_days) if allow_previous else 1
+        for offset in range(attempts):
+            candidate = (requested - timedelta(days=offset)).isoformat()
             bars = self._bars(self._index_contract, candidate)
             rows = self._minute_rows(bars, candidate)
             if rows:
@@ -215,6 +321,7 @@ class ShioajiQuoteFeed:
                 "session_date": None,
                 "market_open": "09:00",
                 "market_close": "13:30",
+                "requested_date": target_date,
                 "points": [],
             }
 
@@ -270,6 +377,7 @@ class ShioajiQuoteFeed:
             "session_date": session_date,
             "market_open": "09:00",
             "market_close": "13:30",
+            "requested_date": target_date,
             "points": points,
         }
 
