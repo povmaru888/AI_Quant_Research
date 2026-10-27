@@ -38,15 +38,47 @@ class DatabaseQuoteFeed:
                     (symbol,),
                 ).fetchone()
                 if row:
+                    amount = (
+                        self._stored_market_amount(connection, str(row[0]))
+                        if symbol == "TAIEX"
+                        else None
+                    )
                     self.callback(
                         LiveQuote(
                             code=symbol,
                             price=float(row[1]),
                             timestamp=f"{row[0]}T13:30:00+08:00",
                             source="database-delayed",
+                            amount=amount,
                         )
                     )
         return "Shioaji credentials unavailable; using latest stored closes"
+
+    @staticmethod
+    def _stored_market_amount(connection: sqlite3.Connection, trade_date: str) -> float | None:
+        price_columns = {
+            str(row[1]) for row in connection.execute("PRAGMA table_info(prices)").fetchall()
+        }
+        if "traded_value" not in price_columns:
+            return None
+        stock_columns = {
+            str(row[1]) for row in connection.execute("PRAGMA table_info(stocks)").fetchall()
+        }
+        if "market" in stock_columns:
+            row = connection.execute(
+                "SELECT SUM(p.traded_value) FROM prices p "
+                "JOIN stocks s ON s.stock_id = p.stock_id "
+                "WHERE p.trade_date = ? AND s.market = 'TWSE'",
+                (trade_date,),
+            ).fetchone()
+        else:
+            row = connection.execute(
+                "SELECT SUM(traded_value) FROM prices "
+                "WHERE trade_date = ? AND stock_id != 'TAIEX'",
+                (trade_date,),
+            ).fetchone()
+        value = float(row[0]) if row and row[0] is not None else None
+        return value if value is not None and value > 0 else None
 
     def reconfigure(self, symbols: list[str]) -> str:
         return self.start(symbols)

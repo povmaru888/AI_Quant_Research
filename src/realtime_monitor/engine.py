@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import math
 import threading
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from realtime_monitor.oos_bridge import FundSeed
+
+TAIPEI = ZoneInfo("Asia/Taipei")
 
 
 @dataclass(frozen=True)
@@ -47,7 +50,27 @@ class FundEngine:
             if current is None or self._quote_time(quote.timestamp) >= self._quote_time(
                 current.timestamp
             ):
+                if current is not None and self._same_market_date(
+                    current.timestamp, quote.timestamp
+                ):
+                    quote = replace(
+                        quote,
+                        reference=quote.reference or current.reference,
+                        open=quote.open or current.open,
+                        high=quote.high or current.high,
+                        low=quote.low or current.low,
+                        volume=quote.volume if quote.volume is not None else current.volume,
+                        amount=quote.amount if quote.amount is not None else current.amount,
+                        bid=quote.bid if quote.bid is not None else current.bid,
+                        ask=quote.ask if quote.ask is not None else current.ask,
+                    )
                 self._quotes[quote.code] = quote
+
+    @classmethod
+    def _same_market_date(cls, left: str, right: str) -> bool:
+        return cls._quote_time(left).astimezone(TAIPEI).date() == cls._quote_time(
+            right
+        ).astimezone(TAIPEI).date()
 
     @staticmethod
     def _quote_time(value: str) -> datetime:
@@ -56,9 +79,7 @@ class FundEngine:
         if parsed.tzinfo is None:
             # Shioaji streaming callbacks use a naive Taiwan wall-clock while
             # snapshots currently return UTC-aware timestamps.
-            from zoneinfo import ZoneInfo
-
-            parsed = parsed.replace(tzinfo=ZoneInfo("Asia/Taipei"))
+            parsed = parsed.replace(tzinfo=TAIPEI)
         return parsed.astimezone(timezone.utc)
 
     def replace_seed(self, seed: FundSeed) -> None:

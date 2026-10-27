@@ -116,6 +116,29 @@ def test_quote_order_compares_mixed_timezones_by_instant(tmp_path: Path) -> None
     assert market["source"] == "stream"
 
 
+def test_partial_same_day_market_quote_preserves_cumulative_amount(tmp_path: Path) -> None:
+    database = tmp_path / "research.db"
+    _research_database(database)
+    engine = FundEngine(load_fund_seed(database, "run"))
+    engine.update_quote(
+        LiveQuote(
+            "TAIEX",
+            23_000,
+            "2026-10-27T10:00:00+08:00",
+            "shioaji-index-kbar",
+            reference=22_900,
+            amount=456_700_000_000,
+        )
+    )
+    engine.update_quote(
+        LiveQuote("TAIEX", 23_010, "2026-10-27T10:00:05+08:00", "twse-mis")
+    )
+    market = engine.snapshot()["market"]
+    assert market["price"] == 23_010
+    assert market["amount"] == 456_700_000_000
+    assert market["reference"] == 22_900
+
+
 def test_database_feed_and_monitor_store(tmp_path: Path) -> None:
     database = tmp_path / "research.db"
     _research_database(database)
