@@ -110,12 +110,17 @@ def test_disclaimer_without_data() -> None:
         render_model([], st=st)
 
 
-def test_shap_capped_at_ten_and_skips_bad_rows() -> None:
+def test_shap_lists_all_valid_rows_and_colors_negative_red() -> None:
     rows = [{"feature": f"f{i}", "value": 0.01 * i} for i in range(15)]
+    rows.append({"feature": "negative", "value": -0.25})
     rows.append({"feature": "", "value": 9.0})
     rows.append({"feature": "bad", "value": float("nan")})
     figure = shap_figure(rows)
-    assert len(figure.data[0].y) == 10
+    assert len(figure.data[0].y) == 16
+    assert figure.layout.title.text == "SHAP 全部特徵"
+    assert figure.layout.height == 632
+    assert list(figure.data[0].marker.color[:-1]) == ["#27d3bd"] * 15
+    assert figure.data[0].marker.color[-1] == "#ff6275"
     assert monthly_ic_figure(None).data == ()
     assert prediction_dist_figure("bad").data == ()
     dist = prediction_dist_figure([0.2, float("nan"), "x", 0.8])

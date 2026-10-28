@@ -23,8 +23,9 @@ from tools.materialize_run import (
 
 def test_frozen_lightgbm_explain_uses_persisted_model(tmp_path) -> None:
     rng = np.random.default_rng(7)
-    matrix = pd.DataFrame(rng.normal(size=(30, 2)), columns=["a", "b"])
-    target = matrix["a"] - matrix["b"]
+    columns = [f"f{i}" for i in range(20)]
+    matrix = pd.DataFrame(rng.normal(size=(30, len(columns))), columns=columns)
+    target = matrix["f0"] - matrix["f1"]
     model = lgb.LGBMRegressor(
         objective="huber",
         n_estimators=10,
@@ -41,7 +42,7 @@ def test_frozen_lightgbm_explain_uses_persisted_model(tmp_path) -> None:
                 "training_objective": "lightgbm:huber",
                 "model_version": "lgbm-test",
                 "feature_version": "factor_v4",
-                "common_features": ["a", "b"],
+                "common_features": columns,
                 "model_file": "booster.txt",
             }
         ),
@@ -55,8 +56,8 @@ def test_frozen_lightgbm_explain_uses_persisted_model(tmp_path) -> None:
     payload = _frozen_model_explain(features, tmp_path, {"model_version": "lgbm-test"})
 
     assert payload["method"] == "frozen_lightgbm_lightgbm:huber"
-    assert {row["feature"] for row in payload["shap_top"]} == {"a", "b"}
-    assert {row["feature"] for row in payload["feature_importance"]} == {"a", "b"}
+    assert {row["feature"] for row in payload["shap_top"]} == set(columns)
+    assert {row["feature"] for row in payload["feature_importance"]} == set(columns)
 
 
 def test_forward_returns_do_not_skip_missing_adjusted_day() -> None:

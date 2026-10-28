@@ -626,7 +626,7 @@ def _proxy_explain(features, labels, settings, summary, run_id: str, as_of_str: 
     ]
     shap_top.sort(key=lambda r: abs(r["value"]), reverse=True)
     return {
-        "shap_top": shap_top[:15],
+        "shap_top": shap_top,
         "feature_importance": importance,
         "method": "posthoc_xgb_default_params_seed42",
     }
@@ -666,7 +666,10 @@ def _frozen_model_explain(features, model_dir: Path, summary: dict) -> dict:
         import lightgbm as lgb
 
         model_path = model_dir / str(report.get("model_file") or "booster.txt")
-        model = lgb.Booster(model_file=str(model_path))
+        # LightGBM's native file loader cannot reliably open Windows paths
+        # containing non-ASCII characters. Loading the same persisted model
+        # text keeps exact model semantics and works for Unicode workspaces.
+        model = lgb.Booster(model_str=model_path.read_text(encoding="utf-8"))
         raw_gain = model.feature_importance(importance_type="gain")
         shap_model = model
     elif model_family == "xgboost":
@@ -705,7 +708,7 @@ def _frozen_model_explain(features, model_dir: Path, summary: dict) -> dict:
     ]
     shap_top.sort(key=lambda row: row["value"], reverse=True)
     return {
-        "shap_top": shap_top[:15],
+        "shap_top": shap_top,
         "feature_importance": importance,
         "method": f"frozen_{model_family}_{objective}",
         "model_dir": str(model_dir),

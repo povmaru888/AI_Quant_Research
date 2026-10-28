@@ -1,6 +1,6 @@
 """P4-05: model page (SDD 14.1 模型).
 
-Renders SHAP Top 10, feature importance, monthly IC, and the prediction
+Renders all available SHAP features, feature importance, monthly IC, and the prediction
 distribution from a ``get_model_data`` dict. A disclaimer is always shown
 first: SHAP reflects feature importance, not factor return attribution.
 Each of the four sections degrades independently to an info line when
@@ -24,7 +24,6 @@ SELECTION_DISCLAIMER = (
 )
 FACTOR_GUIDE_LINK = "?view=factors"
 
-_TOP_N = 10
 _SELECTION_SUMMARIES = (
     ("mean_continuous_rank_ic", "平均連續 Rank IC", False),
     ("ic_positive_month_ratio", "IC > 0 月份比例", True),
@@ -104,23 +103,29 @@ def _monthly_records(payload: object) -> list[dict]:
 
 
 def shap_figure(shap_top: object, theme: DashboardTheme = DARK) -> go.Figure:
-    """Top-10 SHAP bar chart; corrupt rows skipped, capped at ten."""
+    """SHAP bar chart for every valid feature supplied by the run artifact."""
     figure = go.Figure()
-    cleaned = _clean_pairs(shap_top, "feature", "value")[:_TOP_N]
+    cleaned = _clean_pairs(shap_top, "feature", "value")
     if not cleaned:
-        figure.update_layout(title="SHAP Top 10 (no data)")
+        figure.update_layout(title="SHAP 全部特徵 (no data)")
         return figure
+    colors = [theme.negative if value < 0 else theme.primary for _, value in cleaned]
     figure.add_trace(
         go.Bar(
             x=[value for _, value in cleaned],
             y=[name for name, _ in cleaned],
             orientation="h",
             name="SHAP",
-            marker_color=theme.primary,
-            hovertemplate="%{y}<br>mean |SHAP| %{x:.4f}<extra></extra>",
+            marker_color=colors,
+            hovertemplate="%{y}<br>SHAP %{x:.4f}<extra></extra>",
         )
     )
-    figure.update_layout(title="SHAP Top 10", yaxis={"autorange": "reversed"})
+    figure.update_layout(
+        title="SHAP 全部特徵",
+        height=max(420, 32 * len(cleaned) + 120),
+        yaxis={"autorange": "reversed"},
+    )
+    figure.update_xaxes(zeroline=True, zerolinewidth=1.5, zerolinecolor=theme.border)
     return apply_plotly_theme(figure, theme)
 
 
@@ -411,7 +416,7 @@ def render_model(model_data: dict, st=None) -> None:
     st.header("模型")
     st.write(SHAP_DISCLAIMER)
     _render_selection_metrics(st, model_data.get("monthly_ic"), theme)
-    shap = _clean_pairs(model_data.get("shap_top"), "feature", "value")[:_TOP_N]
+    shap = _clean_pairs(model_data.get("shap_top"), "feature", "value")
     if shap:
         st.subheader("特徵解釋")
         st.caption("SHAP 衡量個別預測的平均影響；Gain 衡量樹模型分裂時帶來的改善，兩者定義不同。")
