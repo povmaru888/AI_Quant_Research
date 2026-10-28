@@ -77,13 +77,19 @@ def available_runs(store: RunStore) -> list[str]:
 
 def _run_label(row: dict) -> str:
     run_id = row["run_id"]
-    feature_version = row.get("feature_version")
-    if isinstance(feature_version, str) and feature_version.strip():
+    feature_version = _factor_version(row)
+    if feature_version != UNKNOWN_FACTOR_VERSION:
         return f"{run_id} [{feature_version}]"
     return run_id
 
 
 def _factor_version(row: dict) -> str:
+    marker = f"{row.get('model_version', '')} {row.get('run_id', '')}".lower()
+    if (
+        "factor_v4_ablation_no_beta60d" in marker
+        or "factor-v4-ablation-no-beta60d" in marker
+    ):
+        return "factor_v4_ablation_no_beta60d"
     value = row.get("feature_version")
     return value.strip() if isinstance(value, str) and value.strip() else UNKNOWN_FACTOR_VERSION
 
