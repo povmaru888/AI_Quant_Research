@@ -1,0 +1,23 @@
+{
+  "feature_variant": "factor_v4_ablation_no_beta60d",
+  "excluded_features": [
+    "beta_60d"
+  ],
+  "oos_years": [
+    2020,
+    2021,
+    2022,
+    2023,
+    2024,
+    2025
+  ],
+  "variants": [
+    "baseline",
+    "fixedparams",
+    "optuna"
+  ],
+  "base_feature_version": "factor_v4",
+  "optuna_trials_per_year": 50,
+  "annual_rows": 18,
+  "monthly_rows": 216
+}

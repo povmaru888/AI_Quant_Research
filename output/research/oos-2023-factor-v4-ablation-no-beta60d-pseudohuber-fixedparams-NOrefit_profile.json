@@ -1,0 +1,18 @@
+{
+  "exposure_weighting_method": "same",
+  "fallback_reason": null,
+  "fast_path": true,
+  "rows_loaded": 456232,
+  "run_id": "oos-2023-factor-v4-ablation-no-beta60d-pseudohuber-fixedparams-NOrefit",
+  "score_smoothing_alpha": 1.0,
+  "stages_seconds": {
+    "db_writes": 0.8663755000088713,
+    "market_data": 7.288342799998645,
+    "monthly_risk_execution": 2.284023000000161,
+    "panels": 0.016993900000670692,
+    "predictions": 0.14405840000108583,
+    "total": 9.798539400002483
+  },
+  "tool": "run_oos_portfolio",
+  "weighting_method": "inverse_volatility"
+}

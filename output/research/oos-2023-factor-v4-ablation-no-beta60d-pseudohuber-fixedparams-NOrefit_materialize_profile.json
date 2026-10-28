@@ -1,0 +1,19 @@
+{
+  "fallback_reason": null,
+  "fast_path": true,
+  "rows_loaded": {
+    "backtest": 29511,
+    "selection": 708586
+  },
+  "run_id": "oos-2023-factor-v4-ablation-no-beta60d-pseudohuber-fixedparams-NOrefit",
+  "stages_seconds": {
+    "artifact_write": 0.020046000001457287,
+    "final_panel_explain": 0.963829699998314,
+    "price_slices": 0.11211109999931068,
+    "replay": 0.17730139999912353,
+    "selection_metrics": 2.6364589000004344,
+    "sensitivity": 1.0680405999992217,
+    "total": 5.17147439999826
+  },
+  "tool": "materialize_run"
+}

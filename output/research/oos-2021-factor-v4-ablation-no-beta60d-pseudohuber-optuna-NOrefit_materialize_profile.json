@@ -1,0 +1,19 @@
+{
+  "fallback_reason": null,
+  "fast_path": true,
+  "rows_loaded": {
+    "backtest": 30354,
+    "selection": 1020785
+  },
+  "run_id": "oos-2021-factor-v4-ablation-no-beta60d-pseudohuber-optuna-NOrefit",
+  "stages_seconds": {
+    "artifact_write": 0.00860850000026403,
+    "final_panel_explain": 0.9384385999983351,
+    "price_slices": 0.12996259999999893,
+    "replay": 0.22113729999909992,
+    "selection_metrics": 4.284190200000012,
+    "sensitivity": 1.3304921000017202,
+    "total": 7.119555299999774
+  },
+  "tool": "materialize_run"
+}

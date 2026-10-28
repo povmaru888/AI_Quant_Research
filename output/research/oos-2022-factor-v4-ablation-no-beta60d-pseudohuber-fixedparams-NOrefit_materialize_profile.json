@@ -1,0 +1,19 @@
+{
+  "fallback_reason": null,
+  "fast_path": true,
+  "rows_loaded": {
+    "backtest": 34438,
+    "selection": 775802
+  },
+  "run_id": "oos-2022-factor-v4-ablation-no-beta60d-pseudohuber-fixedparams-NOrefit",
+  "stages_seconds": {
+    "artifact_write": 0.008426200001849793,
+    "final_panel_explain": 1.091947799999616,
+    "price_slices": 0.12563909999880707,
+    "replay": 0.2529753000017081,
+    "selection_metrics": 2.7528119000016886,
+    "sensitivity": 1.2279158999990614,
+    "total": 5.604222400001163
+  },
+  "tool": "materialize_run"
+}

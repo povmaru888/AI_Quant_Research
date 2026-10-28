@@ -1,0 +1,18 @@
+{
+  "exposure_weighting_method": "same",
+  "fallback_reason": null,
+  "fast_path": true,
+  "rows_loaded": 467813,
+  "run_id": "oos-2023-factor-v4-ablation-no-beta60d-pseudohuber-optuna-NOrefit",
+  "score_smoothing_alpha": 1.0,
+  "stages_seconds": {
+    "db_writes": 0.8987665000058769,
+    "market_data": 7.624229199998808,
+    "monthly_risk_execution": 2.3616600000059407,
+    "panels": 0.017999899999267654,
+    "predictions": 0.13412229999812553,
+    "total": 10.195932900001935
+  },
+  "tool": "run_oos_portfolio",
+  "weighting_method": "inverse_volatility"
+}

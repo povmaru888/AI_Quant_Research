@@ -1,0 +1,18 @@
+{
+  "exposure_weighting_method": "same",
+  "fallback_reason": null,
+  "fast_path": true,
+  "rows_loaded": 368152,
+  "run_id": "oos-2020-factor-v4-ablation-no-beta60d-pseudohuber-fixedparams-NOrefit",
+  "score_smoothing_alpha": 1.0,
+  "stages_seconds": {
+    "db_writes": 0.6914967999982764,
+    "market_data": 5.498224799997843,
+    "monthly_risk_execution": 1.7935378000038327,
+    "panels": 0.013649500000610715,
+    "predictions": 0.10518759999831673,
+    "total": 7.470473999997921
+  },
+  "tool": "run_oos_portfolio",
+  "weighting_method": "inverse_volatility"
+}

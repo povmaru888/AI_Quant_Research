@@ -1,0 +1,18 @@
+{
+  "exposure_weighting_method": "same",
+  "fallback_reason": null,
+  "fast_path": true,
+  "rows_loaded": 497820,
+  "run_id": "oos-2025-factor-v4-ablation-no-beta60d-pseudohuber-fixedparams-NOrefit",
+  "score_smoothing_alpha": 1.0,
+  "stages_seconds": {
+    "db_writes": 0.8674067000029027,
+    "market_data": 7.527229700001044,
+    "monthly_risk_execution": 2.367185100003553,
+    "panels": 0.23720700000194483,
+    "predictions": 0.12274429999888525,
+    "total": 10.305774700002075
+  },
+  "tool": "run_oos_portfolio",
+  "weighting_method": "inverse_volatility"
+}

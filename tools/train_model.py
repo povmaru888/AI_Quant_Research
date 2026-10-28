@@ -98,6 +98,21 @@ def _load_parameter_report(value: str) -> tuple[Path, dict]:
     return path, report
 
 
+def _apply_feature_exclusions(
+    columns: list[str] | tuple[str, ...], excluded_features: list[str]
+) -> list[str]:
+    """Remove explicitly named features while rejecting stale experiment specs."""
+    ordered = list(columns)
+    excluded = list(dict.fromkeys(excluded_features))
+    unknown = [feature for feature in excluded if feature not in ordered]
+    if unknown:
+        raise ValueError(f"cannot exclude unavailable features: {unknown}")
+    kept = [feature for feature in ordered if feature not in excluded]
+    if not kept:
+        raise ValueError("feature exclusion removed every model feature")
+    return kept
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Train once, validate once.")
     parser.add_argument("--config", default="config.yaml")
@@ -120,6 +135,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--out", default="models/model_b1")
     parser.add_argument("--model-version", default="xgb_b1")
+    parser.add_argument(
+        "--exclude-feature",
+        action="append",
+        default=[],
+        help="Exclude one model feature after stable-schema selection; repeat as needed.",
+    )
+    parser.add_argument(
+        "--feature-variant",
+        default=None,
+        help="Research-only feature variant recorded in report.json.",
+    )
     parser.add_argument(
         "--objective",
         choices=(
@@ -221,6 +247,7 @@ def main(argv: list[str] | None = None) -> int:
                 panels_dict = train_panels if month in train_panels else valid_panels
                 common &= set(panels_dict[month]["feature_columns"])
         columns = sorted(common)
+    columns = _apply_feature_exclusions(columns, args.exclude_feature)
     print(f"common features: {len(columns)}")
 
     def assemble(snapshots: list[tuple[str, dict]]):
@@ -448,6 +475,8 @@ def main(argv: list[str] | None = None) -> int:
             else "top_quantile_binary_relevance"
         ),
         "feature_version": settings.features.feature_version,
+        "feature_variant": args.feature_variant or settings.features.feature_version,
+        "excluded_features": list(dict.fromkeys(args.exclude_feature)),
         "train_months": [train_months[0], train_months[-1], len(train_months)],
         "purge_month": args.purge_month,
         "valid_months": [valid_months[0], valid_months[-1], len(valid_months)],
