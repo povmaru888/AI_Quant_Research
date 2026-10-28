@@ -74,6 +74,9 @@ tr:hover td { background:#102029; }
 .action-button:hover { background:#18534c; }
 .action-button:disabled { cursor:wait; opacity:.55; }
 .performance-refresh { justify-content:flex-end; margin-bottom:14px; }
+.contribution-toolbar { justify-content:space-between; }
+.sort-button { padding:6px 11px; min-width:76px; }
+.contribution-list { max-height:520px; overflow:auto; padding-right:4px; }
 .metric-list { display:grid; gap:8px; }.metric-row { display:flex; justify-content:space-between; padding:11px 0; border-bottom:1px solid var(--line); color:var(--muted); font-size:12px; }.metric-row strong{color:var(--text)}
 .alert { display:flex; align-items:flex-start; gap:10px; padding:12px; border:1px solid #654c28; background:#20180d; color:#f4c77e; border-radius:10px; font-size:11px; line-height:1.5; }
 .empty { color:var(--muted); display:grid; place-items:center; height:180px; }

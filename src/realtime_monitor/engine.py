@@ -98,6 +98,12 @@ class FundEngine:
             price = quote.price if quote else holding.anchor_price
             market_value = holding.shares * price
             pnl = holding.shares * (price - holding.anchor_price)
+            previous_close = quote.reference if quote else None
+            daily_pnl_contribution = (
+                holding.shares * (price - previous_close)
+                if previous_close is not None and previous_close > 0
+                else None
+            )
             if quote:
                 live_count += 1
             total_equity += market_value
@@ -107,7 +113,7 @@ class FundEngine:
                     "last_price": price,
                     "quote_time": quote.timestamp if quote else holding.anchor_price_date,
                     "quote_source": quote.source if quote else "oos-anchor",
-                    "previous_close": quote.reference if quote else None,
+                    "previous_close": previous_close,
                     "bid": quote.bid if quote else None,
                     "ask": quote.ask if quote else None,
                     "day_change": (
@@ -117,6 +123,7 @@ class FundEngine:
                     ),
                     "market_value": market_value,
                     "pnl_since_anchor": pnl,
+                    "daily_pnl_contribution": daily_pnl_contribution,
                 }
             )
         nav = self.seed.anchor_cash + total_equity

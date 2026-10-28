@@ -93,6 +93,7 @@ def test_seed_bridge_and_live_valuation(tmp_path: Path) -> None:
     assert snapshot["nav"] == 30_200_000
     assert snapshot["pnl_since_anchor"] == 100_000
     assert snapshot["holdings"][0]["day_change"] == pytest.approx(0.02)
+    assert snapshot["holdings"][0]["daily_pnl_contribution"] == 100_000
 
     engine.replace_seed(replace(seed, signal_date="2026-04-30"))
     assert engine.snapshot()["signal_date"] == "2026-04-30"
