@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import replace
+from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from realtime_monitor.engine import FundEngine, LiveQuote
@@ -16,7 +18,7 @@ from realtime_monitor.intraday import (
 )
 from realtime_monitor.monitor_store import MonitorStore
 from realtime_monitor.oos_bridge import load_fund_seed, load_order_history
-from realtime_monitor.shioaji_feed import DatabaseQuoteFeed, TwseIndexQuoteFeed
+from realtime_monitor.shioaji_feed import DatabaseQuoteFeed, ShioajiQuoteFeed, TwseIndexQuoteFeed
 from realtime_monitor.trading_session import TAIPEI, TradingCalendar
 
 
@@ -178,6 +180,22 @@ def test_twse_index_payload_maps_to_live_quote() -> None:
     assert quote.reference == pytest.approx(46041.43)
     assert quote.timestamp == "2026-10-27T11:02:00+08:00"
     assert quote.source == "twse-mis"
+
+
+def test_shioaji_callback_and_numpy_bar_fields_are_compatible() -> None:
+    quote = object()
+    assert ShioajiQuoteFeed._callback_quote((quote,)) is quote
+    assert ShioajiQuoteFeed._callback_quote(("TSE", quote)) is quote
+    assert ShioajiQuoteFeed._callback_quote(()) is None
+    assert ShioajiQuoteFeed._first_value(np.array([123.0, 124.0])) == 123.0
+
+    moment = datetime(2026, 10, 27, 9, 0, tzinfo=TAIPEI)
+    stamp = int(moment.replace(tzinfo=None).replace(tzinfo=timezone.utc).timestamp() * 1e9)
+    rows = ShioajiQuoteFeed._minute_rows(
+        {"ts": np.array([stamp]), "Close": np.array([23000.0])},
+        "2026-10-27",
+    )
+    assert rows == [(moment, 23000.0)]
 
 
 def test_intraday_session_mapping_and_deduplication() -> None:

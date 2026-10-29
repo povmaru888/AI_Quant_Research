@@ -95,13 +95,27 @@ def create_app(
                 str(row["stock_id"]): float(row.get("previous_close") or row["last_price"])
                 for row in snapshot["holdings"]
             }
-            payload = await asyncio.to_thread(
-                feed.load_intraday_history,
-                engine.seed,
-                fallback,
-                target_date=state.target_date,
-                allow_previous=False,
-            )
+            try:
+                payload = await asyncio.to_thread(
+                    feed.load_intraday_history,
+                    engine.seed,
+                    fallback,
+                    target_date=state.target_date,
+                    allow_previous=False,
+                )
+            except Exception as exc:  # noqa: BLE001 - provider outages must not break the UI.
+                store.log_event(
+                    "warning",
+                    "intraday-backfill",
+                    f"{type(exc).__name__}: {exc}",
+                )
+                fallback_payload = dict(cached or empty_intraday(state))
+                fallback_payload.update(
+                    phase=state.phase,
+                    data_status="delayed" if fallback_payload.get("points") else "unavailable",
+                )
+                app.state.intraday_backfill = fallback_payload
+                return False
             if not payload.get("points"):
                 if cached:
                     cached.update(

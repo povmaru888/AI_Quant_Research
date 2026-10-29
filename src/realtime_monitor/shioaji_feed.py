@@ -162,6 +162,28 @@ class ShioajiQuoteFeed:
         except (TypeError, ValueError):
             return None
 
+    @staticmethod
+    def _values(values) -> tuple:
+        """Return Shioaji list/NumPy fields without testing array truthiness."""
+        if values is None:
+            return ()
+        try:
+            return tuple(values)
+        except TypeError:
+            return (values,)
+
+    @classmethod
+    def _first_value(cls, values):
+        items = cls._values(values)
+        return items[0] if items else None
+
+    @staticmethod
+    def _callback_quote(args: tuple):
+        """Support both legacy ``(exchange, quote)`` and current ``(quote,)`` callbacks."""
+        if not args:
+            return None
+        return args[-1]
+
     def _emit(self, code: str, quote, source: str = "shioaji-stream") -> None:
         price = self._number(getattr(quote, "close", None))
         if not price or price <= 0:
@@ -169,8 +191,8 @@ class ShioajiQuoteFeed:
         timestamp = getattr(quote, "datetime", None) or datetime.now(timezone.utc)
         if hasattr(timestamp, "isoformat"):
             timestamp = timestamp.isoformat()
-        bid_prices = getattr(quote, "bid_price", None) or ()
-        ask_prices = getattr(quote, "ask_price", None) or ()
+        bid_prices = self._values(getattr(quote, "bid_price", None))
+        ask_prices = self._values(getattr(quote, "ask_price", None))
         reference = self._number(getattr(quote, "reference", None))
         if reference is None:
             change_price = self._number(getattr(quote, "change_price", None))
@@ -214,12 +236,16 @@ class ShioajiQuoteFeed:
             self._emit(str(snapshot.code), snapshot, "shioaji-snapshot")
 
         @self.api.on_quote_stk_v1()
-        def on_stock(exchange, quote):  # noqa: ARG001
-            self._emit(str(quote.code), quote)
+        def on_stock(*args):
+            quote = self._callback_quote(args)
+            if quote is not None:
+                self._emit(str(quote.code), quote)
 
         @self.api.on_quote_idx_v1()
-        def on_index(exchange, quote):  # noqa: ARG001
-            self._emit(str(quote.code), quote)
+        def on_index(*args):
+            quote = self._callback_quote(args)
+            if quote is not None:
+                self._emit(str(quote.code), quote)
 
         for contract in contracts:
             self.api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Quote, version="v1")
@@ -262,23 +288,25 @@ class ShioajiQuoteFeed:
         if not rows:
             return None
         moment, price = rows[-1]
-        volumes = [self._number(value) or 0.0 for value in bars.get("Volume") or ()]
-        amounts = [self._number(value) or 0.0 for value in bars.get("Amount") or ()]
+        volumes = [self._number(value) or 0.0 for value in self._values(bars.get("Volume"))]
+        amounts = [self._number(value) or 0.0 for value in self._values(bars.get("Amount"))]
         quote = LiveQuote(
             code="TAIEX",
             price=price,
             timestamp=moment.isoformat(),
             source="shioaji-index-kbar",
             reference=self._index_reference,
-            open=self._number((bars.get("Open") or [None])[0]),
+            open=self._number(self._first_value(bars.get("Open"))),
             high=max(
-                (self._number(value) or 0.0 for value in bars.get("High") or ()),
+                (self._number(value) or 0.0 for value in self._values(bars.get("High"))),
                 default=None,
             ),
             low=min(
                 (
                     value
-                    for value in (self._number(item) for item in bars.get("Low") or ())
+                    for value in (
+                        self._number(item) for item in self._values(bars.get("Low"))
+                    )
                     if value
                 ),
                 default=None,
@@ -305,7 +333,11 @@ class ShioajiQuoteFeed:
     @classmethod
     def _minute_rows(cls, bars: dict, session_date: str) -> list[tuple[datetime, float]]:
         rows: list[tuple[datetime, float]] = []
-        for stamp, close in zip(bars.get("ts") or (), bars.get("Close") or (), strict=False):
+        for stamp, close in zip(
+            cls._values(bars.get("ts")),
+            cls._values(bars.get("Close")),
+            strict=False,
+        ):
             moment = cls._bar_datetime(stamp)
             value = cls._number(close)
             if (
@@ -360,7 +392,7 @@ class ShioajiQuoteFeed:
         session_open = datetime.combine(
             datetime.fromisoformat(session_date).date(), time(9), tzinfo=TAIPEI
         )
-        index_open = self._number((index_bars.get("Open") or [None])[0])
+        index_open = self._number(self._first_value(index_bars.get("Open")))
         if index_open and index_rows[0][0] > session_open:
             index_rows.insert(0, (session_open, index_open))
 
@@ -370,7 +402,7 @@ class ShioajiQuoteFeed:
             contract = self._stock_contracts.get(holding.stock_id)
             bars = self._bars(contract, session_date) if contract is not None else {}
             stock_rows[holding.stock_id] = self._minute_rows(bars, session_date)
-            stock_opens[holding.stock_id] = self._number((bars.get("Open") or [None])[0])
+            stock_opens[holding.stock_id] = self._number(self._first_value(bars.get("Open")))
 
         positions: dict[str, int] = {holding.stock_id: 0 for holding in seed.holdings}
         last_prices: dict[str, float] = {
