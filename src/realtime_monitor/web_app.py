@@ -221,6 +221,8 @@ def create_app(
 
     async def refresh_market_loop(feed) -> None:
         """Keep TAIEX current when Shioaji simulation does not stream index quotes."""
+        shioaji_failures = 0
+        next_reconnect = datetime.min.replace(tzinfo=calendar.state().now.tzinfo)
         while not stop_event.is_set():
             delay = 30
             try:
@@ -229,9 +231,55 @@ def create_app(
                 if state.phase in {"live", "closed"} and state.target_date:
                     quote = None
                     if isinstance(feed, ShioajiQuoteFeed):
-                        quote = await asyncio.to_thread(
-                            feed.refresh_index_quote, state.target_date
-                        )
+                        try:
+                            quote = await asyncio.to_thread(
+                                feed.refresh_index_quote, state.target_date
+                            )
+                            shioaji_failures = 0
+                        except Exception as exc:  # noqa: BLE001 - reconnect below.
+                            shioaji_failures += 1
+                            if shioaji_failures == 1:
+                                store.log_event(
+                                    "warning",
+                                    "taiex-refresh",
+                                    f"{type(exc).__name__}: {exc}",
+                                )
+                            reconnect_due = (
+                                shioaji_failures >= 3 or not feed.session_connected
+                            ) and state.now >= next_reconnect
+                            if reconnect_due:
+                                engine.set_connection(
+                                    False,
+                                    "Shioaji quote session lost; reconnecting",
+                                )
+                                try:
+                                    symbols = [
+                                        holding.stock_id for holding in engine.seed.holdings
+                                    ]
+                                    message = await asyncio.to_thread(
+                                        feed.reconnect, symbols
+                                    )
+                                    engine.set_connection(True, message)
+                                    store.log_event(
+                                        "info",
+                                        "shioaji-reconnect",
+                                        f"reconnected after {shioaji_failures} refresh failures",
+                                    )
+                                    shioaji_failures = 0
+                                    next_reconnect = state.now
+                                    await reload_intraday_backfill(
+                                        feed, state, force=True
+                                    )
+                                    quote = await asyncio.to_thread(
+                                        feed.refresh_index_quote, state.target_date
+                                    )
+                                except Exception as reconnect_exc:  # noqa: BLE001
+                                    next_reconnect = state.now + timedelta(seconds=30)
+                                    store.log_event(
+                                        "warning",
+                                        "shioaji-reconnect",
+                                        f"{type(reconnect_exc).__name__}: {reconnect_exc}",
+                                    )
                     market = engine.snapshot().get("market") or {}
                     market_time = FundEngine._quote_time(  # noqa: SLF001
                         str(market.get("timestamp") or "1970-01-01T00:00:00+00:00")

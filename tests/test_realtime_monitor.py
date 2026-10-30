@@ -5,6 +5,7 @@ import sqlite3
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -196,6 +197,32 @@ def test_shioaji_callback_and_numpy_bar_fields_are_compatible() -> None:
         "2026-10-27",
     )
     assert rows == [(moment, 23000.0)]
+
+
+def test_shioaji_stock_stream_derives_previous_close_from_price_chg() -> None:
+    quotes = []
+    feed = ShioajiQuoteFeed(quotes.append)
+    feed._emit(  # noqa: SLF001 - verifies the provider field mapping.
+        "2330",
+        SimpleNamespace(
+            close=995.0,
+            price_chg=-5.0,
+            datetime=datetime(2026, 10, 30, 9, 1, tzinfo=TAIPEI),
+            bid_price=[994.0],
+            ask_price=[995.0],
+        ),
+    )
+    assert quotes[0].reference == 1000.0
+
+
+def test_shioaji_connection_events_track_disconnect_and_recovery() -> None:
+    state = True
+    state = ShioajiQuoteFeed._event_connection_state(state, 12)
+    assert state is False
+    state = ShioajiQuoteFeed._event_connection_state(state, 16)
+    assert state is False
+    state = ShioajiQuoteFeed._event_connection_state(state, 13)
+    assert state is True
 
 
 def test_intraday_session_mapping_and_deduplication() -> None:

@@ -149,6 +149,8 @@ class ShioajiQuoteFeed:
         self._stock_contracts: dict[str, object] = {}
         self._index_contract = None
         self._index_reference: float | None = None
+        self._session_connected = False
+        self._session_event: tuple[int, str] | None = None
         self._api_lock = threading.RLock()
 
     @staticmethod
@@ -184,6 +186,18 @@ class ShioajiQuoteFeed:
             return None
         return args[-1]
 
+    @staticmethod
+    def _event_connection_state(current: bool, event_code: int) -> bool:
+        if event_code in {0, 13}:
+            return True
+        if event_code in {1, 2, 12}:
+            return False
+        return current
+
+    @property
+    def session_connected(self) -> bool:
+        return self._session_connected
+
     def _emit(self, code: str, quote, source: str = "shioaji-stream") -> None:
         price = self._number(getattr(quote, "close", None))
         if not price or price <= 0:
@@ -196,6 +210,10 @@ class ShioajiQuoteFeed:
         reference = self._number(getattr(quote, "reference", None))
         if reference is None:
             change_price = self._number(getattr(quote, "change_price", None))
+            if change_price is None:
+                # Stock QuoteSTKv1 calls this field ``price_chg`` while
+                # request snapshots use ``change_price``.
+                change_price = self._number(getattr(quote, "price_chg", None))
             if change_price is not None and price - change_price > 0:
                 reference = price - change_price
         normalized_code = "TAIEX" if code == "IX0001" else str(code)
@@ -225,6 +243,7 @@ class ShioajiQuoteFeed:
     def start(self, symbols: list[str]) -> str:
         import shioaji as sj
 
+        self._session_connected = False
         self.api = sj.Shioaji(simulation=self.simulation)
         self.api.login(os.environ["SHIOAJI_API_KEY"], os.environ["SHIOAJI_SECRET_KEY"])
         contracts = [self.api.Contracts.Stocks[symbol] for symbol in symbols]
@@ -247,12 +266,37 @@ class ShioajiQuoteFeed:
             if quote is not None:
                 self._emit(str(quote.code), quote)
 
+        @self.api.quote.on_event
+        def on_event(resp_code, event_code, info, event):  # noqa: ARG001
+            code = int(event_code)
+            self._session_connected = self._event_connection_state(
+                self._session_connected, code
+            )
+            self._session_event = (code, str(event))
+
         for contract in contracts:
             self.api.quote.subscribe(contract, quote_type=sj.constant.QuoteType.Quote, version="v1")
         self.api.quote.subscribe(
             index_contract, quote_type=sj.constant.QuoteType.Quote, version="v1"
         )
+        self._session_connected = True
         return f"Shioaji connected; subscribed to {len(contracts)} holdings and TAIEX"
+
+    def reconnect(self, symbols: list[str]) -> str:
+        """Create a fresh Shioaji session and restore every quote subscription."""
+        with self._api_lock:
+            old_api = self.api
+            self.api = None
+            self._session_connected = False
+            self._stock_contracts.clear()
+            self._symbols.clear()
+            self._index_contract = None
+            if old_api is not None:
+                try:
+                    old_api.logout()
+                except Exception:  # noqa: BLE001 - the old session is already unusable.
+                    pass
+            return self.start(symbols)
 
     def reconfigure(self, symbols: list[str]) -> str:
         """Update subscriptions when a newly materialized monthly book appears."""
@@ -446,10 +490,13 @@ class ShioajiQuoteFeed:
         }
 
     def stop(self) -> None:
-        if self.api is not None:
-            try:
-                self.api.logout()
-            finally:
-                self.api = None
-                self._symbols.clear()
-                self._stock_contracts.clear()
+        with self._api_lock:
+            if self.api is not None:
+                try:
+                    self.api.logout()
+                finally:
+                    self.api = None
+                    self._session_connected = False
+                    self._symbols.clear()
+                    self._stock_contracts.clear()
+                    self._index_contract = None
