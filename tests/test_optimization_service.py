@@ -45,7 +45,14 @@ def test_optimize_xgb_returns_best_and_log(settings, monkeypatch) -> None:
         train_x, train_y, valid_x, valid_y, settings, "v", "f", "p", "r", n_trials=2
     )
     assert booster is not None
-    assert list(trial_log.columns) == ["trial", *SEARCH_SPACE, "random_state", "rank_ic"]
+    assert list(trial_log.columns) == [
+        "trial",
+        *SEARCH_SPACE,
+        "random_state",
+        "positive_class_weight",
+        "rank_ic",
+    ]
+    assert trial_log["positive_class_weight"].tolist() == [1.0, 1.0]
     assert len(trial_log) == 2
     assert artifact.validation_rank_ic == trial_log["rank_ic"].max()
     assert artifact.best_params["random_state"] == settings.project.random_state

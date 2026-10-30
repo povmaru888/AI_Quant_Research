@@ -28,7 +28,15 @@ SUCCEEDED = "succeeded"
 ALL_FILTER = "全部"
 DEFAULT_FACTOR_VERSION = "factor_v4"
 UNKNOWN_FACTOR_VERSION = "未標示"
-METHODS: tuple[str, ...] = ("binary", "logistic", "rank", "huber", "LightGBM")
+METHODS: tuple[str, ...] = (
+    "binary",
+    "class_weight_fixed",
+    "class_weight_optuna",
+    "logistic",
+    "rank",
+    "huber",
+    "LightGBM",
+)
 SMOOTHING_ALPHAS: tuple[str, ...] = ("1.0", "0.8", "0.6", "0.4")
 HOLD_THRESHOLDS: tuple[str, ...] = ("Hold15", "Hold30", "Hold60")
 WEIGHTING_METHODS: tuple[str, ...] = ("反波動", "等權")
@@ -102,6 +110,18 @@ def _oos_year(row: dict) -> str | None:
 def _run_method(row: dict) -> str:
     """Classify persisted runs into the dashboard's research methods."""
     marker = f"{row.get('model_version', '')} {row.get('run_id', '')}".lower()
+    if (
+        "classweight4-fixedparams" in marker
+        or "classweight4_fixedparams" in marker
+        or "class_weight_fixed" in marker
+    ):
+        return "class_weight_fixed"
+    if (
+        "classweight4-optuna" in marker
+        or "classweight4_optuna" in marker
+        or "class_weight_optuna" in marker
+    ):
+        return "class_weight_optuna"
     if "logistic" in marker:
         return "logistic"
     if "lightgbm-huber" in marker or "lightgbm_huber" in marker or "lgbm_huber" in marker:

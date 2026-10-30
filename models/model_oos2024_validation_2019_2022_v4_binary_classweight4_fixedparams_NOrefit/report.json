@@ -1,0 +1,345 @@
+{
+ "model_version": "xgb_binary_oos2024_classweight4_fixedparams",
+ "model_family": "xgboost",
+ "library_version": null,
+ "training_objective": "binary:logistic",
+ "target_definition": "top_quantile_binary_relevance",
+ "feature_version": "factor_v4",
+ "feature_variant": "factor_v4",
+ "excluded_features": [],
+ "train_months": [
+  "2019-01",
+  "2022-11",
+  47
+ ],
+ "purge_month": "2022-12",
+ "valid_months": [
+  "2023-01",
+  "2023-12",
+  12
+ ],
+ "common_features": [
+  "momentum_20d",
+  "momentum_60d",
+  "momentum_120d",
+  "momentum_20d_ex_5d",
+  "ma20_ma60_gap",
+  "rsi14",
+  "price_ma20_gap",
+  "volume_ma20_ma60",
+  "earnings_yield",
+  "book_to_market",
+  "sales_yield",
+  "roe",
+  "revenue_yoy",
+  "revenue_mom",
+  "operating_income_qoq",
+  "volatility_60d",
+  "beta_60d",
+  "max_drawdown_120d",
+  "turnover_60d",
+  "foreign_net_buy_to_issued_shares",
+  "trust_net_buy_to_issued_shares",
+  "margin_balance_change",
+  "close_60d_high",
+  "log_market_cap",
+  "amihud_illiquidity",
+  "short_margin_ratio",
+  "operating_margin"
+ ],
+ "feature_selection": {
+  "momentum_20d": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "momentum_60d": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "momentum_120d": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "momentum_20d_ex_5d": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "ma20_ma60_gap": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "rsi14": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "price_ma20_gap": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "volume_ma20_ma60": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "earnings_yield": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.9068665720734239,
+   "min_row_coverage": 0.8109339407744874,
+   "missing_indicator_included": false
+  },
+  "book_to_market": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.9101055999037236,
+   "min_row_coverage": 0.8223234624145785,
+   "missing_indicator_included": false
+  },
+  "sales_yield": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.9898775188182901,
+   "min_row_coverage": 0.9805825242718447,
+   "missing_indicator_included": false
+  },
+  "roe": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "revenue_yoy": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.9878528773213894,
+   "min_row_coverage": 0.9766990291262136,
+   "missing_indicator_included": false
+  },
+  "revenue_mom": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.9895326955616344,
+   "min_row_coverage": 0.9795158286778398,
+   "missing_indicator_included": false
+  },
+  "operating_income_qoq": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.9676228724164715,
+   "min_row_coverage": 0.954954954954955,
+   "missing_indicator_included": false
+  },
+  "volatility_60d": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "beta_60d": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "max_drawdown_120d": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "turnover_60d": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "foreign_net_buy_to_issued_shares": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "trust_net_buy_to_issued_shares": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "margin_balance_change": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.9732894957483588,
+   "min_row_coverage": 0.9609544468546638,
+   "missing_indicator_included": false
+  },
+  "close_60d_high": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "log_market_cap": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "amihud_illiquidity": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 1.0,
+   "min_row_coverage": 1.0,
+   "missing_indicator_included": false
+  },
+  "short_margin_ratio": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.973714085973882,
+   "min_row_coverage": 0.9609544468546638,
+   "missing_indicator_included": false
+  },
+  "operating_margin": {
+   "eligible": true,
+   "qualified_months": 47,
+   "training_months": 47,
+   "required_months": 43,
+   "mean_row_coverage": 0.9626079210116125,
+   "min_row_coverage": 0.9514563106796117,
+   "missing_indicator_included": false
+  }
+ },
+ "feature_schema_from": null,
+ "train_rows": 21056,
+ "train_snapshot_count": 47,
+ "month_end_train_rows": 21056,
+ "extra_train_rows": 0,
+ "extra_train_panels": null,
+ "valid_rows": 6749,
+ "best_params": {
+  "max_depth": 3,
+  "learning_rate": 0.060139390956848685,
+  "n_estimators": 99,
+  "subsample": 0.8969831871473914,
+  "colsample_bytree": 0.7499081639436984,
+  "min_child_weight": 7,
+  "reg_alpha": 4.787246162792542e-05,
+  "reg_lambda": 0.00010902845665398034,
+  "random_state": 42
+ },
+ "validation_rank_ic": 0.17290381758196938,
+ "validation_top_decile_spread": 0.25347287977800786,
+ "validation_monthly_ic": {
+  "2023-01": 0.20853913224747142,
+  "2023-02": 0.17133849073038512,
+  "2023-03": 0.12218971245032484,
+  "2023-04": 0.2672515106210085,
+  "2023-05": 0.21958115505454834,
+  "2023-06": 0.24577898704512724,
+  "2023-07": 0.07349034288158879,
+  "2023-08": 0.14375061182623897,
+  "2023-09": -0.0018368720573049343,
+  "2023-10": 0.2773991038171572,
+  "2023-11": 0.1411049662285191,
+  "2023-12": 0.20625867013856797
+ },
+ "trials": 0,
+ "parameters_from": "models\\model_oos2024_validation_2019_2022_v4_binary_unweighted_NOrefit\\report.json",
+ "training_seconds": 0.6899727999989409,
+ "class_weighting": {
+  "method": "sample_weight",
+  "negative_class_weight": 1.0,
+  "positive_class_weight": 4.0,
+  "positive_samples": 4230,
+  "negative_samples": 16826,
+  "weighted_effective_sample_count": 33746.0,
+  "parameter_source": "models\\model_oos2024_validation_2019_2022_v4_binary_unweighted_NOrefit\\report.json"
+ },
+ "validation_roc_auc": 0.6240535268247756,
+ "validation_log_loss": 0.6671648025512695,
+ "model_file": "booster.ubj",
+ "model_file_size_bytes": 115776
+}

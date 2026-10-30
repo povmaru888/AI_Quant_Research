@@ -136,6 +136,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", default="models/model_b1")
     parser.add_argument("--model-version", default="xgb_b1")
     parser.add_argument(
+        "--positive-class-weight",
+        type=float,
+        default=1.0,
+        help="Training loss weight for positive binary labels (default: 1.0).",
+    )
+    parser.add_argument(
         "--exclude-feature",
         action="append",
         default=[],
@@ -158,6 +164,14 @@ def main(argv: list[str] | None = None) -> int:
         default="binary:logistic",
     )
     args = parser.parse_args(argv)
+    if (
+        isinstance(args.positive_class_weight, bool)
+        or not np.isfinite(args.positive_class_weight)
+        or args.positive_class_weight <= 0
+    ):
+        parser.error("--positive-class-weight must be a finite value greater than zero")
+    if args.objective != "binary:logistic" and args.positive_class_weight != 1.0:
+        parser.error("--positive-class-weight is only supported for binary:logistic")
     if args.objective == "logistic_regression" and args.params_from:
         parser.error("--params-from is not supported for fixed Logistic Regression")
     if args.extra_train_panels and not args.params_from:
@@ -353,6 +367,7 @@ def main(argv: list[str] | None = None) -> int:
                 settings.features.feature_version,
                 f"fixed-{params_path.parent.name}",
                 run_id,
+                positive_class_weight=args.positive_class_weight,
             )
         trials = pd.DataFrame()
         print(f"reused fixed parameters from {params_path}")
@@ -426,6 +441,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"manual-{run_id}",
                 run_id,
                 n_trials=args.trials,
+                positive_class_weight=args.positive_class_weight,
             )
     print(f"best params: {artifact.best_params}")
     month_ics, month_spreads = [], []
@@ -504,6 +520,29 @@ def main(argv: list[str] | None = None) -> int:
         "parameters_from": args.params_from,
         "training_seconds": float(time.perf_counter() - training_started),
     }
+    if args.objective == "binary:logistic":
+        positive_count = int((train_y == 1).sum())
+        negative_count = int((train_y == 0).sum())
+        validation_probability = booster.predict_proba(valid_x)[:, 1]
+        report.update(
+            {
+                "class_weighting": {
+                    "method": "sample_weight",
+                    "negative_class_weight": 1.0,
+                    "positive_class_weight": float(args.positive_class_weight),
+                    "positive_samples": positive_count,
+                    "negative_samples": negative_count,
+                    "weighted_effective_sample_count": float(
+                        negative_count + args.positive_class_weight * positive_count
+                    ),
+                    "parameter_source": (
+                        str(params_path) if args.params_from else "optuna"
+                    ),
+                },
+                "validation_roc_auc": float(roc_auc_score(valid_y, validation_probability)),
+                "validation_log_loss": float(log_loss(valid_y, validation_probability)),
+            }
+        )
     if args.objective == "logistic_regression":
         validation_probability = booster.predict_proba(valid_x)[:, 1]
         report.update(

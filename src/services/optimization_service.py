@@ -58,6 +58,7 @@ def optimize_xgb(
     parameter_version: str,
     run_id: str,
     n_trials: int | None = None,
+    positive_class_weight: float = 1.0,
 ) -> tuple[ModelArtifact, XGBClassifier, pd.DataFrame]:
     """Run the search; return best (artifact, booster) plus the trial log."""
     trials = settings.validation.optuna_trials if n_trials is None else n_trials
@@ -82,11 +83,19 @@ def optimize_xgb(
             feature_version,
             parameter_version,
             run_id,
+            positive_class_weight,
         )
         score = artifact.validation_rank_ic
         # Optuna rejects NaN objectives; floor to the Spearman minimum.
         score = -1.0 if not np.isfinite(score) else float(score)
-        records.append({"trial": trial.number, **params, "rank_ic": score})
+        records.append(
+            {
+                "trial": trial.number,
+                **params,
+                "positive_class_weight": float(positive_class_weight),
+                "rank_ic": score,
+            }
+        )
         # Keep the first winner on ties, matching numpy.argmax without
         # retaining every fitted model in a long search.
         if score > best_score:
@@ -99,6 +108,15 @@ def optimize_xgb(
         sampler=optuna.samplers.TPESampler(seed=settings.project.random_state),
     )
     study.optimize(objective, n_trials=trials)
-    trial_log = pd.DataFrame(records, columns=["trial", *SEARCH_SPACE, "random_state", "rank_ic"])
+    trial_log = pd.DataFrame(
+        records,
+        columns=[
+            "trial",
+            *SEARCH_SPACE,
+            "random_state",
+            "positive_class_weight",
+            "rank_ic",
+        ],
+    )
     assert best_artifact is not None and best_booster is not None
     return best_artifact, best_booster, trial_log

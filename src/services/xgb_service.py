@@ -128,9 +128,19 @@ def _fit_prepared(
     feature_version: str,
     parameter_version: str,
     run_id: str,
+    positive_class_weight: float = 1.0,
 ) -> tuple[ModelArtifact, XGBClassifier]:
+    if (
+        isinstance(positive_class_weight, bool)
+        or not np.isfinite(positive_class_weight)
+        or positive_class_weight <= 0
+    ):
+        raise ValueError(
+            f"invalid positive_class_weight: {positive_class_weight!r}; expected a finite value > 0"
+        )
     booster = XGBClassifier(**resolved)  # type: ignore[arg-type]
-    booster.fit(data.x_train, data.y_train)
+    sample_weight = np.where(data.y_train == 1, float(positive_class_weight), 1.0)
+    booster.fit(data.x_train, data.y_train, sample_weight=sample_weight)
     valid_prob = booster.predict_proba(data.x_valid)[:, 1]
     valid_ic = rank_ic(pd.Series(valid_prob), pd.Series(data.y_valid, dtype=int))
     if not np.isfinite(valid_ic):
@@ -160,6 +170,7 @@ def train_xgb(
     feature_version: str,
     parameter_version: str,
     run_id: str,
+    positive_class_weight: float = 1.0,
 ) -> tuple[ModelArtifact, XGBClassifier]:
     """Train and score on validation; return artifact plus fitted booster."""
     _validate_metadata(model_version, feature_version, parameter_version, run_id)
@@ -167,7 +178,15 @@ def train_xgb(
         raise ValueError("invalid train_x: needs feature columns only, no stock_id")
     resolved = _resolve_params(params)
     data = _prepare_training(train_x, train_y, valid_x, valid_y)
-    return _fit_prepared(data, resolved, model_version, feature_version, parameter_version, run_id)
+    return _fit_prepared(
+        data,
+        resolved,
+        model_version,
+        feature_version,
+        parameter_version,
+        run_id,
+        positive_class_weight,
+    )
 
 
 def predict_xgb(

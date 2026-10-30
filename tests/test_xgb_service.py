@@ -128,3 +128,60 @@ def test_frame_inputs_numeric_and_string_features() -> None:
 
 def test_default_params_include_random_state() -> None:
     assert _resolve_params(None)["random_state"] == 42
+
+
+def test_train_xgb_applies_positive_sample_weight(monkeypatch) -> None:
+    import services.xgb_service as xgb_module
+
+    captured: dict[str, np.ndarray] = {}
+
+    class FakeClassifier:
+        def __init__(self, **params) -> None:
+            self.params = params
+
+        def fit(self, x, y, sample_weight=None):
+            captured["labels"] = np.asarray(y)
+            captured["weights"] = np.asarray(sample_weight)
+            return self
+
+        def predict_proba(self, x):
+            probability = np.linspace(0.1, 0.9, len(x))
+            return np.column_stack([1.0 - probability, probability])
+
+    monkeypatch.setattr(xgb_module, "XGBClassifier", FakeClassifier)
+    train_x = pd.DataFrame({"f1": [0.0, 1.0, 2.0, 3.0]})
+    train_y = pd.Series([0, 1, 0, 1])
+    valid_x = pd.DataFrame({"f1": [0.0, 1.0, 2.0, 3.0]})
+    valid_y = pd.Series([0, 0, 1, 1])
+    train_xgb(
+        train_x,
+        train_y,
+        valid_x,
+        valid_y,
+        {"n_estimators": 2},
+        "v",
+        "f",
+        "p",
+        "r",
+        positive_class_weight=4.0,
+    )
+    assert captured["weights"].tolist() == [1.0, 4.0, 1.0, 4.0]
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, float("nan"), float("inf"), True])
+def test_train_xgb_rejects_invalid_positive_class_weight(value) -> None:
+    train_x, train_y = _dataset(60)
+    valid_x, valid_y = _dataset(20)
+    with pytest.raises(ValueError, match="positive_class_weight"):
+        train_xgb(
+            train_x,
+            train_y,
+            valid_x,
+            valid_y,
+            {"n_estimators": 2},
+            "v",
+            "f",
+            "p",
+            "r",
+            positive_class_weight=value,
+        )

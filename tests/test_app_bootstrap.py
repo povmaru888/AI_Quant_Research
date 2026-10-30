@@ -163,9 +163,17 @@ def test_run_filters_support_all_factor_version_and_oos_year() -> None:
     assert _oos_year(rows[-1]) is None
 
 
-def test_run_method_classifies_binary_logistic_rank_huber_and_lightgbm() -> None:
+def test_run_method_classifies_binary_class_weight_logistic_rank_huber_and_lightgbm() -> None:
     rows = [
         {"run_id": "oos-2024-factor-v4-NOrefit", "model_version": "xgb_binary"},
+        {
+            "run_id": "oos-2024-factor-v4-binary-classweight4-fixedparams-NOrefit",
+            "model_version": "xgb_binary_oos2024_classweight4_fixedparams",
+        },
+        {
+            "run_id": "oos-2024-factor-v4-binary-classweight4-optuna-NOrefit",
+            "model_version": "xgb_binary_oos2024_classweight4_optuna",
+        },
         {"run_id": "oos-2024-factor-v4-logistic-NOrefit", "model_version": "logistic"},
         {
             "run_id": "oos-2024-factor-v4-rank-pairwise-NOrefit",
@@ -182,10 +190,18 @@ def test_run_method_classifies_binary_logistic_rank_huber_and_lightgbm() -> None
     ]
     assert [_run_method(row) for row in rows] == [
         "binary",
+        "class_weight_fixed",
+        "class_weight_optuna",
         "logistic",
         "rank",
         "huber",
         "LightGBM",
+    ]
+    assert [row["run_id"] for row in _filter_run_rows(rows, method="class_weight_fixed")] == [
+        "oos-2024-factor-v4-binary-classweight4-fixedparams-NOrefit"
+    ]
+    assert [row["run_id"] for row in _filter_run_rows(rows, method="class_weight_optuna")] == [
+        "oos-2024-factor-v4-binary-classweight4-optuna-NOrefit"
     ]
     assert [row["run_id"] for row in _filter_run_rows(rows, method="logistic")] == [
         "oos-2024-factor-v4-logistic-NOrefit"
@@ -301,7 +317,16 @@ def test_main_defaults_smoothing_alpha_filter_to_one() -> None:
     method_select = next(
         call for call in st.calls if call[0] == "selectbox" and call[1] == "依 Method 篩選"
     )
-    assert method_select[2] == ["全部", "binary", "logistic", "rank", "huber", "LightGBM"]
+    assert method_select[2] == [
+        "全部",
+        "binary",
+        "class_weight_fixed",
+        "class_weight_optuna",
+        "logistic",
+        "rank",
+        "huber",
+        "LightGBM",
+    ]
     assert method_select[2][method_select[3]["index"]] == "huber"
     midmonth_select = next(
         call
@@ -549,6 +574,8 @@ def test_comparison_filters_default_to_primary_filter_values() -> None:
     assert calls["比較：依 Method 篩選"][2] == [
         "全部",
         "binary",
+        "class_weight_fixed",
+        "class_weight_optuna",
         "logistic",
         "rank",
         "huber",
