@@ -2,18 +2,18 @@
   "fallback_reason": null,
   "fast_path": true,
   "rows_loaded": {
-    "backtest": 17131,
-    "selection": 147034
+    "backtest": 19464,
+    "selection": 155890
   },
   "run_id": "oos-2026-ytd-factor-v4-pseudohuber-NOrefit",
   "stages_seconds": {
-    "artifact_write": 0.0068916999734938145,
-    "final_panel_explain": 0.7564506999915466,
-    "price_slices": 0.06984660000307485,
-    "replay": 0.11535360000561923,
-    "selection_metrics": 0.6920701999915764,
-    "sensitivity": 0.6467588000232354,
-    "total": 2.427852399996482
+    "artifact_write": 0.010840599992661737,
+    "final_panel_explain": 0.7955480999953579,
+    "price_slices": 0.0749534000060521,
+    "replay": 0.14044360000116285,
+    "selection_metrics": 0.7952471999888076,
+    "sensitivity": 0.7907581000035862,
+    "total": 2.8312936000002082
   },
   "tool": "materialize_run"
 }

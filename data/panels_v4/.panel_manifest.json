@@ -706,6 +706,11 @@
       "build_fingerprint": "2edb9b040bae86c909fbac0cdaf6b32d46d0d036fbb3c27d8b93b6dfb1d14697",
       "panel_purpose": "inference",
       "source_fingerprint": "004aa93b3b66237b91867a75cc97caee8cb4000064a67caefc289f34af5f322c"
+    },
+    "2026-10-30": {
+      "build_fingerprint": "2edb9b040bae86c909fbac0cdaf6b32d46d0d036fbb3c27d8b93b6dfb1d14697",
+      "panel_purpose": "inference",
+      "source_fingerprint": "d06496aecec61c40d194a9589adfa4a537b695fcfb2acc36acad1fd24af8afe4"
     }
   },
   "months": [
@@ -849,10 +854,11 @@
     "2026-06-30",
     "2026-07-31",
     "2026-08-31",
-    "2026-09-30"
+    "2026-09-30",
+    "2026-10-30"
   ],
   "panel_format_version": 2,
   "schedule": "month_end",
-  "source_fingerprint": "004aa93b3b66237b91867a75cc97caee8cb4000064a67caefc289f34af5f322c",
-  "updated_at": "2026-10-23T12:20:16.435303+00:00"
+  "source_fingerprint": "d06496aecec61c40d194a9589adfa4a537b695fcfb2acc36acad1fd24af8afe4",
+  "updated_at": "2026-11-03T06:52:14.589952+00:00"
 }

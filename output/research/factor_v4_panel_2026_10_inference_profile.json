@@ -1,0 +1,35 @@
+{
+  "cpu_seconds": 32.015625,
+  "end": "2026-10",
+  "feature_version": "factor_v4",
+  "months": {
+    "2026-10-30": {
+      "n_labels": 0,
+      "n_universe": 671,
+      "seconds": 4.586094099999173,
+      "status": "succeeded"
+    }
+  },
+  "months_cache_hit": 0,
+  "months_pending": 1,
+  "months_requested": 1,
+  "panel_purpose": "inference",
+  "peak_working_set_bytes": 279220224,
+  "rows_loaded": {
+    "financials": 95274,
+    "institutional_retained": 19104,
+    "institutional_scanned": 2051894,
+    "market_values": 2640,
+    "prices": 359576,
+    "stocks": 3627
+  },
+  "schedule": "month_end",
+  "stages_seconds": {
+    "financials": 0.3328973000025144,
+    "institutional": 8.440769699998782,
+    "market_values_and_universes": 1.9184926000016276,
+    "prices": 20.524150099998224
+  },
+  "start": "2026-10",
+  "wall_seconds": 35.85310409999511
+}
