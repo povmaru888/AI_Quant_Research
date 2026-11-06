@@ -1,5 +1,11 @@
 # AI Quant Research
 
+**台股多因子機器學習選股｜數據分析與機器學習職前訓練專題**
+
+以量化分析師／機器學習工程師面試作品為目標，建立從時點資料、27 個因子、年度模型驗證，到扣成本 OOS 回測、SHAP 與儀表板的完整研究流程。最終 Pseudo-Huber 策略的六年串接年化報酬為 **13.24%**、最大回撤 **−19.59%**；同期 TAIEX 為 **19.31%**、**−31.63%**。成果呈現較淺回撤與較低報酬，尚不足以宣稱可穩定打敗市場。
+
+📄 **[完整研究成果](研究成果.md) · [圖文版 PDF](output/pdf/研究成果.pdf)**
+
 An end-to-end research platform for multi-factor equity selection in the Taiwan stock market. The repository covers data ingestion, point-in-time feature engineering, monthly panel construction, model training, out-of-sample portfolio simulation, research diagnostics, and a Streamlit dashboard.
 
 The current research focus is cross-sectional stock ranking: buy the highest-ranked 15 stocks at each monthly rebalance and retain existing holdings until they fall below rank 30. The system compares classification, learning-to-rank, robust regression, and linear baselines under the same portfolio and transaction-cost assumptions.
@@ -18,18 +24,86 @@ The current research focus is cross-sectional stock ranking: buy the highest-ran
 
 ## Current OOS evidence
 
-The table below summarizes five annual factor v4, no-refit OOS runs from 2020 through 2024. Values are arithmetic averages of the five annual run metrics; they are not a single linked five-year portfolio return.
+### 最終策略：2020–2025 訊號年度
 
-| Method | Mean annual CAGR | Mean Sharpe | Mean continuous Rank IC | Mean annual turnover |
+`oos-2020~2025-factor-v4-pseudohuber-NOrefit` 是六個年度 run 的統稱。每年以四年訓練、一年驗證與 50 次 Optuna 選參，凍結模型後進入次年 OOS；NOrefit 指驗證後不合併訓練與驗證資料重訓，並非六年共用同一模型。投組採 **Top15／Hold30、反波動權重、α=1（不平滑）**，並納入交易成本與 TAIEX MA60 曝險控制。
+
+| 六年串接指標 | 策略 | 同期 TAIEX |
+| --- | ---: | ---: |
+| 年化報酬 CAGR | 13.24% | 19.31% |
+| Sharpe | 1.031 | 0.998 |
+| Sortino | 1.359 | 1.275 |
+| 最大回撤 MDD | -19.59% | -31.63% |
+| 累積報酬 | 105.97% | 178.93% |
+
+![六年串接淨值與回撤：策略及 TAIEX](output/research/research_results_assets/01_nav_drawdown.png)
+
+**評估口徑：**實際估值期間為 **2020-02-03 至 2026-01-30，共 1,464 個交易日**。以上為年度獨立回測的日報酬串接，含各年度首日相對初始資金的報酬，尚非跨年承接持股的單一帳戶重跑。TAIEX 為價格指數，非含息指數；首日以 2020-01-31 收盤為基準，與策略開盤建倉的日內起點略有不同。CAGR 採 252 交易日年化，Sharpe 無風險利率設為 0；Sortino 使用負報酬日的樣本標準差，並非全樣本下檔半變異數版本。
+
+| 訊號年度 | 策略期間報酬 | 大盤期間報酬 | 策略 MDD | 大盤 MDD |
 | --- | ---: | ---: | ---: | ---: |
-| XGBoost binary | 7.35% | 0.78 | -0.063 | 5.71x |
-| Logistic Regression | 5.05% | 0.48 | -0.064 | 6.21x |
-| XGBoost pairwise ranking | 5.08% | 0.49 | -0.069 | 7.69x |
-| XGBoost pseudo-Huber | **12.71%** | **0.92** | **+0.034** | 10.09x |
+| 2020 | 13.11% | 31.69% | -12.97% | -26.53% |
+| 2021 | 10.59% | 16.75% | -10.35% | -12.74% |
+| 2022 | -1.86% | -13.63% | -15.53% | -30.93% |
+| 2023 | 15.82% | 17.19% | -5.86% | -7.69% |
+| 2024 | 22.00% | 31.50% | -10.03% | -18.69% |
+| 2025 | 18.74% | 36.29% | -11.74% | -26.71% |
 
-Pseudo-Huber produced the strongest average return and the only positive mean continuous Rank IC in this comparison. Its main weakness was turnover: about 10.1 times per year. Score smoothing and wider holding buffers reduced turnover only modestly and generally lowered average performance. The strategy also lagged the TAIEX in several strong-market years, so the result should be viewed as a promising research direction rather than evidence of stable market-neutral alpha.
+年度期間報酬依各訊號年度的實際持有區間計算，並非曆年報酬或 CAGR。底稿：[年度重算](output/research/research_results_assets/annual_recomputed.csv)、[串接日報酬](output/research/research_results_assets/stitched_daily.csv)。
 
-The concise interview presentation is available at [`output/pptx/taiwan_quant_research_interview_2026-10-05.pptx`](output/pptx/taiwan_quant_research_interview_2026-10-05.pptx).
+### 方法比較：共同期間 2020–2024
+
+以下是五個年度 artifact 指標的**算術平均**，不可當成五年串接 CAGR 或整段最大回撤。Logistic、Pairwise、LightGBM 缺少同系列完整 2025 結果，因此僅比較共同期間。
+
+| 方法 | 平均年度 CAGR | 平均 Sharpe | 平均 Sortino | 平均年度 MDD | 平均 Rank IC | 年換手 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Logistic Regression | 5.05% | 0.484 | 0.727 | -11.02% | -0.064 | 6.21x |
+| XGBoost Binary | 7.35% | 0.785 | 1.184 | -9.11% | -0.063 | 5.71x |
+| XGBoost Pairwise | 5.08% | 0.491 | 0.764 | -12.07% | -0.069 | 7.69x |
+| XGBoost Pseudo-Huber | **12.48%** | **0.967** | **1.353** | -10.95% | **0.034** | 10.16x |
+| LightGBM Huber | 4.14% | 0.379 | 0.563 | -13.15% | 0.033 | 8.70x |
+
+![不同模型的平均年度報酬及 Sharpe](output/research/research_results_assets/02_methods.png)
+
+Pseudo-Huber 在這組實驗中表現較佳，但換手偏高。LightGBM Huber 同樣有正 IC，投組績效卻較低，顯示選股診斷與經濟成果需分開評估。比較同時涉及演算法、損失實作與搜尋空間，不能視為純 objective 的因果實驗。逐年明細見 [methods_annual.csv](output/research/research_results_assets/methods_annual.csv)。
+
+### 投組與訓練設計的研究發現
+
+| 比較 | 範圍 | 主要結果 |
+| --- | --- | --- |
+| 排名緩衝 | 2020–2024 保存實驗 | Top15/Hold15 → Top15/Hold30，平均換手 10.76 → 10.09x，平均 CAGR 13.62% → 12.71%；Top30/Hold60 為 7.43%。擴大投組未改善平均績效。 |
+| 反波動 vs 等權 | 2020–2024 | 平均 CAGR 12.48% vs 11.43%，Sharpe 0.967 vs 0.821；兩組平均總曝險相同，差異來自個股配置。 |
+| 月中資料增廣 | 僅 2024 OOS | 訓練樣本 21,056 → 41,900，CAGR 23.82% → 13.10%，但回撤與換手降低；增加樣本未改善此年泛化成果。 |
+| 分數平滑 | 2020–2024 | α=0.8／0.6／0.4 的平均 CAGR 為 6.87%／9.02%／7.43%，低於 α=1 的 12.48%；最終保留不平滑。 |
+| Binary class weight | 2020–2025 | 固定參數、正類 4:1 加權後，串接 CAGR 7.53% → 6.33%，Sharpe 0.701 → 0.588；不納入 class weight＋Optuna 組。 |
+| 移除 beta_60d | 2020–2025 消融 | 固定參數移除後平均 IC 提升，但 Sharpe 與 Top15 excess 下降；配對 Bootstrap 差異區間涵蓋 0，不能宣稱 Beta 是不可替代的 Alpha。 |
+
+**版本與口徑限制：**緩衝比較保留原批次 12.71% 基準，不與後來重物化的 12.48% 混排；平滑變體也有物化版本差異。Class weight 的串接口徑未包含各年度首日報酬，不能直接與首頁績效排名。完整實驗條件及來源見 [研究成果](研究成果.md)。
+
+### 特徵解釋與 Bootstrap 情境模擬
+
+SHAP Top3 為 **beta_60d（8.8%）、close_60d_high（8.0%）、sales_yield（7.0%）**。這是六個年度最後訊號截面的 mean(|SHAP|) 各自正規化後等權平均，並非全年重要度、報酬貢獻或因果證據。
+
+![年度末截面的 SHAP 重要度摘要](output/research/research_results_assets/05_shap.png)
+
+以 72 個歷史持有月份抽取一年路徑，各模擬 5,000 次：
+
+| 抽樣方法 | 一年累積報酬中位數 | P5–P95 | 虧損機率 |
+| --- | ---: | ---: | ---: |
+| 單月 IID | 12.79% | -7.90%～38.27% | 16.04% |
+| 三個月 circular block | 12.64% | -5.32%～33.54% | 13.68% |
+
+這是歷史月份重複出現的情境分布，不是未來報酬預測或平均績效信賴區間。路徑沿用已扣成本日報酬，接縫不重建持股或追加換倉成本；區塊法也不保證尾部風險更保守。
+
+### 研究文件與可重現性
+
+- [完整研究成果 Markdown](研究成果.md)：指標定義、實驗比較、限制及來源。
+- [研究成果 PDF](output/pdf/研究成果.pdf)：適合閱讀與面試分享的圖文版。
+- [圖表與重算底稿](output/research/research_results_assets/)：PNG／SVG、逐年指標、日報酬及 SHAP 摘要。
+- [來源指紋](output/research/research_results_assets/provenance.json)：記錄使用 artifact 的 SHA-256，便於辨識後續資料異動。
+- [早期面試簡報（2026-10-05）](output/pptx/taiwan_quant_research_interview_2026-10-05.pptx)：歷史版本；最新研究數字以本次研究成果為準。
+
+完整重建需要已填入資料的本地研究資料庫；僅閱讀報告、PDF 與圖表不需要資料庫。
 
 ## System overview
 
